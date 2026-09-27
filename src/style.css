@@ -9,3 +9,27 @@ html, body {
   width: 100vw;
   height: 100vh;
 }
+#debug {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(10, 12, 24, 0.72);
+  color: #d8f0ff;
+  font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace;
+  border-radius: 4px;
+  pointer-events: none;
+}
+#hint, #toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font: 13px/1.4 system-ui, sans-serif;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  white-space: nowrap;
+}
+#hint { bottom: 10px; opacity: 0.8; }
+#toast { top: 18%; font-size: 20px; transition: opacity 0.4s; }

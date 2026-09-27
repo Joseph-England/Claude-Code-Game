@@ -1,6 +1,6 @@
 # Progress
 
-Current phase: **Phase 2 — Movement & camera** (Phase 1 complete)
+Current phase: **Phase 3 — Mountain & level** (Phases 1–2 complete)
 
 ## Phase 1: Foundation & design
 - [x] Create CLAUDE.md operating rules
@@ -26,7 +26,7 @@ Current phase: **Phase 2 — Movement & camera** (Phase 1 complete)
 - [x] Surface physics table (friction/drag/control) wired to the controller
 - [x] Third-person camera: orbit, auto-follow, terrain collision, speed FOV, carve roll
 - [x] Placeholder avatar (capsule + facing) with lean
-- [ ] Dev tuning panel (lil-gui) + speed/state readout; tune until it feels good; record final constants in DECISIONS
+- [x] Dev tuning panel (lil-gui) + speed/state readout; tune until it feels good; record final constants in DECISIONS
 
 **Done when:** on the gray-box course you can run, jump, slide, slide-jump, wall-kick and feel clear
 differences between surfaces; speed is earned on downslopes and lost uphill/in powder; camera never
@@ -108,3 +108,26 @@ work, README is complete.
   then `src/core/input.js`. Replace the Phase 1 demo in `src/main.js` with the gray-box test course.
 - **Addendum:** PR #1 merged by the user; first Pages deploy succeeded. Per user request Claude now
   handles PRs/merges/deploys itself (DECISIONS #28); the workflow now builds PRs (#29).
+
+### Session 2 — Phase 2: Movement & camera (2026-09-27)
+- **Completed:** every Phase 2 item. `core/loop.js` (120 Hz fixed step, interpolated render),
+  `core/input.js` (kb, pointer-lock mouse, standard gamepad), `world/heightfield.js` (Catmull-Rom
+  height + exact normal, DECISIONS #30), `world/colliders.js` (three-mesh-bvh capsule push-out +
+  camera rays), `world/course.js` (gray-box course: the Run with ice/rollers/kicker/powder lanes,
+  slope lanes 10–58°, surface pads, half-pipe trench, chimney/steps/wall/tunnel, cairn, 7 stations),
+  `player/controller.js` (run/slide/air/stumble/sit, surface table, jump with coyote/buffer,
+  slide-jump, landing projection, stumble, crest launches, wall-kick), `player/camera.js`,
+  `player/avatar.js`, `debug/overlay.js` (F3), `debug/panel.js` (F4), `render/graybox.js`, and all
+  constants in `src/tuning.js`. `npm run check` (also in CI) measures and asserts the feel numbers
+  and camera clipping; results + rationale in DESIGN §2 "Tuning"; decisions #30–35.
+- **User playtest notes:** camera bumps/choppiness fixed (lead-compensated vertical spring, smooth
+  terrain lift, interpolation; DECISIONS #35). Blocky striped shadows explained and fixed for the
+  gray box (r186 dropped PCFSoft; now soft PCF radius + follow frustum, DECISIONS #33); the mountain
+  itself returns in Phase 3 and gets cascades in Phase 4.
+- **Broken / deferred:** 60 fps is not verifiable headless here. Physics is 3.5 µs/step and the
+  course is one ~295k-triangle mesh, so it should hold on integrated GPUs; please confirm with F3.
+  The capsule is resolved against the heightfield only at the feet, so on 60°+ trench walls the
+  body can visually dip into the slope. Phase 3's terrain renderer replaces the single mesh.
+- **Next step:** Phase 3, first item: noise library (`src/world/noise.js`: seeded value/simplex,
+  fBm, ridged, domain warp). The Phase 2 course stays reachable for testing (keep `buildCourse`,
+  e.g. behind `?course=graybox`).

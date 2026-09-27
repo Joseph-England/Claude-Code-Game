@@ -147,6 +147,36 @@ Third-person orbit (mouse / right stick), soft auto-follow behind velocity when 
 collision via heightfield sampling, FOV 60°→75° with speed, slight roll into carves, framing lifts
 to show the next objective at section entrances.
 
+### Tuning (Phase 2 final; values in `src/tuning.js`, measured by `npm run check`)
+All numbers below are measured headlessly by `tools/check-movement.mjs` at the fixed 120 Hz step
+(identical at 30/60/144/240 fps and jittered frame times). Gravity is 15 m/s² (DECISIONS #31).
+
+| Feel target | Mechanism | Measured |
+|---|---|---|
+| Slightly heavy start | run accel 10·(1 − v/7): 0.7 s time constant | 90 % of top speed in 1.6 s |
+| ~7 m/s run on packed | same curve, quadratic drag | 6.9 m/s; powder 5.4, ice 6.8 (but 5 s to get there), rock 6.9 |
+| Stops are readable per surface | run brake 9 m/s² × grip | stop from top speed: rock 2.2 m, packed 2.6 m, powder 1.3 m, **ice 24 m** |
+| Slides are the speed tool | Coulomb μ (packed .06, powder .10, ice .012, rock .45) + drag | 20° slope after 150 m: ice 33, packed 27, powder 8.7 m/s, rock doesn't move |
+| Glide vs. brake is a choice | slide keeps momentum, standing up brakes | from 15 m/s on flat: rock 16 m, powder 21 m, packed 87 m, ice 313 m |
+| Snow walls at ~38°, rock stairs to ~55° | maxWalk per surface → forced slide above it; run gravity × 0.5 | packed climbs 37° (3.4 m/s), not 40°; rock climbs 50°, not 58°; ice struggles at 20°, fails at 30° |
+| Jumps: readable, variable | 6.5 m/s up; ×2.6 gravity if released while rising; ×1.2 falling | full 1.38 m / 0.82 s, tap 0.55 m, running jump 5.8 m |
+| Slide-jump is the "launch" | 5 m/s up, all speed kept | at 15 m/s: 0.81 m high, 9.4 m long, lands at 14.7 m/s |
+| Forgiving inputs | coyote 100 ms, buffer 120 ms | 60 ms late off a ledge works, 160 ms doesn't; early press jumps on touchdown |
+| Landings reward matching the slope | keep tangential velocity, bleed normal | 10 m/s hop onto 30° downslope → 16 m/s; ≥ 11 m/s into the ground (≈ 3.4 m flat drop) stumbles 0.3 s |
+| Ramps emerge from terrain | leave ground when v²/R > g·cosθ·stick (slide 1, run 3) | R = 20 m crest: slide stays down at 12 m/s, launches at 22; running stays down |
+| Wall-kick is learnable | 7 up, ≥ 6 out, 0.12 s wall grace, no repeat off one wall | 3.5 m chimney climbed to 8 m in 5 relaxed kicks |
+
+Notes:
+- Speeds on long ice/packed pitches reach 30–40 m/s; there is still no cap (DECISIONS #18), so Phase 3
+  must give ice chutes a run-out or a rock band (rock μ .45 stops a 15 m/s slide in 16 m).
+- Heightfield collision uses a Catmull-Rom surface and its exact normal (DECISIONS #30), so launches
+  depend only on real curvature and the controller never sticks to cliff faces.
+- Camera: the look-at height follows a critically damped spring (ω 7/s) whose target leads by the
+  low-passed vertical velocity, so steady descents have no lag while bumps are filtered (over the
+  rollers the camera's vertical jerk is 0.18× the player's). Terrain behind the player lifts the boom
+  (pitch) smoothly rather than snapping it in; colliders still pull in instantly. FOV 60°→75° from 8
+  to 30 m/s; roll up to 0.1 rad from lateral acceleration.
+
 ## 3. Level — "the route"
 
 One continuous route, ~1.6 km of path, ~550 m of climb. Sun elevation is tied to **route progress**

@@ -16,7 +16,15 @@ npm install
 npm run dev       # dev server with hot reload; open the printed URL (…/Claude-Code-Game/)
 npm run build     # production build into dist/
 npm run preview   # serve the production build locally
+npm run check     # headless movement/camera checks (speeds, stops, jumps, slopes, camera clipping)
 ```
+
+## Controls (current gray-box build)
+
+Click the game to capture the mouse. **WASD / arrows** move · **mouse** look · **Space** jump (hold
+for height; also wall-kick off ice/rock walls in the air) · **Shift** slide · **1–7** teleport to test
+stations · **R** reset · **F3** debug overlay · **F4** live tuning panel. Gamepad: left stick move,
+right stick look, A jump, B/RT slide. `?spawn=N` in the URL starts at station N (0–6).
 
 ## Deployment
 

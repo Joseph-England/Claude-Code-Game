@@ -20,10 +20,10 @@ Current phase: **Phase 2 — Movement & camera** (Phase 1 complete)
 - [x] Input module: keyboard, mouse (pointer lock), gamepad; action mapping (DECISIONS #26)
 - [x] Gray-box test course: procedural heightfield with flats, slopes (10°–50°), dips/rises, a half-pipe, a ramp, walls; surface zones for powder/packed/ice/rock
 - [x] Heightfield collision + surface lookup; `three-mesh-bvh` collision for box/wall meshes
-- [ ] Controller states: ground run, slide, air, stumble, sit; momentum model (DESIGN §2)
+- [x] Controller states: ground run, slide, air, stumble, sit; momentum model (DESIGN §2)
 - [ ] Jump: variable height, coyote time, jump buffer; slide-jump; landing velocity projection
 - [ ] Wall-kick
-- [ ] Surface physics table (friction/drag/control) wired to the controller
+- [x] Surface physics table (friction/drag/control) wired to the controller
 - [ ] Third-person camera: orbit, auto-follow, terrain collision, speed FOV, carve roll
 - [ ] Placeholder avatar (capsule + facing) with lean
 - [ ] Dev tuning panel (lil-gui) + speed/state readout; tune until it feels good; record final constants in DECISIONS

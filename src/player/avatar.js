@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 
 const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
+const UP = new THREE.Vector3(0, 1, 0);
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const THIGH = 0.44, SHIN = 0.44, TORSO = 0.54;
@@ -107,6 +108,18 @@ export class Avatar {
     this._rightW = new THREE.Vector3();
     this._fwdW = new THREE.Vector3();
     this.wind = new THREE.Vector3();
+    // Scarf colliders (DECISIONS #76): capsules [parent, a, b, radius] in the parent's local space,
+    // turned into world space every frame — the jacket, the pack, the bedroll, the head, the upper
+    // arms. The old single chest sphere left the pack, bedroll, shoulders and neck uncovered.
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    this.scarfShapes = [
+      [this.torso, V(0, 0.06, 0), V(0, 0.44, 0), 0.19],
+      [this.torso, V(0, 0.16, 0.2), V(0, 0.42, 0.2), 0.1],
+      [this.torso, V(-0.14, 0.51, 0.2), V(0.14, 0.51, 0.2), 0.065],
+      [this.head, V(0, 0.13, 0), V(0, 0.2, 0), 0.13],
+      ...this.arms.map((arm) => [arm.shoulder, V(0, 0, 0), V(0, -0.3, 0), 0.075]),
+    ];
+    this.scarfCaps = this.scarfShapes.map(([, , , r]) => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), r }));
   }
 
   reset() { this.scarf.needsReset = true; }
@@ -234,20 +247,22 @@ export class Avatar {
     this.lean.rotation.set(-this.fwd, 0, -this.side, 'YXZ');
     if (state === 'stumble') this.lean.rotation.x += Math.sin(ctl.time * 40) * 0.12;
 
-    // Scarf: tied at the back of the neck, width across the shoulders; the chest keeps it off.
+    // Scarf: tied at the back of the collar; the body's capsules keep it outside the figure.
     this.root.updateMatrixWorld(true);
     this.neck.getWorldPosition(this._neckW);
-    this.torso.localToWorld(this._chestW.set(0, 0.3, 0.08)); // chest + pack
+    this.torso.localToWorld(this._chestW.set(0, 0.3, 0.08));
+    this.scarfShapes.forEach(([obj, a, b], i) => { obj.localToWorld(this.scarfCaps[i].a.copy(a)); obj.localToWorld(this.scarfCaps[i].b.copy(b)); });
     this._rightW.set(Math.cos(yaw), 0, -Math.sin(yaw));
     this._fwdW.set(fx, 0, fz);
-    this._neckW.addScaledVector(this._fwdW, -0.07);
-    this.scarf.update(dt, this._neckW, this._rightW, this.wind, this._chestW);
+    this._neckW.addScaledVector(this._fwdW, -0.1);
+    this.scarf.update(dt, this._neckW, this._rightW, this.wind, this._chestW, this.scarfCaps);
   }
 }
 
 // Scarf: a strip of 10 particles simulated as position-based cloth at a fixed 240 Hz — gravity,
 // aerodynamic drag toward the wind's velocity (so it streams back in proportion to your speed
-// through the air, not to your acceleration), stretch and bend constraints, and a chest sphere.
+// through the air, not to your acceleration), stretch and bend constraints, and capsule colliders
+// for the body.
 // Rendered as a double-sided ribbon plus a knot at the neck.
 class Scarf {
   constructor(scene, n = 10, seg = 0.08) {
@@ -278,7 +293,7 @@ class Scarf {
     this._a = new THREE.Vector3();
   }
 
-  update(dt, anchor, right, wind, chest) {
+  update(dt, anchor, right, wind, chest, caps) {
     const { p, prev, v, n, seg } = this, tmp = this._t, a = this._a;
     if (this.needsReset || p[0].distanceToSquared(anchor) > 1) {
       for (let i = 0; i < n; i++) { p[i].copy(anchor).y -= i * seg; v[i].set(0, 0, 0); }
@@ -320,21 +335,32 @@ class Scarf {
           const d = tmp.length() || 1e-6, min = 1.7 * seg;
           if (d < min) { const c = ((min - d) / d) * 0.5; if (i > 0) p[i].addScaledVector(tmp, -c); p[i + 2].addScaledVector(tmp, c); }
         }
+        // Push out of the body's capsules, with a margin for the ribbon's half-width.
         for (let i = 1; i < n; i++) {
-          tmp.subVectors(p[i], chest);
-          const r = tmp.length(), R = 0.26;
-          if (r < R) p[i].addScaledVector(tmp, (R - r) / (r || 1e-6));
+          for (const c of caps) {
+            a.subVectors(c.b, c.a);
+            const u = Math.max(0, Math.min(1, tmp.subVectors(p[i], c.a).dot(a) / a.lengthSq()));
+            tmp.copy(c.a).addScaledVector(a, u).sub(p[i]).negate(); // closest point → particle
+            const r = tmp.length(), R = c.r + 0.045;
+            if (r < R) p[i].addScaledVector(tmp, (R - r) / (r || 1e-6));
+          }
         }
       }
       for (let i = 1; i < n; i++) v[i].subVectors(p[i], prev[i]).divideScalar(H);
     }
     this.anchorPrev.copy(anchor);
     p[0].copy(anchor);
-    const wdt = 0.055;
+    // The ribbon's width lies across the strip (the shoulders' direction with the strip's own
+    // direction taken out), so it never folds edge-on into a thin rod when it streams sideways.
+    const wdt = 0.055, side = this._a, t = this._t;
     for (let i = 0; i < n; i++) {
+      t.subVectors(p[Math.min(i + 1, n - 1)], p[Math.max(i - 1, 0)]).normalize();
+      side.copy(right).addScaledVector(t, -right.dot(t));
+      if (side.lengthSq() < 0.09) { side.crossVectors(t, UP); if (side.lengthSq() < 1e-4) side.copy(right); }
+      side.normalize();
       const o = i * 6, taper = wdt * (1 - 0.25 * (i / n));
-      this.pos[o] = p[i].x - right.x * taper; this.pos[o + 1] = p[i].y; this.pos[o + 2] = p[i].z - right.z * taper;
-      this.pos[o + 3] = p[i].x + right.x * taper; this.pos[o + 4] = p[i].y; this.pos[o + 5] = p[i].z + right.z * taper;
+      this.pos[o] = p[i].x - side.x * taper; this.pos[o + 1] = p[i].y - side.y * taper; this.pos[o + 2] = p[i].z - side.z * taper;
+      this.pos[o + 3] = p[i].x + side.x * taper; this.pos[o + 4] = p[i].y + side.y * taper; this.pos[o + 5] = p[i].z + side.z * taper;
     }
     const geo = this.mesh.geometry;
     geo.attributes.position.needsUpdate = true;

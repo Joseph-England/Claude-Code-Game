@@ -106,3 +106,5 @@ work, README is complete.
   Source = GitHub Actions** must be set once, before the link goes live.
 - **Next step:** Phase 2, first item: create `src/core/loop.js` (fixed 120 Hz step + interpolation),
   then `src/core/input.js`. Replace the Phase 1 demo in `src/main.js` with the gray-box test course.
+- **Addendum:** PR #1 merged by the user; first Pages deploy succeeded. Per user request Claude now
+  handles PRs/merges/deploys itself (DECISIONS #28); the workflow now builds PRs (#29).

@@ -81,7 +81,7 @@ drops to 0.5). On real hardware, F3 shows GPU ms (timer query) per frame. Physic
 ## Phase 5: Story, audio & flow
 Playtest notes from Session 4's build (done first):
 - [x] Remove wall-kick + chimneys; replace the bridge collapse with a descent; spread the whiteout cairns; no summit flag; tighter controls (DECISIONS #60–63)
-- [ ] Avatar: better figure, no idle animation, balanced stance; scarf that behaves like cloth
+- [x] Avatar: better figure, no idle animation, balanced stance; scarf that behaves like cloth (DECISIONS #64)
 - [ ] Mountains that read as mountains (structure of the ranges and the relief); sunset glow from the sky, not the valley fog
 - [ ] Clear summit flow (ending takes over; no "press R" nag at the top)
 

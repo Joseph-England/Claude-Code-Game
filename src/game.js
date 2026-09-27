@@ -294,7 +294,7 @@ function updateAudio(dt) {
     speed: player.speed, airSpeed: player.speed + 6 * g.gust,
     sliding: player.state === 'slide', grounded: player.grounded, surface: player.groundSurface,
     sprinting: player.speed > 6.5, powder: player.groundSurface === SURFACE.POWDER, sitting: player.state === 'sit',
-    gust: g.gust, gustSide: (g.x * _right.x + g.z * _right.z) / gl, whiteout: g.whiteout, shelter: hollow,
+    gust: g.gust, gustWarn: g.warn, gustSide: (g.x * _right.x + g.z * _right.z) / gl, whiteout: g.whiteout, stormNear: g.stormNear ?? 0, shelter: hollow,
     calm: flow.mode === 'ending' ? smooth(since, 4, 30) : 0,
     mood: title ? 0 : sec.name === 'The Descent' && ls > 70 ? 9 : level.section,
     musicDuck: title ? 0.7 : flow.mode === 'credits' ? 0.6 : 1,

@@ -54,10 +54,10 @@ export function buildProps(mountain) {
 
   route.sections.forEach((sec, k) => {
     // --- Cairns: stacked stones; checkpoints.
-    for (const [ls, d] of sec.cairns ?? []) {
+    for (const [ls, d, kind] of sec.cairns ?? []) {
       const p = route.place(k, ls, d);
       const y = ground(p.x, p.z);
-      cairns.push({ x: p.x, y, z: p.z, s: p.s, section: k, yaw: p.yaw, name: `${sec.name} ${ls}` });
+      cairns.push({ x: p.x, y, z: p.z, s: p.s, section: k, yaw: p.yaw, name: `${sec.name} ${ls}`, checkpoint: kind !== 'note' });
       boxes.push({ center: [p.x, y + 0.6, p.z], size: [1.1, 1.2, 1.1], surface: SURFACE.ROCK, yaw: p.yaw });
       let h = y;
       for (let i = 0; i < 5; i++) {

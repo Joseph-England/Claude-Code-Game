@@ -14,22 +14,29 @@ import { ThirdPersonCamera } from './player/camera.js';
 import { Avatar } from './player/avatar.js';
 import { TerrainRenderer, createBackdrop } from './render/terrain.js';
 import { createLights } from './render/lights.js';
+import { Pipeline } from './render/post.js';
+import { Atmosphere } from './render/atmosphere.js';
+import { SunShadow } from './render/sunshadow.js';
+import { SNOW_DIRECT } from './render/snow.js';
+import { Trails } from './render/trails.js';
+import { FogPass } from './render/fog.js';
+import { Particles } from './render/particles.js';
+import { startupTier, Quality, GpuTimer } from './render/quality.js';
+import { glitter } from './render/snow.js';
+import { SURFACE } from './world/surfaces.js';
+import { litMaterial, world as worldU } from './render/materials.js';
+import { sunElevation, SUN_AZIMUTH, snowDensity, grade } from './render/arc.js';
 import { DebugOverlay } from './debug/overlay.js';
 import { createPanel } from './debug/panel.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.85;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+const pipeline = new Pipeline(renderer);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
-const SKY = new THREE.Color(0xa9b8d6), WHITE = new THREE.Color(0xe8ebf0);
-scene.background = SKY.clone();
-scene.fog = new THREE.Fog(SKY.clone(), 250, 5200);
 const camera = new THREE.PerspectiveCamera(tuning.camera.fovMin, 1, 0.1, 9000);
 
 const loading = $('loading');
@@ -43,19 +50,57 @@ scene.add(props.group);
 const colliders = new Colliders(props.boxes, props.meshes);
 const world = { heightfield: mountain.heightfield, colliders, cairns: props.cairns.map((c) => [c.x, c.y, c.z]) };
 const level = new LevelState(mountain, props.cairns, colliders, tuning);
-const terrain = new TerrainRenderer(scene, mountain);
-createBackdrop(scene, mountain);
-const lights = createLights(scene);
+const qStart = startupTier();
+const lights = createLights(scene, camera, { cascades: qStart.tier.cascades, size: qStart.tier.shadowSize });
+const snowLit = (mat, patch, key) => litMaterial(mat, { csm: lights.csm, patch, key, direct: SNOW_DIRECT });
+const trails = new Trails(renderer, qStart.tier.trail);
+const terrain = new TerrainRenderer(scene, mountain, { lit: snowLit, trails });
+createBackdrop(scene, mountain, snowLit);
+const atmosphere = new Atmosphere(renderer, scene);
+const sunShadow = new SunShadow(renderer, terrain.heightTex, mountain.heightfield);
+worldU.tSky.value = atmosphere.skyRT.texture;
+worldU.uSunDir.value = atmosphere.sunDir;
+worldU.uTintHigh = atmosphere.skyUniforms.uTintHigh;
+worldU.uTintLow = atmosphere.skyUniforms.uTintLow;
+worldU.tSunVis.value = sunShadow.texture;
+worldU.uSunVisOrigin.value.copy(sunShadow.origin);
+worldU.uSunVisSize.value = sunShadow.size;
+const fog = new FogPass(); // after the tint swap above: it copies the world uniform references
+pipeline.fog = fog;
+fog.u.uSunColor.value = atmosphere.sunColor;
+
+// Spindrift emitters along the ridge crest and the summit.
+const crest = [];
+for (const k of [4, 8]) {
+  const sec = mountain.route.sections[k];
+  for (let ls = 10; ls < sec.len - 4; ls += 3) {
+    const p = mountain.route.at(sec.s0 + ls);
+    crest.push([p.x, mountain.heightfield.heightAt(p.x, p.z) + 0.3, p.z]);
+  }
+}
+const particles = new Particles(scene, { crest, snow: 30000 });
+const fx = { sprayAcc: 0, breathT: 1, emberAcc: 0, wind: new THREE.Vector3(), light: new THREE.Color() };
+const rnd = (a = 1) => (Math.random() - 0.5) * 2 * a;
 
 const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
 const cam = new ThirdPersonCamera(camera, world, tuning);
 const avatar = new Avatar(scene, tuning);
+avatar.onFoot = (x, z) => { if (onSnow()) trails.foot(x, z); };
+const onSnow = () => player.grounded && (player.groundSurface === SURFACE.POWDER || player.groundSurface === SURFACE.PACKED) && player.heightAboveGround < 0.1;
+// Every other standard material (props, backdrop, avatar) gets the world lighting.
+scene.traverse((o) => {
+  if (!o.isMesh || !o.material?.isMeshStandardMaterial) return;
+  o.receiveShadow = true;
+  if (!o.material.userData.lit)   litMaterial(o.material, { csm: lights.csm, key: `lit-${o.material.flatShading}-${o.material.side}` });
+});
+atmosphere.setSun(sunElevation(0), SUN_AZIMUTH, 0);
+sunShadow.update(atmosphere.sunDir, true);
 const overlay = new DebugOverlay();
 const panel = createPanel(tuning);
 
 // --- Placeholder HUD: toast, story line, gust hint, fade.
-const toast = $('toast'), line = $('line'), fade = $('fade'), windEl = $('wind');
+const toast = $('toast'), line = $('line'), weightVig = $('weight-vignette'), fade = $('fade'), windEl = $('wind');
 let toastTimer = 0, lineTimer = 0;
 const lineQueue = [];
 function showToast(text, secs = 1.6) { toast.textContent = text; toast.style.opacity = 1; toastTimer = secs; }
@@ -63,6 +108,7 @@ function showLine(b) {
   line.textContent = b.text;
   line.className = `voice-${b.voice}`;
   line.style.opacity = 1;
+  weightVig.style.opacity = b.voice === 'W' ? 1 : 0;
   lineTimer = 2.5 + 0.06 * b.text.length;
 }
 
@@ -71,15 +117,24 @@ function spawnAt(index, announce = true) {
   const sp = level.spawnPoint(index);
   player.teleport(sp.pos, sp.yaw);
   cam.reset(player.pos, sp.yaw);
+  avatar.reset();
+  trails.cut();
   if (announce) showToast(props.cairns[index].name);
 }
-// Dev teleport: ?spawn=N or keys 1–9 go to the first cairn of section N-1 (0 = trailhead).
+// Dev teleport: ?spawn=N or keys 1–9 go to the start of section N-1 (its checkpoint if it has one).
 function spawnSection(k) {
-  const i = props.cairns.findIndex((c) => c.section === k);
-  if (i < 0) return;
+  const sec = mountain.route.sections[k];
+  if (!sec) return;
+  const i = props.cairns.findIndex((c) => c.section === k && c.checkpoint);
   // Sections before the target count as done so gating (wall-kick) matches a real run.
-  level.progress = Math.max(level.progress, props.cairns[i].s);
-  spawnAt(i);
+  const s = i >= 0 ? props.cairns[i].s : sec.s0 + 2;
+  level.progress = Math.max(level.progress, s);
+  if (i >= 0) { spawnAt(i); return; }
+  level.checkpoint = Math.max(0, props.cairns.findLastIndex((c) => c.checkpoint && c.s <= s));
+  const p = mountain.route.at(s);
+  player.teleport([p.x, mountain.heightfield.heightAt(p.x, p.z), p.z], p.yaw);
+  cam.reset(player.pos, p.yaw);
+  showToast(sec.name);
 }
 const spawnParam = Number(new URLSearchParams(location.search).get('spawn'));
 if (spawnParam > 0) spawnSection(spawnParam); else spawnAt(0, false);
@@ -103,18 +158,85 @@ let bridgeFall = null;
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
-  renderer.setSize(w, h, false);
+  pipeline.setSize(w, h, Math.min(window.devicePixelRatio, 2));
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
 resize();
 
+const gpuTimer = new GpuTimer(renderer);
+const quality = new Quality(qStart, pipeline, (t) => {
+  terrain.setLod(t.lod);
+  particles.snowTier = t.snow;
+  glitter.value = t.glitter;
+  trails.resize(t.trail);
+  pipeline.setBloomMips(t.bloom);
+  lights.setMapSize(t.shadowSize);
+});
+
 let cmd = null;
+let avatarSink = 0;
 const renderPos = new THREE.Vector3();
-const fogColor = new THREE.Color();
 let summitTime = null;
 let stuckT = 0, lastProgress = 0;
+
+// Grade, exposure, speed effects and the alpenglow, all from the route and the sun.
+const smooth = THREE.MathUtils.smoothstep;
+function updateLook(dt) {
+  const g = pipeline.grade, [sat, temp, contrast] = grade(mountain.route, level.s);
+  g.uSat.value = sat; g.uTemp.value = temp; g.uContrast.value = contrast;
+  const sunY = atmosphere.sunDir.y;
+  g.uExposure.value = 0.62 * (1 + 2.2 * smooth(-sunY, -0.03, 0.09));
+  g.uSpeed.value += (smooth(player.speed, 14, 30) - g.uSpeed.value) * Math.min(1, dt * 4);
+  g.uTime.value = level.time;
+  const glow = smooth(-sunY, -0.035, 0.01) * (1 - smooth(-sunY, 0.05, 0.12));
+  worldU.uGlow.value.setRGB(1.0, 0.32, 0.45).multiplyScalar(2.2 * glow);
+  worldU.uGlowDir.value.set(atmosphere.sunDir.x, 0, atmosphere.sunDir.z).normalize().setY(0.05).normalize();
+  worldU.uGlowH.value = THREE.MathUtils.lerp(-300, 900, smooth(-sunY, -0.03, 0.09));
+}
+
+function updateParticles(dt) {
+  const t = level.time, v = player.vel, sp = player.speed;
+  // Slide spray.
+  if (player.state === 'slide' && onSnow() && sp > 4) {
+    fx.sprayAcc += sp * dt * 3;
+    for (; fx.sprayAcc >= 1; fx.sprayAcc--) {
+      particles.emit(renderPos.x + rnd(0.3), renderPos.y + 0.05, renderPos.z + rnd(0.3), -v.x * 0.15 + rnd(2), 1.2 + Math.random() * 2.2, -v.z * 0.15 + rnd(2), 0.5 + Math.random() * 0.5, 0.05, 1, 0.6, 0);
+    }
+  }
+  // Breath: faster when sprinting.
+  if ((fx.breathT -= dt) <= 0) {
+    fx.breathT = player.speed > 6 ? 0.9 : 2.4;
+    avatar.head.getWorldPosition(fx.wind);
+    const f = [-Math.sin(player.facing), -Math.cos(player.facing)];
+    for (let i = 0; i < 4; i++) particles.emit(fx.wind.x + f[0] * 0.15, fx.wind.y + 0.1, fx.wind.z + f[1] * 0.15, v.x * 0.8 + f[0] * 0.4 + rnd(0.1), 0.15, v.z * 0.8 + f[1] * 0.4 + rnd(0.1), 1.4, 0.035, 0.35, -0.01, 1);
+  }
+  // Cairn embers.
+  fx.emberAcc += dt * 5;
+  for (; fx.emberAcc >= 1; fx.emberAcc--) {
+    for (const c of props.cairns) {
+      if ((c.x - camera.position.x) ** 2 + (c.z - camera.position.z) ** 2 > 90 ** 2) continue;
+      if (!c.checkpoint && Math.random() < 0.5) continue;
+      const a = Math.random() * Math.PI * 2;
+      particles.emit(c.x + Math.cos(a) * 0.5, c.y + 0.4 + Math.random() * 0.8, c.z + Math.sin(a) * 0.5, rnd(0.1), 0.35 + Math.random() * 0.4, rnd(0.1), 2.5 + Math.random(), 0.022, 0, 0, 2);
+    }
+  }
+  // Weather: breeze + gusts + the whiteout's blizzard along the route.
+  const wo = level.wind.whiteout, here = mountain.route.at(level.s);
+  fx.wind.set(1.2 + level.wind.x * 0.9 - here.dx * 11 * wo, 0, 0.6 + level.wind.z * 0.9 - here.dz * 11 * wo);
+  const gustDir = level.wind.gust > 0.02 ? level.wind : null;
+  fx.light.copy(atmosphere.ambientSky).multiplyScalar(0.8).add(new THREE.Color().copy(atmosphere.sunColor).multiplyScalar(0.05));
+  const k = level.section;
+  particles.update({
+    time: t, wind: gustDir ? fx.wind.clone().add(new THREE.Vector3(gustDir.x, 0, gustDir.z)) : fx.wind,
+    snowDensity: Math.max(snowDensity(mountain.route, level.s), wo), streak: wo,
+    driftStrength: k === 4 || k === 8 ? 0.35 + 0.65 * level.wind.gust : 0, light: fx.light,
+  });
+}
+
+// Dev/test handle (tools/smoke.mjs reads it).
+window.__game = { renderer, pipeline, level, player, trails, quality, gpuTimer, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
 
 createLoop({
   beginFrame(frameDt) {
@@ -122,8 +244,9 @@ createLoop({
     if (input.wasPressed('KeyR')) startRespawn();
     if (input.wasPressed('F3') || input.wasPressed('Backquote')) overlay.toggle();
     if (input.wasPressed('F4')) panel.toggle();
+    if (input.wasPressed('F2')) showToast(`quality: ${quality.cycle()}${quality.tier.cascades !== lights.csm.cascades ? ' (shadow cascades after reload)' : ''}`, 2.5);
     if (toastTimer > 0 && (toastTimer -= frameDt) <= 0) toast.style.opacity = 0;
-    if (lineTimer > 0 && (lineTimer -= frameDt) <= 0) line.style.opacity = 0;
+    if (lineTimer > 0 && (lineTimer -= frameDt) <= 0) { line.style.opacity = 0; weightVig.style.opacity = 0; }
     if (lineTimer <= 0 && lineQueue.length && line.style.opacity !== '1') showLine(lineQueue.shift());
     cmd = input.sample(frameDt);
     cam.look(cmd.lookX, cmd.lookY, frameDt);
@@ -136,7 +259,10 @@ createLoop({
     level.step(dt, player);
     for (const e of level.events) {
       if (e.type === 'oob') startRespawn();
-      else if (e.type === 'checkpoint') showToast('checkpoint');
+      else if (e.type === 'checkpoint') {
+        showToast('checkpoint');
+        for (let i = 0; i < 60; i++) particles.emit(e.cairn.x + rnd(0.5), e.cairn.y + 0.8 + rnd(0.5), e.cairn.z + rnd(0.5), rnd(1.5), 1 + Math.random() * 2, rnd(1.5), 2 + Math.random(), 0.03, 0, 0.05, 2);
+      }
       else if (e.type === 'beat') lineQueue.push(e.beat);
       else if (e.type === 'collapse') bridgeFall = { v: 0 };
       else if (e.type === 'summit') { summitTime = e.time; showToast(`summit · ${Math.floor(e.time / 60)}:${String(Math.floor(e.time % 60)).padStart(2, '0')}`, 5); }
@@ -150,7 +276,17 @@ createLoop({
     if (stuckT > 12 && !moving && toastTimer <= 0) { showToast('R — back to the last cairn', 3); stuckT = 0; }
   },
   render(alpha, frameDt, steps) {
-    for (const e of player.events) if (e.type === 'land') cam.impact(e.impact);
+    gpuTimer.begin();
+    for (const e of player.events) {
+      if (e.type !== 'land') continue;
+      cam.impact(e.impact);
+      if (e.impact > 4 && onSnow()) {
+        for (let i = 0; i < 12 + e.impact * 2; i++) {
+          const a = Math.random() * Math.PI * 2, v = 1 + Math.random() * e.impact * 0.3;
+          particles.emit(player.pos.x, player.pos.y + 0.05, player.pos.z, Math.cos(a) * v, 0.8 + Math.random() * 1.5, Math.sin(a) * v, 0.5 + Math.random() * 0.5, 0.06, 1.2, 0.5, 0);
+        }
+      }
+    }
     player.events.length = 0;
     updateRespawn(frameDt);
     if (bridgeFall && mountain.bridge) {
@@ -161,24 +297,38 @@ createLoop({
       if (m.position.y < mountain.bridge.top - 40) { m.visible = false; bridgeFall = null; }
     }
     renderPos.lerpVectors(player.prevPos, player.pos, alpha);
+    // Deformable snow: the path (a groove; deeper when sliding) and footprints from the gait.
+    const snow = onSnow(), sliding = player.state === 'slide';
+    trails.update(renderPos, snow ? (sliding ? { radius: 0.45, depth: 1 } : { radius: 0.24, depth: 0.6 }) : null);
+    const sink = snow && player.groundSurface === SURFACE.POWDER ? (sliding ? 0.3 : 0.18) : snow ? (sliding ? 0.06 : 0.035) : 0;
+    avatarSink += (sink - avatarSink) * Math.min(1, frameDt * 8);
+    renderPos.y -= avatarSink;
     const crouch = THREE.MathUtils.lerp(player.prevCrouch, player.crouch, alpha);
+    // Scarf wind: a steady breeze across the slope plus the level's gusts and headwind.
+    avatar.wind.set(1.5 + level.wind.x * 0.6, 0, 0.8 + level.wind.z * 0.6);
     avatar.update(player, renderPos, alpha, frameDt);
     cam.update(frameDt, renderPos, player, crouch);
-    // Whiteout: fog closes in and drains to white.
+    // Whiteout: the fog pass closes in to ~16 m and drains to a lavender white lit by the sky.
     const wo = level.wind.whiteout;
-    fogColor.copy(SKY).lerp(WHITE, wo);
-    scene.fog.color.copy(fogColor);
-    scene.background.copy(fogColor);
-    scene.fog.near = THREE.MathUtils.lerp(250, 4, wo);
-    scene.fog.far = THREE.MathUtils.lerp(5200, 55, wo);
+    fog.u.uWhiteout.value = wo;
+    fog.u.uWhiteColor.value.copy(atmosphere.ambientSky).multiplyScalar(0.55).addScalar(0.25 * atmosphere.sunColor.g / 16 + 0.08);
     windEl.style.opacity = level.wind.warn || level.wind.gust > 0.2 ? 1 : 0;
-    lights.follow(renderPos);
+    const sinceSummit = summitTime === null ? -1 : level.time - summitTime;
+    atmosphere.setSun(sunElevation(level.progressFraction, sinceSummit), SUN_AZIMUTH, level.time);
+    updateParticles(frameDt);
+    updateLook(frameDt);
+    lights.update(atmosphere.sunDir, atmosphere.sunColor);
+    sunShadow.update(atmosphere.sunDir);
+    worldU.uBounce.value.copy(atmosphere.ambientGround);
     terrain.update(camera);
-    renderer.render(scene, camera);
+    pipeline.render(scene, camera);
+    gpuTimer.end();
+    quality.update(frameDt, gpuTimer.ms);
     const sec = mountain.route.sections[level.section];
     overlay.update(frameDt, player, cam, steps,
       `section  ${level.section} ${sec.name}   s ${level.s.toFixed(0)} d ${level.d.toFixed(1)}\n` +
       `progress ${(level.progressFraction * 100).toFixed(1)}%   cairn ${level.checkpoint}   t ${level.time.toFixed(0)} s${summitTime ? ' (summit)' : ''}\n` +
+      `quality  ${quality.tier.name}${quality.bench ? ' (benchmarking)' : ''}  scale ${quality.scale.toFixed(2)}  gpu ${gpuTimer.ms?.toFixed(1) ?? 'n/a'} ms  cascades ${lights.csm.cascades}\n` +
       `terrain  LOD ${terrain.stats.chunks.join('/')}  ${(terrain.stats.triangles / 1000).toFixed(0)}k tris   calls ${renderer.info.render.calls}   load ${(loadMs / 1000).toFixed(1)} s`);
   },
 }).start();

@@ -5,3 +5,6 @@ Not scheduled. Only implement when a phase says so.
 - Snowplough: input against velocity while sliding adds a little friction (a skill brake without standing up).
 - Tiny speed-line particles / wind audio pitch tied to speed, once Phase 4/5 exist.
 - Camera "look-ahead": bias the look-at point along velocity at high speed to show more of the line.
+- Rebuild CSM + recompile lit materials at runtime so a quality change applies cascades immediately.
+- Persistent trails for a whole section: a second, coarse (1 m) trail layer that never scrolls.
+- Moon rising in the east during the ending, in the Belt of Venus.

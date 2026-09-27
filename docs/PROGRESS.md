@@ -38,7 +38,7 @@ clips into terrain; 60 fps; build passes.
 - [x] Erosion pass (fallback: skip — DESIGN §7 #2)
 - [x] Route spline + section definitions (0–8) and spline-SDF carving of the route into the terrain
 - [x] Splat map: surface types painted by section, slope and route
-- [ ] Chunked terrain renderer with 3 LODs + skirts (height texture in vertex shader)
+- [x] Chunked terrain renderer with 3 LODs + skirts (height texture in vertex shader)
 - [ ] Section set pieces: ice chutes, cornice ridge (wind gust zones), snow bridge collapse, ice cave mesh, whiteout plateau, final face, summit
 - [ ] Props: cairns (checkpoints), rocks; collision meshes into BVH
 - [ ] Checkpoints + respawn (fade back to last cairn < 1.5 s); out-of-bounds detection

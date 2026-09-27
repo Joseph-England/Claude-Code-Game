@@ -85,8 +85,8 @@ Playtest notes from Session 4's build (done first):
 - [x] Mountains that read as mountains (structure of the ranges and the relief); sunset glow from the sky, not the valley fog (DECISIONS #65–66)
 - [ ] Clear summit flow (ending takes over; no "press R" nag at the top)
 
-- [ ] Game state machine: title → playing → ending → credits → title
-- [ ] Title screen (with brief content note) and loading progress
+- [x] Game state machine: title → playing → ending → credits → title
+- [x] Title screen (with brief content note) and loading progress
 - [ ] Narrator: text UI for three voices, queue, fade timing, bell cue
 - [ ] Place all line triggers (DESIGN §1 table) including conditional lines
 - [ ] Cairn notes interaction + "add a stone" beat

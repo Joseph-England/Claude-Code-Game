@@ -9,14 +9,30 @@
   </head>
   <body>
     <canvas id="game"></canvas>
-    <div id="hint">Click to look · WASD move · Shift sprint · Space jump · C or right mouse slide · R back to last cairn · 1–9 sections · F2 quality · F3 debug · F4 tuning</div>
-    <div id="toast"></div>
-    <div id="loading">generating the mountain …</div>
     <div id="weight-vignette"></div>
     <div id="line"></div>
+    <div id="toast"></div>
     <div id="wind">≈ gust ≈</div>
+    <div id="prompt"></div>
+    <div id="controls">WASD move · mouse look · Shift sprint · Space jump · C or right mouse slide · R back to the last cairn</div>
     <div id="fade"></div>
-    
+    <div id="title">
+      <div class="inner">
+        <h1>Alpenglow</h1>
+        <p class="sub">a short climb at sunset</p>
+        <p class="note">This is a game about depression. There is no violence and nothing graphic in it, only a mountain, some weather and a voice that sounds like yours. About five minutes. Headphones help.</p>
+        <p id="status">generating the mountain …</p>
+      </div>
+    </div>
+    <div id="credits">
+      <div class="roll">
+        <h2>Alpenglow</h2>
+        <p>made by Joseph England and Claude</p>
+        <p class="small">Three.js and Web Audio. The mountain, the light, the snow and every sound are generated in code.</p>
+        <p class="care">If you're carrying something heavy, you don't have to carry it alone.<br /><a href="https://findahelpline.com" target="_blank" rel="noopener">findahelpline.com</a> lists free, confidential support in many countries.</p>
+        <p class="small thanks">Thank you for playing.</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

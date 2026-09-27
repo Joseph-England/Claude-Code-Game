@@ -1,5 +1,6 @@
 // Dev helper: screenshot the built game in headless Chromium.
 // Usage: node tools/shot.mjs out.png [waitMs] [query] [keysToHold,comma,separated] [preWaitMs]
+// Needs Playwright + Chromium available to Node (not a project dependency; e.g. link a global install).
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 

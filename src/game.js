@@ -72,6 +72,7 @@ function spawnAt(index, announce = true) {
   const sp = level.spawnPoint(index);
   player.teleport(sp.pos, sp.yaw);
   cam.reset(player.pos, sp.yaw);
+  avatar.reset();
   if (announce) showToast(props.cairns[index].name);
 }
 // Dev teleport: ?spawn=N or keys 1–9 go to the start of section N-1 (its checkpoint if it has one).
@@ -170,6 +171,8 @@ createLoop({
     }
     renderPos.lerpVectors(player.prevPos, player.pos, alpha);
     const crouch = THREE.MathUtils.lerp(player.prevCrouch, player.crouch, alpha);
+    // Scarf wind: a steady breeze across the slope plus the level's gusts and headwind.
+    avatar.wind.set(1.5 + level.wind.x * 0.6, 0, 0.8 + level.wind.z * 0.6);
     avatar.update(player, renderPos, alpha, frameDt);
     cam.update(frameDt, renderPos, player, crouch);
     // Whiteout: fog closes in and drains to white.

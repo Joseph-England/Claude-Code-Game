@@ -67,6 +67,9 @@ export const tuning = {
 
   rest: { delay: 3, radius: 5 },
 
+  // Avatar lean (render only). Small on foot, more when carving a slide (DECISIONS #50).
+  avatar: { leanScale: 0.35, leanRun: 0.08, leanSlide: 0.3 },
+
   // Indexed by SURFACE id: packed, powder, ice, rock.
   //  friction: Coulomb μ while sliding · drag: quadratic (1/m) · linDrag: linear (1/s)
   //  control: scales run accel and all turning · grip: scales run braking · maxWalk: deg

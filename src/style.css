@@ -56,7 +56,7 @@ html, body {
   padding: 10px 40px; border-radius: 40px;
 }
 #line.voice-W {
-  bottom: 45%; color: #b9b6c6; font-style: italic; text-transform: lowercase; letter-spacing: 0.06em;
+  bottom: 64%; color: #b9b6c6; font-style: italic; text-transform: lowercase; letter-spacing: 0.06em;
   font-size: 19px; background: radial-gradient(ellipse at center, rgba(10, 8, 18, 0.72) 0%, rgba(10, 8, 18, 0.45) 55%, transparent 75%);
   text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 18px rgba(40, 30, 60, 0.9);
   filter: blur(0.3px);

@@ -39,7 +39,8 @@ fully saturated alpenglow after the storm, then blue hour and first stars at the
 ### Ending (bittersweet / ambiguous)
 You reach the summit. There is nothing there: no flag, no reward. The camera lifts and reveals
 range after range beyond. The sun slips under the horizon; the Earth's shadow rises in the east with
-the pink Belt of Venus above it; the last alpenglow clings to the far peaks. You sit down. The Weight
+the pink Belt of Venus above it; the last alpenglow clings to the far peaks. You stand and look
+(standing, not sitting: Session 6 playtest, DECISIONS #75), then turn to the lit peaks. The Weight
 speaks once more, very faintly. You answer. The line "I'm still here." holds, then fade to the title.
 Not a cure, not a defeat — a person who is still here, noticing light.
 
@@ -73,7 +74,7 @@ player could already see ("look how far there is to fall", "I'm not the first on
 | 21 | 6 — you leave a stone on cairn C (E) | Y | I'll leave one too. For whoever's next. |
 | 22 | 7 Summit push — storm clears | W | it'll be dark soon. |
 | 23 | 7 — straight after 22 | Y | I know. |
-| 24 | 7 — halfway up the couloir | W | you're so tired. |
+| 24 | 7 — halfway up the summit ridge | W | you're so tired. |
 | 25 | 7 — straight after 24 | Y | I'm tired. I'm still going. |
 | 26 | 8 Summit — walking onto the top | Y | I thought there'd be something up here. |
 | 27 | 8 — the camera lifts to the ranges | W | there's always another one. |
@@ -118,8 +119,8 @@ Movement feel is the heart of the game. The character is a **kinematic body** wi
 - **Steep slopes** — snow above ~38° can't be walked up; you slide back down. Rock grips up to ~55°
   so rock outcrops are the "stairs" of the mountain.
 - **Air control** — weak (~15% of ground), enough to correct, not to steer a jump.
-- **Rest** — standing still for 3 s near a cairn sits you down. It does nothing mechanically. Resting
-  is allowed and never punished.
+- **Rest** — standing still is resting; it is allowed and never punished. (The automatic sit at
+  cairns was removed in Session 6, DECISIONS #75.)
 
 ### Surfaces (per-triangle / per-texel surface id)
 | Surface | Friction | Drag | Control | Notes |
@@ -193,9 +194,9 @@ One continuous route, ~1.6 km of path, ~550 m of climb. Sun elevation is tied to
 | 3 | **Ice Chutes** — two linked half-pipes | 0:45 | Slide down to earn speed, slide-jump launches, landing on downslopes | First joy |
 | 4 | **Cornice Ridge** — narrow crest | 0:40 | Wind gusts push laterally; rock for grip; precision | Intrusive thoughts |
 | 5 | **The Descent** — the ridge runs out; down into a hollow, then up | 0:40 | Slide down, carry the speed up the far side, climb out | Setback; going down to get back up |
-| 6 | **Whiteout** — blizzard plateau | 0:40 | Low visibility; navigate cairn to cairn; stronger drag | Isolation → connection |
-| 7 | **Summit Push** — steep final face, storm clears | 0:40 | Everything: slide-launch off a dip, a rock line up the couloir, rock steps | Resolve |
-| 8 | **Summit** | 0:30 | Walk, sit; no challenge | Quiet, ambiguous ending |
+| 6 | **Whiteout** — a storm in the gap between two horns | 0:40 | Low visibility; navigate cairn to cairn; headwind | Isolation → connection |
+| 7 | **Summit Push** — the summit ridge, storm behind you | 0:40 | Just walking: a steady climb that narrows to a ridge with the ranges either side | Resolve |
+| 8 | **Summit** | 0:30 | Walk, stand, look; no challenge | Quiet, ambiguous ending |
 
 ### Teaching (no tutorial popups)
 - Controls are shown once as tiny glyphs in the snow at the trailhead (drawn into the snow shader).
@@ -220,8 +221,8 @@ cross-section profiles (trail, basin, pipe, ridge, cave, plateau, summit).
 | 3 | Ice Chutes | 260 m | 34 → 15 → 21 → 5 → 8 | 23.9 s | Ice half-pipe 1, packed rise + cairn, half-pipe 2, packed kicker, 7 m crevasse (70° walls), downslope landing, carry-up exit |
 | 4 | Cornice Ridge | 140 m | 8 → 46 | 27.4 s | 6 m crest with 52° falls; gusts every 5.5 s (telegraphed 0.8 s, halved on rock patches) |
 | 5 | The Descent (Phase 5, replaces the Collapse) | 130 m | 46 → 22 → 49 | 12.6 s | The ridge runs out; a long packed slope down into a sheltered hollow (checkpoint cairn at the bottom), then the path climbs out; slide down and the speed carries you part of the way up |
-| 6 | Whiteout | 165 m | 49 → 66 | 22.5 s | Powder plateau between drift banks, fog closes in, headwind, note cairns A/B/C at 36 / 86 / 138 m on the left of a packed path |
-| 7 | Summit Push | 150 m | 62 → 55 → 117 | 21.2 s | Slide into a dip and ride up the bank (rock edge for walkers), the 46° couloir on its zig-zag rock line, a rock ramp (was a kick chimney), last slope |
+| 6 | Whiteout | 165 m | 49 → 66 | 22.5 s | A col between two rock horns (~45 m above the path, 50–100 m out); the wind is funnelled through the gap, so the storm lives there (world/storm.js): you see it from the climb out of the hollow, the wind and snow build as you near it, visibility falls to ~16 m inside, and it is still blowing behind you when you come out (Session 6, DECISIONS #77). Note cairns A/B/C at 36 / 86 / 138 m on the left of a packed path |
+| 7 | Summit Push | 150 m | 62 → 117 | — | Out of the storm onto a broad shoulder that narrows into the summit ridge: a steady 20–25° walk with the ranges on both sides and the low sun ahead (Session 6, DECISIONS #78; the dip, bank, couloir and rock line are gone) |
 | 8 | Summit | 26 m | 117 → 118 | — | Round top with 60 m falls; the ending takes over 12 m in (no flag) |
 
 Phase 5 numbers (tighter controls, no chimneys): bot 2:16, first-time estimate ≈ 4:54 for the
@@ -247,7 +248,10 @@ than ~4 s behind another except direct answers, which follow their line by desig
 - **Particles** — GPU-animated instanced snow with a wind field; spindrift blowing off ridge crests;
   snow spray from slides/landings; breath puffs; embers of light at cairns.
 - **Character** — abstract procedural figure (capsules), procedural gait and lean, and a **verlet
-  scarf** in warm red — the one saturated warm colour until the sunset overtakes it.
+  scarf** in warm red — the one saturated warm colour until the sunset overtakes it. As built
+  (Session 6): feet are planted with two-bone IK on the snow under each foot (no foot slide; toe-off;
+  hips ride steadily on slopes; lean into climbs; stepping turns; feet lift higher in powder), and
+  the scarf collides with capsules for jacket, pack, bedroll, head and arms (DECISIONS #74, #76).
 - **Post** — HDR half-float target → physically based mip-chain bloom → per-section colour grade
   (saturation/temperature curve) → AgX/ACES tonemap → vignette, film grain, subtle speed-streak/
   chromatic aberration at high speed → FXAA.
@@ -266,13 +270,20 @@ density and grade per section), `quality.js`. Decisions #51–59. Medium: 83–8
 
 ## 5. Audio (all procedural Web Audio)
 
-- **Wind** — pink/brown noise through modulated bandpass filters; gust envelopes (synced with ridge
-  gameplay gusts); resonant "whistle" band rises with player speed.
-- **Footsteps** — noise-burst grain synthesis per surface: powder = soft low muffled crunch; packed =
-  bright granular crunch (many micro-clicks); ice = tick + short scrape; rock = dull thud. Timed from
-  the gait cycle.
+- **Wind** — pink noise through a rumble, a soft whistle band and a hiss, with slow swells; gusts
+  are a deep roar plus a broad rush with turbulence, heard building from the warning, panned from
+  upwind, dying away over ~2 s; the gap's storm adds a wandering two-band howl and its roar is heard
+  from the approach (Session 6, DECISIONS #73).
+- **Footsteps** — synthesized per surface in `audio/steps.js` from a heel-then-ball force curve:
+  packed = the crust breaking (dense damped cracks at 0.4–2 kHz plus a low body; the Phase 5
+  highpassed clicks were far too bright); powder = soft low compression, a few muffled crunches, a
+  spill of snow; ice = tick + scrape + glassy grit; rock = boot heel knock, crushed grit, toe scuff
+  (noise only — the old sine thud read as a toy drum). 8 variations per surface, never the same one
+  twice in a row, and every play varies rate, level, pan (toward the foot) and a presence EQ.
+  Fired at each heel strike of the IK gait. Mix: steps sit ~10 dB above the wind bed at their peak
+  (about 7 dB lower than Phase 5's packed steps).
 - **Slide** — continuous filtered noise, cutoff and gain from speed and surface.
-- **Breath** — filtered noise swells on jumps, hard landings, and in powder.
+- **Breath** — filtered noise swells on jumps, hard landings, in powder, sprinting and on steep climbs.
 - **Music** — generative ambient: slow pad chords (detuned oscillators through lowpass), a sparse
   Karplus-Strong/FM "glass piano" motif that grows by section. Harmony moves from suspended/minor to
   an unresolved major add9 at the summit. Music thins in the whiteout, nearly silent at the collapse.

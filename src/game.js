@@ -114,6 +114,7 @@ let cmd = null;
 const renderPos = new THREE.Vector3();
 const fogColor = new THREE.Color();
 let summitTime = null;
+let stuckT = 0, lastProgress = 0;
 
 createLoop({
   beginFrame(frameDt) {
@@ -141,6 +142,12 @@ createLoop({
       else if (e.type === 'summit') { summitTime = e.time; showToast(`summit · ${Math.floor(e.time / 60)}:${String(Math.floor(e.time % 60)).padStart(2, '0')}`, 5); }
     }
     level.events.length = 0;
+    // Safety net: stuck without progress for a while (in a hollow, or fighting a slope) → remind
+    // that R returns to the last cairn.
+    const moving = player.speed > 1.5;
+    stuckT = level.progress > lastProgress + 1 || level.wind.gust > 0 ? 0 : stuckT + dt;
+    if (level.progress > lastProgress + 1) lastProgress = level.progress;
+    if (stuckT > 12 && !moving && toastTimer <= 0) { showToast('R — back to the last cairn', 3); stuckT = 0; }
   },
   render(alpha, frameDt, steps) {
     for (const e of player.events) if (e.type === 'land') cam.impact(e.impact);

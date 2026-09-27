@@ -40,6 +40,13 @@ function bicubic(G, n, fx, fz) {
   return h;
 }
 
+// Blend from a profile edge (height e at distance d0) out to natural terrain N. The blend widens
+// with the height difference so shoulders stay walkable (≈ 21° average, ≈ 31° at the steepest).
+function shoulder(e, N, d0, width, d) {
+  const w = Math.max(width, 2.6 * Math.abs(N - e));
+  return lerp(e, N, smooth(d0, d0 + w, d));
+}
+
 /** Height of a route cross-section at |d| from the centreline, given natural height N. */
 export function profileHeight(p, H, N, d) {
   switch (p.type) {
@@ -51,7 +58,7 @@ export function profileHeight(p, H, N, d) {
       else q = hEdge + (d - dEdge) * T62;
       if (q <= p.depth) return H + q;
       const dTop = dEdge + (p.depth - hEdge) / T62;
-      return lerp(H + p.depth, N, smooth(dTop, dTop + p.shoulder, d));
+      return shoulder(H + p.depth, N, dTop, p.shoulder, d);
     }
     case 'ridge': case 'summit': {
       // Flat crest, a 3 m parabolic fillet, then a 52° fall of `drop` metres; then natural.
@@ -59,22 +66,22 @@ export function profileHeight(p, H, N, d) {
       const fall = e < 3 ? (T52 * e * e) / 6 : T52 * (e - 1.5);
       if (fall <= p.drop) return H - fall;
       const dSide = p.w - 1.5 + p.drop / T52 + 1.5;
-      return lerp(H - p.drop, N, smooth(dSide, dSide + p.shoulder, d));
+      return shoulder(H - p.drop, N, dSide, p.shoulder, d);
     }
     case 'cave': {
       const dWall = p.w + p.wall / T70;
       if (d <= p.w) return H;
       if (d <= dWall) return H + (d - p.w) * T70;
-      return lerp(H + p.wall, N, smooth(dWall + 4, dWall + 4 + p.shoulder, d));
+      return shoulder(H + p.wall, N, dWall + 4, p.shoulder, d);
     }
     case 'plateau': {
       if (d <= p.w) return H;
       if (d <= p.w + p.bank / T45) return H + (d - p.w) * T45;
       const d0 = p.w + p.bank / T45;
-      return lerp(H + p.bank, N, smooth(d0, d0 + p.shoulder, d));
+      return shoulder(H + p.bank, N, d0, p.shoulder, d);
     }
     default: // trail, basin
-      return lerp(H, N, smooth(p.w, p.w + p.shoulder, d));
+      return shoulder(H, N, p.w, p.shoulder, d);
   }
 }
 

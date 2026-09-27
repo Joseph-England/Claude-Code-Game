@@ -10,6 +10,7 @@ import { LevelState } from '../src/world/levelstate.js';
 import { Controller } from '../src/player/controller.js';
 import { tuning } from '../src/tuning.js';
 import { FIXED_DT } from '../src/core/loop.js';
+import * as THREE from 'three';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? true]));
 const DT = FIXED_DT;
@@ -46,6 +47,11 @@ class Bot {
     if (bot.line === 'trail') off = route.trailOffset(sT) ?? 0;
     const tx = tgt.x + tgt.rx * off - p.pos.x, tz = tgt.z + tgt.rz * off - p.pos.z;
     let camYaw = Math.atan2(-tx, -tz);
+    // Too slow for a momentum bank: take the rock edge instead.
+    if (bot.edge && ls > bot.edge[0] && ls < bot.edge[1] && speed < 6.5 && !(bot.slide ?? []).some(([a, b]) => ls >= a && ls < b && speed > 7)) {
+      const e = route.at(Math.min(level.s + 4, sec.s0 + bot.edge[1] + 2));
+      camYaw = Math.atan2(-(e.x + e.rx * bot.edge[2] - p.pos.x), -(e.z + e.rz * bot.edge[2] - p.pos.z));
+    }
     const c = { moveX: 0, moveY: 1, jumpPressed: false, jumpHeld: false, slideHeld: false };
     // Slide where the hint says so, but only while it is worth it (moving, or the bed drops ahead).
     const falling = route.heightAt(level.s + 6) < route.heightAt(level.s) - 0.4;
@@ -70,11 +76,11 @@ class Bot {
         const g = route.at(sec.s0 + gapStart + 1.6);
         camYaw = Math.atan2(-(g.x + g.rx * doorD - p.pos.x), -(g.z + g.rz * doorD - p.pos.z));
         c.moveY = 0.8;
-      } else if (!climbing && p.grounded && Math.abs(lat) > 0.7) {
+      } else if (!climbing && p.grounded && (Math.abs(lat) > 1.2 || speed > 0.6)) {
         // Align: move to the middle of the gap.
         this.inKick = false;
         camYaw = here.yaw;
-        c.moveX = Math.max(-1, Math.min(1, -lat));
+        c.moveX = Math.abs(lat) > 1.2 ? Math.max(-1, Math.min(1, -0.6 * lat)) : 0;
         c.moveY = 0;
       } else if (!climbing && p.grounded) {
         // Start a climb: step back toward the panel, jump on tick 6.
@@ -85,15 +91,42 @@ class Bot {
         this.kickTick++;
         c.jumpHeld = true;
         const above = p.pos.y > top + 0.2;
-        c.moveY = above ? 1 : this.kickDir;
+        // Above the step: head for it — unless still flying back toward the panel, in which case
+        // one more kick off the panel carries us over.
+        c.moveY = above && this.kickDir > 0 ? 1 : this.kickDir;
+        const latVel = p.vel.x * here.rx + p.vel.z * here.rz;
+        c.moveX = Math.max(-1, Math.min(1, -0.8 * lat - 0.5 * latVel));
         if (this.kickTick === 6) c.jumpPressed = true;
-        if (!p.grounded && p.timers.wall > 0 && p.vel.y < 3 && this.kickTick - this.lastKickTick > 6 && !above) {
+        if (!p.grounded && p.timers.wall > 0 && p.vel.y < 3 && this.kickTick - this.lastKickTick > 6 && (!above || this.kickDir < 0)) {
           c.jumpPressed = true; this.kickDir = -this.kickDir; this.lastKickTick = this.kickTick;
         }
         if (p.grounded && this.kickTick >= 12) this.inKick = false;
       }
     } else this.inKick = false;
 
+    // Stuck recovery, as a player would try it: hop, then sidestep, then back off 25 m and come
+    // again (sliding where the hints say) — the answer to a momentum gate. Back-off is 35 m.
+    const blocked = p.grounded && speed < 1 && !this.inKick && c.moveY > 0.5;
+    this.blockedT = blocked ? (this.blockedT ?? 0) + DT : 0;
+    if (this.recover) {
+      const r = this.recover;
+      r.t += DT;
+      if (r.kind === 'hop') { c.jumpPressed = r.t < DT * 1.5; c.jumpHeld = true; }
+      else if (r.kind === 'side') { c.moveX = r.dir; c.moveY = 0.3; }
+      else if (r.kind === 'back') {
+        const b = route.at(Math.max(0, r.from - 35));
+        camYaw = Math.atan2(-(b.x - p.pos.x), -(b.z - p.pos.z));
+        c.slideHeld = false; c.moveX = 0; c.moveY = 1;
+        if (level.s < r.from - 32) r.t = 99;
+      }
+      if (r.t > (r.kind === 'back' ? 12 : 1.2)) this.recover = null;
+    } else if (this.blockedT > 1) {
+      // Backing off only helps if there is a slope behind to build speed on.
+      const kinds = route.heightAt(level.s - 35) > route.heightAt(level.s) + 2 ? ['hop', 'side', 'back'] : ['hop', 'side'];
+      this.recoverCount = (this.recoverCount ?? 0) + 1;
+      this.recover = { kind: kinds[(this.recoverCount - 1) % kinds.length], t: 0, dir: this.recoverCount % 2 ? 1 : -1, from: level.s };
+      this.blockedT = 0;
+    }
     if (this.jumpHold > 0) { c.jumpHeld = true; this.jumpHold -= DT; }
     this.prevLs = ls;
     return { c, camYaw };
@@ -140,7 +173,7 @@ function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
     }
     level.events.length = 0;
     if (args.trace && Math.round(t / DT) % 12 === 0 && level.s > Number(args.trace)) console.log(`    t ${t.toFixed(1)} s ${level.s.toFixed(1)} d ${level.d.toFixed(2)} y ${player.pos.y.toFixed(2)} v ${player.vel.toArray().map((v) => v.toFixed(1))} ${player.state} g${+player.grounded} wall ${player.timers.wall.toFixed(2)} cmd ${JSON.stringify(c)}`);
-    if (summit !== null) break;
+    if (summit !== null && t > summit + 2) break; // walk on a little so the summit beats fire
     if (level.progress > lastProgress + 0.5) { lastProgress = level.progress; stallT = 0; } else stallT += DT;
     if (stallT > 25) {
       return { ok: false, t, secs, why: `stalled at s=${level.s.toFixed(1)} (${route.sections[level.section].name} +${(level.s - route.sections[level.section].s0).toFixed(1)}), d=${level.d.toFixed(1)}, pos ${player.pos.toArray().map((v) => v.toFixed(1)).join(',')}, state ${player.state}`, beats };
@@ -172,7 +205,10 @@ else {
   for (const k of hard) est += Math.min(20, (run.secs[k].dur ?? 0) * 0.35);
   console.log(`\nBot reached the summit in ${fmtT(run.t)} (${run.t.toFixed(1)} s).`);
   console.log(`Estimated first-time playthrough: ${fmtT(est)} (target ≈ 5:00).`);
-  console.log(`Story beats fired: ${run.beats.length}/${mountain.route.sections.reduce((a, s) => a + (s.beats?.length ?? 0), 0)}`);
+  const allBeats = mountain.route.sections.flatMap((s) => (s.beats ?? []).map((b) => b.id));
+  const missed = allBeats.filter((id) => !run.beats.includes(id));
+  console.log(`Story trigger volumes entered: ${run.beats.length}/${allBeats.length}${missed.length ? ` (missed ${missed.join(', ')})` : ''}`);
+  if (missed.length) failures.push(`story triggers never entered: ${missed.join(', ')}`);
   if (from === 0 && (est < 240 || est > 390)) failures.push(`first-time estimate ${fmtT(est)} outside 4:00–6:30`);
 }
 
@@ -195,6 +231,80 @@ if (!args.quick) {
     if (oob || !player.grounded || drift > 1) { bad++; failures.push(`respawn at cairn ${i} (${c.name}) unstable: oob=${oob} grounded=${player.grounded} drift=${drift.toFixed(2)}`); }
   });
   console.log(`\nCairn respawns checked: ${props.cairns.length - bad}/${props.cairns.length} stable.`);
+}
+
+// Momentum gates: from a standstill, the recovery a player would find must work.
+//   The Foot bank: back up onto the flat, run at it, jump at its foot.
+//   Summit Push bank: walk back to the dip's rim, slide in.
+function gateTest(k, startLs, jumpAtLs, slide, passLs, line = 0) {
+  const { level, player } = makeRun();
+  const sec = route.sections[k];
+  const sp = route.at(sec.s0 + startLs);
+  level.progress = sec.s0 + startLs;
+  player.teleport([sp.x, mountain.heightfield.heightAt(sp.x, sp.z), sp.z], sp.yaw);
+  for (let i = 0; i < 12 / DT; i++) {
+    level.step(DT, player);
+    level.events.length = 0;
+    const ls = level.s - sec.s0, tgt = route.at(level.s + 6);
+    const cmdNow = { moveX: 0, moveY: 1, jumpPressed: jumpAtLs !== null && Math.abs(ls - jumpAtLs) < 0.1, jumpHeld: true, slideHeld: slide && ls > 14 };
+    const tx = tgt.x + tgt.rx * line, tz = tgt.z + tgt.rz * line;
+    player.step(DT, cmdNow, Math.atan2(-(tx - player.pos.x), -(tz - player.pos.z)));
+    if (ls > passLs && player.grounded) return true;
+    if (args.gatetrace && i % 24 === 0) console.log(`   g ${(i * DT).toFixed(1)} ls ${ls.toFixed(1)} d ${level.d.toFixed(1)} y ${player.pos.y.toFixed(2)} v ${player.speed.toFixed(1)} ${player.state} surf ${player.groundSurface} slope ${(player.slopeAngle * 57.3).toFixed(0)}`);
+  }
+  return false;
+}
+{
+  const foot = route.sections.findIndex((x) => x.name === 'The Foot'), push = route.sections.findIndex((x) => x.name === 'Summit Push');
+  const g = {
+    'Foot bank, walking the rock edge': gateTest(foot, 120, null, false, 134, 6),
+    'Foot bank, slide from the top of the slope': gateTest(foot, 82, null, true, 134),
+    'Summit Push bank, walking the rock edge': gateTest(push, 26, null, false, 40, 4.5),
+    'Summit Push bank, slide from the rim': gateTest(push, 12, null, true, 40),
+  };
+  console.log(`Momentum gates from rest: ${Object.entries(g).map(([k, v]) => `${k} ${v ? '✓' : '✗'}`).join('; ')}`);
+  for (const [k, v] of Object.entries(g)) if (!v) failures.push(`gate: ${k} fails`);
+}
+
+// Soft-lock sweep: drop the player at points across the corridor (bed, edges, shoulders) and let
+// the bot play for 35 s. Each drop must either gain 12 m of route progress or be caught by the
+// out-of-bounds check (which respawns at a cairn). Anything else is a potential soft-lock.
+if (!args.quick) {
+  const stuck = [];
+  let drops = 0;
+  const only = args.drop ? args.drop.split(',').map(Number) : null;
+  for (let s = only ? only[0] : 10; s < route.length - 10; s += only ? 1e9 : 20) {
+    const prof = route.profileAt(s), p = route.at(s);
+    for (const d of only ? [only[1]] : [-(prof.w + 12), -prof.w, 0, prof.w, prof.w + 12]) {
+      const x = p.x + p.rx * d, z = p.z + p.rz * d;
+      const y = mountain.heightfield.heightAt(x, z);
+      const seg = new THREE.Line3(new THREE.Vector3(x, y + 0.4, z), new THREE.Vector3(x, y + 1.4, z));
+      if (colliders.collideCapsule(seg, 0.35, [])) continue; // inside a prop: not a reachable spot
+      const { level, player } = makeRun();
+      level.progress = s; level.s = s;
+      level.checkpoint = Math.max(0, props.cairns.findLastIndex((c) => c.s <= s));
+      player.teleport([x, mountain.heightfield.heightAt(x, z) + 0.05, z], p.yaw);
+      const bot = new Bot(level, player);
+      let ok = false, oob = false;
+      for (let i = 0; i < 35 / DT && !ok; i++) {
+        const { c, camYaw } = bot.command();
+        player.vel.x += level.wind.x * DT; player.vel.z += level.wind.z * DT;
+        player.step(DT, c, camYaw);
+        player.events.length = 0;
+        level.step(DT, player);
+        if (level.events.some((e) => e.type === 'oob')) oob = true;
+        level.events.length = 0;
+        if (oob || level.progress > s + 12 || level.finished) ok = true;
+        if (only && i % 30 === 0) console.log(`  t ${(i * DT).toFixed(1)} s ${level.s.toFixed(1)} d ${level.d.toFixed(1)} y ${player.pos.y.toFixed(1)} v ${player.speed.toFixed(1)} ${player.state} rec ${bot.recover?.kind ?? '-'} slide ${c.slideHeld}`);
+      }
+      drops++;
+      if (!ok) stuck.push(`${route.section(s).name} +${(s - route.section(s).s0).toFixed(0)} d=${d.toFixed(0)} → stuck at s=${level.s.toFixed(0)} d=${level.d.toFixed(1)} (${player.state})`);
+    }
+  }
+  console.log(`Soft-lock sweep: ${drops - stuck.length}/${drops} drops recovered.${stuck.length ? ` Not recovered by the bot (review):\n  ${stuck.join('\n  ')}` : ''}`);
+  // The sweep bot is simple (no path-finding), so a few misses are bot limits, listed for review in
+  // PROGRESS.md; more than that means the level regressed.
+  if (stuck.length > 3) failures.push(`${stuck.length} drops the bot could not recover from (> 3)`);
 }
 
 console.log(failures.length ? `\nFAILED:\n- ${failures.join('\n- ')}` : '\nRoute completable; all checks passed.');

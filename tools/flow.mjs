@@ -1,6 +1,7 @@
 // Dev helper: drive the real game in headless Chromium through a scripted sequence and take
 // screenshots. Usage: node tools/flow.mjs outPrefix "step;step;…" [query]
-//   steps: wait:ms | click | down:Key | up:Key | press:Key | shot:name | eval:js
+//   steps: wait:ms | click | down:Key | up:Key | press:Key | shot:name | eval:js | evalfile:path.js
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
@@ -23,6 +24,7 @@ for (const step of script.split(';')) {
   else if (cmd === 'press') await page.keyboard.press(arg);
   else if (cmd === 'shot') await page.screenshot({ path: `${prefix}-${arg}.png` });
   else if (cmd === 'eval') console.log(arg, '→', JSON.stringify(await page.evaluate(arg)));
+  else if (cmd === 'evalfile') console.log(arg, '→', JSON.stringify(await page.evaluate(readFileSync(arg, 'utf8'))));
 }
 console.log(logs.slice(0, 20).join('\n'));
 await browser.close();

@@ -310,7 +310,7 @@ function updateAudio(dt) {
     alt: THREE.MathUtils.clamp((player.pos.y + 10) / 140, 0, 1),
     speed: player.speed, airSpeed: player.speed + 6 * g.gust,
     sliding: player.state === 'slide', grounded: player.grounded, surface: player.groundSurface,
-    sprinting: player.speed > 6.5, powder: player.groundSurface === SURFACE.POWDER, sitting: player.state === 'sit',
+    sprinting: player.speed > 6.5, powder: player.groundSurface === SURFACE.POWDER, sitting: player.state === 'sit', climbing: player.state === 'run' && player.vel.y > 1.1,
     gust: g.gust, gustWarn: g.warn, gustSide: (g.x * _right.x + g.z * _right.z) / gl, whiteout: g.whiteout, stormNear: g.stormNear ?? 0, shelter: hollow,
     calm: flow.mode === 'ending' ? smooth(since, 4, 30) : 0,
     mood: title ? 0 : sec.name === 'The Descent' && ls > 70 ? 9 : level.section,

@@ -153,7 +153,7 @@ export class Audio {
     if (k === this.lastStep[surface]) k = (k + 1 + Math.floor(Math.random() * (v.length - 1))) % v.length;
     this.lastStep[surface] = k;
     const sprint = clamp((speed - 5) / 4);
-    const gain = (0.45 + 0.02 * Math.min(speed, 9)) * Math.pow(10, (Math.random() - 0.5) * 0.15);
+    const gain = (0.38 + 0.018 * Math.min(speed, 9)) * Math.pow(10, (Math.random() - 0.5) * 0.15);
     this.shaped(v[k], gain, 0.94 + Math.random() * 0.12 + 0.04 * sprint, side * 0.07 + (Math.random() - 0.5) * 0.06);
   }
 
@@ -213,7 +213,7 @@ export class Audio {
   /**
    * Per frame. s: { alt 0…1, speed, airSpeed, sliding, grounded, surface, gust, gustSide −1…1,
    * gustWarn, whiteout (the storm here), stormNear 0…1 (the gap ahead), shelter 0…1, section,
-   * calm 0…1 (the ending), sprinting, powder }.
+   * calm 0…1 (the ending), sprinting, powder, climbing (walking up a steep slope) }.
    */
   update(dt, s) {
     if (!this.ctx) return;
@@ -228,7 +228,7 @@ export class Audio {
     const flutter = 1 + 0.25 * W.turb + 0.12 * Math.sin(tt * 5.3) + 0.08 * Math.sin(tt * 8.9 + 2);
     // Base: altitude, the gap's roar growing as you climb toward it (heard, muffled, before you're in).
     const base = (0.05 + 0.2 * s.alt) * quiet * calm * (0.8 + 0.4 * swell);
-    set(W.rumble.gain.gain, base * (1 + 0.9 * storm + 0.8 * near) * (1 + 0.15 * W.drift), 0.6);
+    set(W.rumble.gain.gain, base * (1 + 0.6 * storm + 0.6 * near) * (1 + 0.15 * W.drift), 0.6);
     set(W.rumble.flt.frequency, 280 + 180 * s.alt + 220 * storm + 60 * near);
     const air = Math.min(s.airSpeed, 30);
     set(W.whistle.gain.gain, (0.003 + 0.0022 * air + 0.007 * s.alt + 0.012 * storm) * quiet * calm, 0.4);
@@ -249,7 +249,7 @@ export class Audio {
     set(W.roar.p.pan, pan, 0.4); set(W.rush.p.pan, pan * 0.7, 0.4);
     // The storm's howl: two soft resonances wandering in pitch.
     W.howl.forEach((h, i) => {
-      set(h.gain.gain, 0.22 * (storm + 0.25 * near) * calm * (0.7 + 0.5 * (i ? swell : 1 - swell)) * flutter, 0.3);
+      set(h.gain.gain, 0.16 * (storm + 0.25 * near) * calm * (0.7 + 0.5 * (i ? swell : 1 - swell)) * flutter, 0.3);
       set(h.flt.frequency, (i ? 430 : 290) * (1 + 0.12 * Math.sin(tt * (0.21 + 0.07 * i) + i * 2) + 0.05 * W.drift), 0.5);
     });
     // Slide hiss: speed and surface.
@@ -258,10 +258,10 @@ export class Audio {
     set(sl.gain.gain, on ? clamp(s.speed / 18) * (s.surface === 1 ? 0.35 : 0.22) : 0, on ? 0.05 : 0.12);
     set(sl.flt.frequency, f * (0.7 + 0.03 * Math.min(s.speed, 25)), 0.1);
     sl.flt.Q.value = q;
-    // Breathing: effort in powder and when sprinting uphill; calm, slow breaths while sitting.
+    // Breathing: effort in powder, sprinting and on steep climbs; slow breaths while sitting.
     this.breathT = (this.breathT ?? 2) - dt;
     if (this.breathT <= 0) {
-      const effort = s.grounded && !s.sliding && (s.powder || s.sprinting) && s.speed > 2;
+      const effort = s.grounded && !s.sliding && (s.powder || s.sprinting || s.climbing) && s.speed > 2;
       if (effort) { this.breath(this.breathK = 1 - (this.breathK ?? 0), 0.45); this.breathT = 0.9 + Math.random() * 0.3; }
       else if (s.sitting) { this.breath(this.breathK = 1 - (this.breathK ?? 0), 0.25); this.breathT = 2.2 + Math.random() * 0.6; }
       else this.breathT = 0.5;

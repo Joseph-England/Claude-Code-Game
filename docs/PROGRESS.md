@@ -19,7 +19,7 @@ Current phase: **Phase 2 — Movement & camera** (Phase 1 complete)
 - [x] Core loop: fixed 120 Hz physics step, interpolated rendering, `core/loop.js`
 - [x] Input module: keyboard, mouse (pointer lock), gamepad; action mapping (DECISIONS #26)
 - [x] Gray-box test course: procedural heightfield with flats, slopes (10°–50°), dips/rises, a half-pipe, a ramp, walls; surface zones for powder/packed/ice/rock
-- [ ] Heightfield collision + surface lookup; `three-mesh-bvh` collision for box/wall meshes
+- [x] Heightfield collision + surface lookup; `three-mesh-bvh` collision for box/wall meshes
 - [ ] Controller states: ground run, slide, air, stumble, sit; momentum model (DESIGN §2)
 - [ ] Jump: variable height, coyote time, jump buffer; slide-jump; landing velocity projection
 - [ ] Wall-kick

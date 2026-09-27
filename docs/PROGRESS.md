@@ -83,7 +83,7 @@ Playtest notes from Session 4's build (done first):
 - [x] Remove wall-kick + chimneys; replace the bridge collapse with a descent; spread the whiteout cairns; no summit flag; tighter controls (DECISIONS #60–63)
 - [x] Avatar: better figure, no idle animation, balanced stance; scarf that behaves like cloth (DECISIONS #64)
 - [x] Mountains that read as mountains (structure of the ranges and the relief); sunset glow from the sky, not the valley fog (DECISIONS #65–66)
-- [ ] Clear summit flow (ending takes over; no "press R" nag at the top)
+- [x] Clear summit flow (ending takes over; no "press R" nag at the top) (DECISIONS #67, #71)
 
 - [x] Game state machine: title → playing → ending → credits → title
 - [x] Title screen (with brief content note) and loading progress
@@ -93,7 +93,7 @@ Playtest notes from Session 4's build (done first):
 - [x] Audio engine + procedural wind with gusts
 - [x] Surface-aware footsteps, slide noise, breath, landings
 - [x] Generative music by section + procedural reverb IRs (open air / sheltered; the cave is gone, DECISIONS #69)
-- [ ] Ending sequence: camera reveal, sit, sunset, final lines, fade
+- [x] Ending sequence: camera reveal, sit, sunset, final lines, fade
 - [ ] Credits with support-resources line
 - [ ] Pacing pass: full playthroughs, adjust trigger timing and section lengths
 

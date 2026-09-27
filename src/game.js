@@ -12,6 +12,7 @@ import { LevelState } from './world/levelstate.js';
 import { Story } from './story/story.js';
 import { Narrator } from './story/narrator.js';
 import { Audio } from './audio/audio.js';
+import { Ending, ENDING_FADE, ENDING_END } from './story/ending.js';
 import { Controller } from './player/controller.js';
 import { ThirdPersonCamera } from './player/camera.js';
 import { Avatar } from './player/avatar.js';
@@ -159,9 +160,11 @@ function startPlaying() {
   audio.start();
   canvas.requestPointerLock?.();
 }
+let ending = null;
 function startEnding() {
   flow.mode = 'ending';
   flow.t = 0;
+  ending = new Ending({ route: mountain.route, heightfield: mountain.heightfield, story, audio });
   controlsEl.style.opacity = 0;
   promptEl.style.opacity = 0;
   document.exitPointerLock?.();
@@ -174,6 +177,9 @@ function startCredits() {
 }
 function backToTitle() {
   creditsEl.classList.remove('show');
+  fade.style.transition = 'opacity 2.5s';
+  fade.style.opacity = 0;
+  if (audio.music) audio.music.level = 1;
   newRun();
   flow.mode = 'title';
   flow.t = 0;
@@ -300,7 +306,7 @@ function updateLook(dt) {
   const g = pipeline.grade, [sat, temp, contrast] = grade(mountain.route, level.s);
   g.uSat.value = sat; g.uTemp.value = temp; g.uContrast.value = contrast;
   const sunY = atmosphere.sunDir.y;
-  g.uExposure.value = 0.62 * (1 + 2.2 * smooth(-sunY, -0.03, 0.09));
+  g.uExposure.value = 0.62 * (1 + 5 * smooth(-sunY, -0.03, 0.055)); // blue hour stays readable
   g.uSpeed.value += (smooth(player.speed, 14, 30) - g.uSpeed.value) * Math.min(1, dt * 4);
   g.uTime.value = level.time;
   const glow = smooth(-sunY, -0.035, 0.01) * (1 - smooth(-sunY, 0.05, 0.12));
@@ -344,12 +350,12 @@ function updateParticles(dt) {
   particles.update({
     time: t, wind: gustDir ? fx.wind.clone().add(new THREE.Vector3(gustDir.x, 0, gustDir.z)) : fx.wind,
     snowDensity: Math.max(snowDensity(mountain.route, level.s), wo), streak: wo,
-    driftStrength: k === 4 || k === 8 ? 0.35 + 0.65 * level.wind.gust : 0, light: fx.light,
+    driftStrength: (k === 4 || k === 8) && flow.mode === 'playing' ? 0.35 + 0.65 * level.wind.gust : 0, light: fx.light,
   });
 }
 
 // Dev/test handle (tools/smoke.mjs reads it).
-window.__game = { renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, story, props, mountain, input, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
+window.__game = { skipEnding: (sec) => { summitTime -= sec; }, renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, story, props, mountain, input, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
 
 createLoop({
   beginFrame(frameDt) {
@@ -378,17 +384,21 @@ createLoop({
     if (flow.wake === null || flow.wake < 1) cmd = { ...cmd, moveX: 0, moveY: 0, jumpPressed: false, jumpHeld: false, slideHeld: false };
     updateStone(frameDt);
     if (controlsEl.style.opacity === '1' && (flow.controlsT += frameDt) > 16) controlsEl.style.opacity = 0;
-    if (flow.mode === 'ending' && flow.t > 8) { fade.style.transition = 'opacity 3s'; fade.style.opacity = 1; }
-    if (flow.mode === 'ending' && flow.t > 11.5) startCredits();
-    if (flow.mode === 'credits' && flow.t > 40) backToTitle();
-    if (flow.mode === 'title' && fade.style.opacity === '1') { fade.style.transition = 'opacity 2.5s'; fade.style.opacity = 0; }
+    if (flow.mode === 'ending') {
+      const since = level.time - summitTime;
+      ending.update(since, player, atmosphere.sunDir);
+      if (since > ENDING_FADE && fade.style.opacity !== '1') { fade.style.transition = 'opacity 4s'; fade.style.opacity = 1; }
+      if (since > ENDING_END) startCredits();
+    }
+    if (flow.mode === 'credits' && flow.t > 45) backToTitle();
   },
   update(dt, step) {
     if (flow.mode === 'title' || flow.mode === 'credits') return;
     const w = level.wind;
     player.vel.x += w.x * dt;
     player.vel.z += w.z * dt;
-    player.step(dt, step === 0 ? cmd : { ...cmd, jumpPressed: false }, cam.yaw);
+    if (flow.mode === 'ending') { const d = ending.drive(player); player.step(dt, d.cmd, d.camYaw); }
+    else player.step(dt, step === 0 ? cmd : { ...cmd, jumpPressed: false }, cam.yaw);
     if (player.events.some((e) => e.type === 'jump')) story.signal('jump');
     level.step(dt, player);
     story.step(dt, level, player);
@@ -444,12 +454,13 @@ createLoop({
     avatar.wind.set(1.5 + level.wind.x * 0.6, 0, 0.8 + level.wind.z * 0.6);
     avatar.update(player, renderPos, alpha, frameDt);
     if (flow.mode === 'title') titleCamera(flow.t);
+    else if (flow.mode === 'ending') ending.camera(camera, level.time - summitTime, atmosphere.sunDir);
     else cam.update(frameDt, renderPos, player, crouch);
     // Whiteout: the fog pass closes in to ~16 m and drains to a lavender white lit by the sky.
     const wo = level.wind.whiteout;
     fog.u.uWhiteout.value = wo;
     fog.u.uWhiteColor.value.copy(atmosphere.ambientSky).multiplyScalar(0.55).addScalar(0.25 * atmosphere.sunColor.g / 16 + 0.08);
-    windEl.style.opacity = level.wind.warn || level.wind.gust > 0.2 ? 1 : 0;
+    windEl.style.opacity = flow.mode === 'playing' && (level.wind.warn || level.wind.gust > 0.2) ? 1 : 0;
     const sinceSummit = summitTime === null ? -1 : level.time - summitTime;
     atmosphere.setSun(sunElevation(level.progressFraction, sinceSummit), SUN_AZIMUTH, level.time);
     updateParticles(frameDt);

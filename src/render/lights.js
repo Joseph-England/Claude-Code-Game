@@ -26,5 +26,13 @@ export function createLights(scene, camera, { cascades = 2, size = 1024, maxFar 
     }
     csm.update();
   }
-  return { csm, update };
+  function setMapSize(n) {
+    for (const l of csm.lights) {
+      if (l.shadow.mapSize.x === n) continue;
+      l.shadow.mapSize.set(n, n);
+      l.shadow.map?.dispose();
+      l.shadow.map = null;
+    }
+  }
+  return { csm, update, setMapSize };
 }

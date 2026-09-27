@@ -84,6 +84,14 @@ export class Trails {
     renderer.setRenderTarget(null);
   }
 
+  /** Change the buffer resolution (quality tier); the trail so far is dropped. */
+  resize(size) {
+    if (size === this.rts[0].width) return;
+    for (const rt of this.rts) { rt.setSize(size, size); this.r.setRenderTarget(rt); this.r.clear(); }
+    this.r.setRenderTarget(null);
+    this.uniforms.uTrailTexel.value = WINDOW / size;
+  }
+
   /** Queue a footprint (world x, z). */
   foot(x, z, depth = 1) { if (this.feet.length < 4) this.feet.push([x, z, depth]); }
 

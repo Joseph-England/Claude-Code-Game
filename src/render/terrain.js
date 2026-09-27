@@ -103,6 +103,7 @@ export class TerrainRenderer {
       uCell: { value: hf.cell }, uN: { value: n },
     };
     this.chunksPerSide = Math.floor((hf.size) / CHUNK);
+    this.lodDist = LODS.map((l) => l.dist);
     this.meshes = LODS.map((lod, l) => {
       const uniforms = { ...common, uStep: { value: lod.step }, uSkirt: { value: SKIRT[l] } };
       const mat = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
@@ -163,6 +164,9 @@ export class TerrainRenderer {
     this.stats = { chunks: [0, 0, 0], triangles: 0 };
   }
 
+  /** LOD switch distances [lod0→1, lod1→2] (quality tier). */
+  setLod([a, b]) { this.lodDist = [a, b, Infinity]; }
+
   /** Cull and assign LODs for this camera. */
   update(camera) {
     this.projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -175,7 +179,7 @@ export class TerrainRenderer {
       b.getCenter(this.center);
       const dist = b.distanceToPoint(cam);
       let l = 0;
-      while (dist > LODS[l].dist) l++;
+      while (dist > this.lodDist[l]) l++;
       this.m.makeTranslation(b.min.x, 0, b.min.z);
       this.meshes[l].setMatrixAt(counts[l]++, this.m);
     }

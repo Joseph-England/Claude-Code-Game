@@ -176,7 +176,7 @@ export class Particles {
   update(o) {
     this.time.value = o.time;
     this.wind.value.copy(o.wind);
-    this.snow.geometry.instanceCount = Math.round(this.snowMax * o.snowDensity);
+    this.snow.geometry.instanceCount = Math.min(this.snowMax, Math.round((this.snowTier ?? this.snowMax) * o.snowDensity));
     this.snow.visible = this.snow.geometry.instanceCount > 0;
     this.snowMat.uniforms.uStreak.value = o.streak ?? 0;
     this.snowMat.uniforms.uSize.value = 0.03 + 0.03 * (o.streak ?? 0);

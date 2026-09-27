@@ -58,7 +58,7 @@ mechanic works; respawns work everywhere; no soft-locks; 60 fps on Medium-equiva
 - [x] GPU particles: snowfall, spindrift, slide spray, breath, cairn embers
 - [x] Procedural avatar with gait/lean + verlet scarf
 - [x] Bloom, per-section colour grade, vignette, grain, speed effects (+ alpenglow)
-- [ ] Quality tiers + auto benchmark + dynamic resolution; verify budgets (DESIGN §6)
+- [x] Quality tiers + auto benchmark + dynamic resolution; verify budgets (DESIGN §6)
 
 **Done when:** the level looks like the design (sunset arc, snow, fog, particles, post) and holds
 60 fps on Medium on integrated graphics; every showcase item is shipped or its fallback is logged.

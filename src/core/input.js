@@ -28,7 +28,7 @@ export class Input {
     addEventListener('mouseup', (e) => { if (e.button === 2) this.mouseRight = false; });
     addEventListener('contextmenu', (e) => e.preventDefault());
     addEventListener('keydown', (e) => {
-      if (e.code === 'Tab' || e.code === 'F3' || e.code === 'F4' || e.code === 'Space') e.preventDefault();
+      if (e.code === 'Tab' || e.code === 'F3' || e.code === 'F4' || e.code === 'F2' || e.code === 'Space') e.preventDefault();
       if (!e.repeat) this.pressed.add(e.code);
       this.down.add(e.code);
       this.lastDevice = 'keyboard';

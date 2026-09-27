@@ -17,14 +17,17 @@ npm run dev       # dev server with hot reload; open the printed URL (…/Claude
 npm run build     # production build into dist/
 npm run preview   # serve the production build locally
 npm run check     # headless movement/camera checks (speeds, stops, jumps, slopes, camera clipping)
+npm run playthrough  # a bot plays the whole level headlessly: section times, respawns, soft-lock sweep
+node tools/map.mjs map.png   # top-down map of the generated mountain and route
 ```
 
-## Controls (current gray-box build)
+## Controls (current build: the full mountain with placeholder visuals)
 
 Click the game to capture the mouse. **WASD / arrows** move · **mouse** look · **Space** jump (hold
-for height; also wall-kick off ice/rock walls in the air) · **Shift** slide · **1–7** teleport to test
-stations · **R** reset · **F3** debug overlay · **F4** live tuning panel. Gamepad: left stick move,
-right stick look, A jump, B/RT slide. `?spawn=N` in the URL starts at station N (0–6).
+for height; from the ice cave on, also wall-kick off ice/rock walls in the air) · **Shift** slide ·
+**R** back to the last cairn · **1–9** jump to a section (dev) · **F3** debug overlay · **F4** live
+tuning panel. Gamepad: left stick move, right stick look, A jump, B/RT slide. `?spawn=N` starts at
+section N (1–8); `?course=graybox` opens the Phase 2 movement test course.
 
 ## Deployment
 

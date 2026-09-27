@@ -9,23 +9,49 @@ const _triPoint = new THREE.Vector3();
 const _capPoint = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _ray = new THREE.Ray();
+const SKIN = 0.03;
+
+function indexify(g) {
+  const count = g.attributes.position.count;
+  g.setIndex([...Array(count).keys()]);
+  return g;
+}
 
 export class Colliders {
-  /** boxes: [{ center:[x,y,z], size:[sx,sy,sz], surface }] */
-  constructor(boxes = []) {
-    const bySurface = new Map();
+  /**
+   * boxes:  [{ center:[x,y,z], size:[sx,sy,sz], surface, yaw?, group? }]
+   * meshes: [{ geometry (world space), surface, group? }]
+   * Parts are merged per (surface, group); groups can be switched off (the collapsing bridge).
+   */
+  constructor(boxes = [], meshes = []) {
+    const byKey = new Map();
+    const add = (surface, group, g) => {
+      const key = `${surface}:${group ?? ''}`;
+      if (!byKey.has(key)) byKey.set(key, { surface, group, geos: [] });
+      byKey.get(key).geos.push(g);
+    };
     for (const b of boxes) {
       const g = new THREE.BoxGeometry(...b.size);
       g.deleteAttribute('normal');
       g.deleteAttribute('uv');
+      if (b.yaw) g.rotateY(b.yaw);
       g.translate(...b.center);
-      if (!bySurface.has(b.surface)) bySurface.set(b.surface, []);
-      bySurface.get(b.surface).push(g);
+      add(b.surface, b.group, g);
     }
-    this.parts = [...bySurface].map(([surface, geos]) => {
-      const geometry = mergeGeometries(geos);
-      return { surface, geometry, bvh: new MeshBVH(geometry) };
+    for (const m of meshes) {
+      const g = m.geometry.clone();
+      for (const name of Object.keys(g.attributes)) if (name !== 'position') g.deleteAttribute(name);
+      add(m.surface, m.group, g);
+    }
+    this.parts = [...byKey.values()].map(({ surface, group, geos }) => {
+      const indexed = geos.some((g) => g.index);
+      const geometry = mergeGeometries(indexed ? geos.map((g) => (g.index ? g : indexify(g))) : geos);
+      return { surface, group, geometry, bvh: new MeshBVH(geometry), enabled: true };
     });
+  }
+
+  setGroupEnabled(group, enabled) {
+    for (const p of this.parts) if (p.group === group) p.enabled = enabled;
   }
 
   /**
@@ -35,17 +61,20 @@ export class Colliders {
   collideCapsule(seg, r, contacts) {
     let hit = false;
     for (const part of this.parts) {
+      if (!part.enabled) continue;
       _box.makeEmpty().expandByPoint(seg.start).expandByPoint(seg.end);
-      _box.min.addScalar(-r);
-      _box.max.addScalar(r);
+      _box.min.addScalar(-r - SKIN);
+      _box.max.addScalar(r + SKIN);
       part.bvh.shapecast({
         intersectsBounds: (box) => box.intersectsBox(_box),
         intersectsTriangle: (tri) => {
           const dist = tri.closestPointToSegment(seg, _triPoint, _capPoint);
-          if (dist >= r) return false;
+          // A thin skin reports resting contacts (depth 0), so standing on a box top counts as
+          // floor every step and terrain snapping never pulls the body into the box.
+          if (dist >= r + SKIN) return false;
           if (dist > 1e-6) _dir.subVectors(_capPoint, _triPoint).divideScalar(dist);
           else tri.getNormal(_dir);
-          const depth = r - dist;
+          const depth = Math.max(0, r - dist);
           seg.start.addScaledVector(_dir, depth);
           seg.end.addScaledVector(_dir, depth);
           contacts.push({ normal: _dir.clone(), surface: part.surface, depth });
@@ -63,6 +92,7 @@ export class Colliders {
     _ray.direction.copy(dir);
     let best = Infinity;
     for (const part of this.parts) {
+      if (!part.enabled) continue;
       const h = part.bvh.raycastFirst(_ray, THREE.DoubleSide, 0, far);
       if (h && h.distance < best) best = h.distance;
     }

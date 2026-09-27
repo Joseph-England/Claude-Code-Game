@@ -15,7 +15,7 @@ export class DebugOverlay {
 
   toggle() { this.el.hidden = !this.el.hidden; }
 
-  update(dt, ctl, cam, steps) {
+  update(dt, ctl, cam, steps, extra = '') {
     this.frames++;
     this.acc += dt;
     this.worst = Math.max(this.worst, dt);
@@ -36,6 +36,7 @@ export class DebugOverlay {
       `surface  ${(ctl.grounded ? SURFACE_NAMES[ctl.groundSurface] : '—').padEnd(8)} slope ${(ctl.slopeAngle * 57.2958).toFixed(1)}°\n` +
       `height   ${(ctl.heightAboveGround ?? 0).toFixed(2)} m above terrain\n` +
       `pos      ${p.x.toFixed(1)}, ${p.y.toFixed(1)}, ${p.z.toFixed(1)}\n` +
-      `camera   fov ${cam.fov.toFixed(1)}°  dist ${cam.dist.toFixed(2)} m  lift ${(cam.lift * 57.3).toFixed(1)}°`;
+      `camera   fov ${cam.fov.toFixed(1)}°  dist ${cam.dist.toFixed(2)} m  lift ${(cam.lift * 57.3).toFixed(1)}°` +
+      (extra ? `\n${extra}` : '');
   }
 }

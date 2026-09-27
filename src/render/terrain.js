@@ -82,7 +82,8 @@ function patchVertex(shader, uniforms) {
 
 export class TerrainRenderer {
   /** mountain: buildMountain() result (heightfield + surfaces). */
-  constructor(scene, mountain) {
+  /** opts.lit(material, patch, key): world-lighting setup (materials.js), else plain. */
+  constructor(scene, mountain, opts = {}) {
     const hf = mountain.heightfield, n = hf.n;
     this.hf = hf;
     this.heightTex = new THREE.DataTexture(hf.heights, n, n, THREE.RedFormat, THREE.FloatType);
@@ -104,7 +105,7 @@ export class TerrainRenderer {
     this.meshes = LODS.map((lod, l) => {
       const uniforms = { ...common, uStep: { value: lod.step }, uSkirt: { value: SKIRT[l] } };
       const mat = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
-      mat.onBeforeCompile = (shader) => {
+      const patch = (shader) => {
         patchVertex(shader, uniforms);
         shader.uniforms.uSplat = { value: this.splatTex };
         shader.uniforms.uTints = { value: tints };
@@ -122,6 +123,7 @@ export class TerrainRenderer {
             tint *= 1.0 - 0.07 * grid;
             diffuseColor.rgb *= tint;`);
       };
+      if (opts.lit) opts.lit(mat, patch, `terrain${l}`); else mat.onBeforeCompile = patch;
       const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
       depth.onBeforeCompile = (shader) => {
         patchVertex(shader, uniforms);
@@ -131,7 +133,8 @@ export class TerrainRenderer {
       const mesh = new THREE.InstancedMesh(chunkGeometry(CHUNK / lod.step), mat, count);
       mesh.customDepthMaterial = depth;
       mesh.frustumCulled = false;
-      mesh.castShadow = mesh.receiveShadow = true;
+      mesh.castShadow = false; // terrain self-shadowing is ray marched (sunshadow.js)
+      mesh.receiveShadow = true;
       mesh.count = 0;
       scene.add(mesh);
       return mesh;

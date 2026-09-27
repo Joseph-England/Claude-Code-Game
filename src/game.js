@@ -16,6 +16,8 @@ import { TerrainRenderer, createBackdrop } from './render/terrain.js';
 import { createLights } from './render/lights.js';
 import { Pipeline } from './render/post.js';
 import { Atmosphere } from './render/atmosphere.js';
+import { SunShadow } from './render/sunshadow.js';
+import { litMaterial, world as worldU } from './render/materials.js';
 import { sunElevation, SUN_AZIMUTH } from './render/arc.js';
 import { DebugOverlay } from './debug/overlay.js';
 import { createPanel } from './debug/panel.js';
@@ -43,15 +45,31 @@ scene.add(props.group);
 const colliders = new Colliders(props.boxes, props.meshes);
 const world = { heightfield: mountain.heightfield, colliders, cairns: props.cairns.map((c) => [c.x, c.y, c.z]) };
 const level = new LevelState(mountain, props.cairns, colliders, tuning);
-const terrain = new TerrainRenderer(scene, mountain);
+const lights = createLights(scene, camera, { cascades: 2, size: 1024 });
+const terrain = new TerrainRenderer(scene, mountain, { lit: (mat, patch, key) => litMaterial(mat, { csm: lights.csm, patch, key }) });
 createBackdrop(scene, mountain);
-const lights = createLights(scene);
 const atmosphere = new Atmosphere(renderer, scene);
+const sunShadow = new SunShadow(renderer, terrain.heightTex, mountain.heightfield);
+worldU.tSky.value = atmosphere.skyRT.texture;
+worldU.uSunDir.value = atmosphere.sunDir;
+worldU.uTintHigh = atmosphere.skyUniforms.uTintHigh;
+worldU.uTintLow = atmosphere.skyUniforms.uTintLow;
+worldU.tSunVis.value = sunShadow.texture;
+worldU.uSunVisOrigin.value.copy(sunShadow.origin);
+worldU.uSunVisSize.value = sunShadow.size;
 
 const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
 const cam = new ThirdPersonCamera(camera, world, tuning);
 const avatar = new Avatar(scene, tuning);
+// Every other standard material (props, backdrop, avatar) gets the world lighting.
+scene.traverse((o) => {
+  if (!o.isMesh || !o.material?.isMeshStandardMaterial) return;
+  o.receiveShadow = true;
+  if (!o.material.userData.lit)   litMaterial(o.material, { csm: lights.csm, key: `lit-${o.material.flatShading}-${o.material.side}` });
+});
+atmosphere.setSun(sunElevation(0), SUN_AZIMUTH, 0);
+sunShadow.update(atmosphere.sunDir, true);
 const overlay = new DebugOverlay();
 const panel = createPanel(tuning);
 
@@ -188,7 +206,9 @@ createLoop({
     windEl.style.opacity = level.wind.warn || level.wind.gust > 0.2 ? 1 : 0;
     const sinceSummit = summitTime === null ? -1 : level.time - summitTime;
     atmosphere.setSun(sunElevation(level.progressFraction, sinceSummit), SUN_AZIMUTH, level.time);
-    lights.follow(renderPos);
+    lights.update(atmosphere.sunDir, atmosphere.sunColor);
+    sunShadow.update(atmosphere.sunDir);
+    worldU.uBounce.value.copy(atmosphere.ambientGround);
     terrain.update(camera);
     pipeline.render(scene, camera);
     const sec = mountain.route.sections[level.section];

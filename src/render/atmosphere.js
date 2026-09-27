@@ -22,12 +22,14 @@ export const ATMO = {
   viewAltitude: 2.2, // km above sea level at world y = 0
 };
 
-const ATMO_GLSL = /* glsl */`
+export const ATMO_GLSL = /* glsl */`
   const float Rg = ${ATMO.Rg.toFixed(1)}, Rt = ${ATMO.Rt.toFixed(1)};
   const vec3 betaR = vec3(${ATMO.rayleigh.join(', ')});
   const float betaMs = ${ATMO.mieS}, betaMe = ${ATMO.mieE};
   const vec3 betaO = vec3(${ATMO.ozone.join(', ')});
-  const float PI = 3.14159265;
+  #ifndef PI
+  #define PI 3.141592653589793
+  #endif
   float raySphere(vec3 ro, vec3 rd, float r) { // distance to the far intersection, -1 if none
     float b = dot(ro, rd), c = dot(ro, ro) - r * r, d = b * b - c;
     if (d < 0.0) return -1.0;
@@ -67,7 +69,7 @@ const TRANSMITTANCE_FRAG = /* glsl */`
 `;
 
 // Latitude mapping from Hillaire's sky-view LUT (more texels near the horizon).
-const SKYVIEW_MAP_GLSL = /* glsl */`
+export const SKYVIEW_MAP_GLSL = /* glsl */`
   vec2 skyUV(float viewZenith, float lightViewAngle, float viewH) {
     float vHorizon = sqrt(max(0.0, viewH * viewH - Rg * Rg));
     float beta = acos(clamp(vHorizon / viewH, -1.0, 1.0));

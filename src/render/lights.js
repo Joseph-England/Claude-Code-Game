@@ -1,30 +1,30 @@
-// Placeholder lighting for Phase 3 (Phase 4 replaces it): one sun with soft PCF shadows in a tight
-// frustum that follows the player (texel-snapped, DECISIONS #33), plus hemisphere ambient.
+// Sun lighting (DESIGN §4, §6): cascaded shadow maps (three's CSM; cascade count and size come from
+// the quality tier) for props and the avatar — the terrain shadows itself by ray marching
+// (sunshadow.js) — and the sun colour from the atmosphere's transmittance. Ambient comes from the
+// sky-view LUT inside every lit material (materials.js), so there is no hemisphere light.
 import * as THREE from 'three';
+import { CSM } from 'three/addons/csm/CSM.js';
 
-export function createLights(scene, { dir = [-0.6, 0.45, 0.35], half = 55, res = 2048 } = {}) {
-  const sunDir = new THREE.Vector3(...dir).normalize();
-  const sun = new THREE.DirectionalLight(0xffe6cc, 2.8);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(res, res);
-  Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 1, far: 600 });
-  sun.shadow.radius = 4;
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.05;
-  const hemi = new THREE.HemisphereLight(0xc4d4ff, 0x6a6478, 1.25);
-  scene.add(sun, sun.target, hemi);
+export function createLights(scene, camera, { cascades = 2, size = 1024, maxFar = 220 } = {}) {
+  const csm = new CSM({
+    camera, parent: scene, cascades, shadowMapSize: size, maxFar, mode: 'practical',
+    lightDirection: new THREE.Vector3(0.5, -0.5, 0.5).normalize(), lightIntensity: 1,
+    lightNear: 1, lightFar: 900, lightMargin: 120, shadowBias: -0.0002,
+  });
+  csm.fade = true;
+  for (const l of csm.lights) { l.shadow.radius = 3; l.shadow.normalBias = 0.04; }
+  let fov = camera.fov, aspect = camera.aspect;
 
-  const texel = (2 * half) / res;
-  const lightRot = new THREE.Matrix4().lookAt(sunDir, new THREE.Vector3(), new THREE.Vector3(0, 1, 0));
-  const inv = lightRot.clone().invert();
-  const tmp = new THREE.Vector3();
-  function follow(focus) {
-    tmp.copy(focus).applyMatrix4(inv);
-    tmp.x = Math.round(tmp.x / texel) * texel;
-    tmp.y = Math.round(tmp.y / texel) * texel;
-    tmp.applyMatrix4(lightRot);
-    sun.target.position.copy(tmp);
-    sun.position.copy(tmp).addScaledVector(sunDir, 300);
+  /** Each frame: sun direction (toward the sun) and HDR colour. */
+  function update(sunDir, sunColor) {
+    csm.lightDirection.copy(sunDir).negate();
+    const up = sunDir.y > -0.01;
+    for (const l of csm.lights) { l.color.copy(sunColor); l.intensity = up ? 1 : 0; l.castShadow = up; }
+    if (Math.abs(camera.fov - fov) > 0.5 || camera.aspect !== aspect) {
+      fov = camera.fov; aspect = camera.aspect;
+      csm.updateFrustums();
+    }
+    csm.update();
   }
-  return { sun, hemi, follow, sunDir };
+  return { csm, update };
 }

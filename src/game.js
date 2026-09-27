@@ -20,9 +20,10 @@ import { SunShadow } from './render/sunshadow.js';
 import { SNOW_DIRECT } from './render/snow.js';
 import { Trails } from './render/trails.js';
 import { FogPass } from './render/fog.js';
+import { Particles } from './render/particles.js';
 import { SURFACE } from './world/surfaces.js';
 import { litMaterial, world as worldU } from './render/materials.js';
-import { sunElevation, SUN_AZIMUTH } from './render/arc.js';
+import { sunElevation, SUN_AZIMUTH, snowDensity } from './render/arc.js';
 import { DebugOverlay } from './debug/overlay.js';
 import { createPanel } from './debug/panel.js';
 
@@ -64,6 +65,19 @@ worldU.uSunVisSize.value = sunShadow.size;
 const fog = new FogPass(); // after the tint swap above: it copies the world uniform references
 pipeline.fog = fog;
 fog.u.uSunColor.value = atmosphere.sunColor;
+
+// Spindrift emitters along the ridge crest and the summit.
+const crest = [];
+for (const k of [4, 8]) {
+  const sec = mountain.route.sections[k];
+  for (let ls = 10; ls < sec.len - 4; ls += 3) {
+    const p = mountain.route.at(sec.s0 + ls);
+    crest.push([p.x, mountain.heightfield.heightAt(p.x, p.z) + 0.3, p.z]);
+  }
+}
+const particles = new Particles(scene, { crest, snow: 12000 });
+const fx = { sprayAcc: 0, breathT: 1, emberAcc: 0, wind: new THREE.Vector3(), light: new THREE.Color() };
+const rnd = (a = 1) => (Math.random() - 0.5) * 2 * a;
 
 const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
@@ -154,6 +168,45 @@ const renderPos = new THREE.Vector3();
 let summitTime = null;
 let stuckT = 0, lastProgress = 0;
 
+function updateParticles(dt) {
+  const t = level.time, v = player.vel, sp = player.speed;
+  // Slide spray.
+  if (player.state === 'slide' && onSnow() && sp > 4) {
+    fx.sprayAcc += sp * dt * 3;
+    for (; fx.sprayAcc >= 1; fx.sprayAcc--) {
+      particles.emit(renderPos.x + rnd(0.3), renderPos.y + 0.05, renderPos.z + rnd(0.3), -v.x * 0.15 + rnd(2), 1.2 + Math.random() * 2.2, -v.z * 0.15 + rnd(2), 0.5 + Math.random() * 0.5, 0.05, 1, 0.6, 0);
+    }
+  }
+  // Breath: faster when sprinting.
+  if ((fx.breathT -= dt) <= 0) {
+    fx.breathT = player.speed > 6 ? 0.9 : 2.4;
+    avatar.head.getWorldPosition(fx.wind);
+    const f = [-Math.sin(player.facing), -Math.cos(player.facing)];
+    for (let i = 0; i < 4; i++) particles.emit(fx.wind.x + f[0] * 0.15, fx.wind.y + 0.1, fx.wind.z + f[1] * 0.15, v.x * 0.8 + f[0] * 0.4 + rnd(0.1), 0.15, v.z * 0.8 + f[1] * 0.4 + rnd(0.1), 1.4, 0.035, 0.35, -0.01, 1);
+  }
+  // Cairn embers.
+  fx.emberAcc += dt * 5;
+  for (; fx.emberAcc >= 1; fx.emberAcc--) {
+    for (const c of props.cairns) {
+      if ((c.x - camera.position.x) ** 2 + (c.z - camera.position.z) ** 2 > 90 ** 2) continue;
+      if (!c.checkpoint && Math.random() < 0.5) continue;
+      const a = Math.random() * Math.PI * 2;
+      particles.emit(c.x + Math.cos(a) * 0.5, c.y + 0.4 + Math.random() * 0.8, c.z + Math.sin(a) * 0.5, rnd(0.1), 0.35 + Math.random() * 0.4, rnd(0.1), 2.5 + Math.random(), 0.022, 0, 0, 2);
+    }
+  }
+  // Weather: breeze + gusts + the whiteout's blizzard along the route.
+  const wo = level.wind.whiteout, here = mountain.route.at(level.s);
+  fx.wind.set(1.2 + level.wind.x * 0.9 - here.dx * 11 * wo, 0, 0.6 + level.wind.z * 0.9 - here.dz * 11 * wo);
+  const gustDir = level.wind.gust > 0.02 ? level.wind : null;
+  fx.light.copy(atmosphere.ambientSky).multiplyScalar(0.9).add(new THREE.Color().copy(atmosphere.sunColor).multiplyScalar(0.12));
+  const k = level.section;
+  particles.update({
+    time: t, wind: gustDir ? fx.wind.clone().add(new THREE.Vector3(gustDir.x, 0, gustDir.z)) : fx.wind,
+    snowDensity: Math.max(snowDensity(mountain.route, level.s), wo), streak: wo,
+    driftStrength: k === 4 || k === 8 ? 0.35 + 0.65 * level.wind.gust : 0, light: fx.light,
+  });
+}
+
 // Dev/test handle (tools/smoke.mjs reads it).
 window.__game = { renderer, pipeline, level, player, trails, get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
 
@@ -177,7 +230,10 @@ createLoop({
     level.step(dt, player);
     for (const e of level.events) {
       if (e.type === 'oob') startRespawn();
-      else if (e.type === 'checkpoint') showToast('checkpoint');
+      else if (e.type === 'checkpoint') {
+        showToast('checkpoint');
+        for (let i = 0; i < 60; i++) particles.emit(e.cairn.x + rnd(0.5), e.cairn.y + 0.8 + rnd(0.5), e.cairn.z + rnd(0.5), rnd(1.5), 1 + Math.random() * 2, rnd(1.5), 2 + Math.random(), 0.03, 0, 0.05, 2);
+      }
       else if (e.type === 'beat') lineQueue.push(e.beat);
       else if (e.type === 'collapse') bridgeFall = { v: 0 };
       else if (e.type === 'summit') { summitTime = e.time; showToast(`summit · ${Math.floor(e.time / 60)}:${String(Math.floor(e.time % 60)).padStart(2, '0')}`, 5); }
@@ -191,7 +247,16 @@ createLoop({
     if (stuckT > 12 && !moving && toastTimer <= 0) { showToast('R — back to the last cairn', 3); stuckT = 0; }
   },
   render(alpha, frameDt, steps) {
-    for (const e of player.events) if (e.type === 'land') cam.impact(e.impact);
+    for (const e of player.events) {
+      if (e.type !== 'land') continue;
+      cam.impact(e.impact);
+      if (e.impact > 4 && onSnow()) {
+        for (let i = 0; i < 12 + e.impact * 2; i++) {
+          const a = Math.random() * Math.PI * 2, v = 1 + Math.random() * e.impact * 0.3;
+          particles.emit(player.pos.x, player.pos.y + 0.05, player.pos.z, Math.cos(a) * v, 0.8 + Math.random() * 1.5, Math.sin(a) * v, 0.5 + Math.random() * 0.5, 0.06, 1.2, 0.5, 0);
+        }
+      }
+    }
     player.events.length = 0;
     updateRespawn(frameDt);
     if (bridgeFall && mountain.bridge) {
@@ -220,6 +285,7 @@ createLoop({
     windEl.style.opacity = level.wind.warn || level.wind.gust > 0.2 ? 1 : 0;
     const sinceSummit = summitTime === null ? -1 : level.time - summitTime;
     atmosphere.setSun(sunElevation(level.progressFraction, sinceSummit), SUN_AZIMUTH, level.time);
+    updateParticles(frameDt);
     lights.update(atmosphere.sunDir, atmosphere.sunColor);
     sunShadow.update(atmosphere.sunDir);
     worldU.uBounce.value.copy(atmosphere.ambientGround);

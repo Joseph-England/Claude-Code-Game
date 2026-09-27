@@ -125,8 +125,15 @@ export class Avatar {
     const amp = this.gait > 0.02 ? 0.35 + 0.55 * this.gait : 0;
     const ph = this.phase;
 
+    const yaw = this.root.rotation.y, fx = -Math.sin(yaw), fz = -Math.cos(yaw);
     for (const leg of this.legs) {
       const p = ph + (leg.side > 0 ? Math.PI : 0);
+      // Foot plant (leg at its forward-most point): report a footprint.
+      const c = Math.cos(p);
+      if (running && leg.prevC > 0 && c <= 0 && this.onFoot) {
+        this.onFoot(pos.x + fz * -leg.side * 0.12 + fx * 0.3 * amp, pos.z - fx * -leg.side * 0.12 + fz * 0.3 * amp);
+      }
+      leg.prevC = c;
       const swing = Math.sin(p) * amp;
       const lift = Math.max(0, Math.cos(p)) * amp * 1.6; // knee bends while the leg swings through
       leg.hip.rotation.x = P.thigh + swing;

@@ -18,6 +18,8 @@ import { Pipeline } from './render/post.js';
 import { Atmosphere } from './render/atmosphere.js';
 import { SunShadow } from './render/sunshadow.js';
 import { SNOW_DIRECT } from './render/snow.js';
+import { Trails } from './render/trails.js';
+import { SURFACE } from './world/surfaces.js';
 import { litMaterial, world as worldU } from './render/materials.js';
 import { sunElevation, SUN_AZIMUTH } from './render/arc.js';
 import { DebugOverlay } from './debug/overlay.js';
@@ -48,7 +50,8 @@ const world = { heightfield: mountain.heightfield, colliders, cairns: props.cair
 const level = new LevelState(mountain, props.cairns, colliders, tuning);
 const lights = createLights(scene, camera, { cascades: 2, size: 1024 });
 const snowLit = (mat, patch, key) => litMaterial(mat, { csm: lights.csm, patch, key, direct: SNOW_DIRECT });
-const terrain = new TerrainRenderer(scene, mountain, { lit: snowLit });
+const trails = new Trails(renderer, 512);
+const terrain = new TerrainRenderer(scene, mountain, { lit: snowLit, trails });
 createBackdrop(scene, mountain, snowLit);
 const atmosphere = new Atmosphere(renderer, scene);
 const sunShadow = new SunShadow(renderer, terrain.heightTex, mountain.heightfield);
@@ -64,6 +67,8 @@ const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
 const cam = new ThirdPersonCamera(camera, world, tuning);
 const avatar = new Avatar(scene, tuning);
+avatar.onFoot = (x, z) => { if (onSnow()) trails.foot(x, z); };
+const onSnow = () => player.grounded && (player.groundSurface === SURFACE.POWDER || player.groundSurface === SURFACE.PACKED) && player.heightAboveGround < 0.1;
 // Every other standard material (props, backdrop, avatar) gets the world lighting.
 scene.traverse((o) => {
   if (!o.isMesh || !o.material?.isMeshStandardMaterial) return;
@@ -94,6 +99,7 @@ function spawnAt(index, announce = true) {
   player.teleport(sp.pos, sp.yaw);
   cam.reset(player.pos, sp.yaw);
   avatar.reset();
+  trails.cut();
   if (announce) showToast(props.cairns[index].name);
 }
 // Dev teleport: ?spawn=N or keys 1–9 go to the start of section N-1 (its checkpoint if it has one).
@@ -141,13 +147,14 @@ addEventListener('resize', resize);
 resize();
 
 let cmd = null;
+let avatarSink = 0;
 const renderPos = new THREE.Vector3();
 const fogColor = new THREE.Color();
 let summitTime = null;
 let stuckT = 0, lastProgress = 0;
 
 // Dev/test handle (tools/smoke.mjs reads it).
-window.__game = { renderer, pipeline, level, player, get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
+window.__game = { renderer, pipeline, level, player, trails, get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
 
 createLoop({
   beginFrame(frameDt) {
@@ -194,6 +201,12 @@ createLoop({
       if (m.position.y < mountain.bridge.top - 40) { m.visible = false; bridgeFall = null; }
     }
     renderPos.lerpVectors(player.prevPos, player.pos, alpha);
+    // Deformable snow: the path (a groove; deeper when sliding) and footprints from the gait.
+    const snow = onSnow(), sliding = player.state === 'slide';
+    trails.update(renderPos, snow ? (sliding ? { radius: 0.45, depth: 1 } : { radius: 0.24, depth: 0.6 }) : null);
+    const sink = snow && player.groundSurface === SURFACE.POWDER ? (sliding ? 0.3 : 0.18) : snow ? (sliding ? 0.06 : 0.035) : 0;
+    avatarSink += (sink - avatarSink) * Math.min(1, frameDt * 8);
+    renderPos.y -= avatarSink;
     const crouch = THREE.MathUtils.lerp(player.prevCrouch, player.crouch, alpha);
     // Scarf wind: a steady breeze across the slope plus the level's gusts and headwind.
     avatar.wind.set(1.5 + level.wind.x * 0.6, 0, 0.8 + level.wind.z * 0.6);

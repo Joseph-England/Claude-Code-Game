@@ -5,6 +5,7 @@
 // the whole terrain is 3 draw calls (plus 3 for the shadow pass).
 import * as THREE from 'three';
 import { snowFragment } from './snow.js';
+import { TRAIL_PARS, TRAIL_SINK, TRAIL_NORMAL } from './trails.js';
 
 export const CHUNK = 64;
 const LODS = [{ step: 1, dist: 170 }, { step: 2, dist: 420 }, { step: 4, dist: Infinity }];
@@ -108,6 +109,18 @@ export class TerrainRenderer {
       const patch = (shader) => {
         patchVertex(shader, uniforms);
         snowFragment(shader, { splat: this.splatTex, origin: new THREE.Vector2(hf.origin - hf.cell / 2, hf.origin - hf.cell / 2), size: n * hf.cell });
+        if (opts.trails && l === 0) {
+          // Near LOD only: the trail window (±64 m) sits inside LOD 0's 170 m.
+          Object.assign(shader.uniforms, opts.trails.uniforms);
+          shader.vertexShader = shader.vertexShader
+            .replace('#include <common>', `#include <common>\nuniform sampler2D uSplat; uniform vec2 uSplatOrigin; uniform float uSplatSize;\n${TRAIL_PARS}\n${TRAIL_SINK}`)
+            .replace('transformed.y = hAt(wxz) - aSkirt * uSkirt;', 'transformed.y = hAt(wxz) - aSkirt * uSkirt - trailSink(wxz, texture2D(uSplat, (wxz - uSplatOrigin) / uSplatSize));');
+          shader.fragmentShader = shader.fragmentShader
+            .replace('float gDetailFade;', `float gDetailFade;\n${TRAIL_PARS}`)
+            .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n__TRAIL__`);
+          // The snow normal patch sits right after normal_fragment_maps; the trail bend goes after it.
+          shader.fragmentShader = shader.fragmentShader.replace('__TRAIL__', '').replace('#include <emissivemap_fragment>', `${TRAIL_NORMAL}\n#include <emissivemap_fragment>`);
+        }
       };
       if (opts.lit) opts.lit(mat, patch, `terrain${l}`); else mat.onBeforeCompile = patch;
       const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });

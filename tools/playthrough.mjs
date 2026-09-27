@@ -12,6 +12,7 @@ import { tuning } from '../src/tuning.js';
 import { FIXED_DT } from '../src/core/loop.js';
 import * as THREE from 'three';
 import { SURFACE } from '../src/world/surfaces.js';
+import { Story } from '../src/story/story.js';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? true]));
 const DT = FIXED_DT;
@@ -27,14 +28,15 @@ const failures = [];
 function makeRun() {
   const level = new LevelState(mountain, props.cairns, colliders, tuning);
   const player = new Controller(world, tuning);
-  return { level, player };
+  const story = new Story(route, props.cairns);
+  return { level, player, story };
 }
 
 /** The bot: steer at a look-ahead point on the route (or the section's packed trail). */
 class Bot {
   constructor(level, player) {
     this.level = level; this.p = player;
-    this.jumpHold = 0; this.prevLs = -1; this.kickDir = -1; this.inKick = false; this.kickTick = 0; this.lastKickTick = -99;
+    this.jumpHold = 0; this.prevLs = -1;
   }
 
   command() {
@@ -46,6 +48,9 @@ class Bot {
     const tgt = route.at(sT);
     let off = 0;
     if (bot.line === 'trail') off = route.trailOffset(sT) ?? 0;
+    // Story cairns: walk past close enough to read the note (a player keeps the stones on the left).
+    const note = props.cairns.find((c) => !c.checkpoint && c.section === level.section && sT > c.s - 10 && sT < c.s + 3);
+    if (note) off = -2.5;
     // Rock line up a snow face: short look-ahead so the zig-zag isn't cut across the snow.
     const climb = sec.climb && ls > sec.climb.from - 4 && ls < sec.climb.to;
     if (climb) {
@@ -70,56 +75,9 @@ class Bot {
     for (const [a, b] of bot.slide ?? []) if (ls >= a && ls < b && (speed > 4 || falling)) c.slideHeld = true;
     for (const j of bot.jump ?? []) if (this.prevLs < j && ls >= j && this.prevLs >= 0) { c.jumpPressed = true; this.jumpHold = 0.35; }
 
-    // Chimneys (as the Phase 2 check climbs them): enter through the doorway, step back against
-    // the panel, jump, then kick between panel and step face until above the step, then top out.
-    const kickAt = (bot.kick ?? []).find((a) => ls > a - 9 && ls < a + 0.5);
-    if (kickAt !== undefined) {
-      c.sprintHeld = false; // nobody sprints inside a chimney
-      const slot = sec.slots.find((sl) => sl.at === kickAt);
-      const prof = route.profileAt(sec.s0 + kickAt - 1);
-      const here = route.at(level.s);
-      const top = route.heightAt(sec.s0 + kickAt + 2.5);
-      const gapStart = kickAt - slot.gap; // panel's front face
-      const lat = level.d;
-      const climbing = this.inKick && (!p.grounded || !this.jumped || this.kickTick - this.jumpTick < 6);
-      if (!climbing && p.grounded && ls < gapStart + 0.9) {
-        // Approach: walk through the doorway into the gap.
-        this.inKick = false;
-        const doorD = slot.door * (prof.w - 1.1);
-        const g = route.at(sec.s0 + gapStart + 1.6);
-        camYaw = Math.atan2(-(g.x + g.rx * doorD - p.pos.x), -(g.z + g.rz * doorD - p.pos.z));
-        c.moveY = 0.8;
-      } else if (!climbing && p.grounded && (Math.abs(lat) > 1.2 || speed > 0.6)) {
-        // Align: move to the middle of the gap.
-        this.inKick = false;
-        camYaw = here.yaw;
-        c.moveX = Math.abs(lat) > 1.2 ? Math.max(-1, Math.min(1, -0.6 * lat)) : 0;
-        c.moveY = 0;
-      } else if (!climbing && p.grounded) {
-        // Start a climb: step back to the panel, then jump.
-        this.inKick = true; this.jumped = false; this.kickTick = 0; this.kickDir = -1; this.lastKickTick = -99;
-      }
-      if (this.inKick) {
-        camYaw = here.yaw;
-        this.kickTick++;
-        c.jumpHeld = true;
-        const above = p.pos.y > top + 0.2;
-        // Above the step: head for it — unless still flying back toward the panel, in which case
-        // one more kick off the panel carries us over.
-        c.moveY = above && this.kickDir > 0 ? 1 : this.kickDir;
-        const latVel = p.vel.x * here.rx + p.vel.z * here.rz;
-        c.moveX = Math.max(-1, Math.min(1, -0.8 * lat - 0.5 * latVel));
-        if (!this.jumped && p.grounded && (ls < gapStart + 1.0 || this.kickTick > 60)) { c.jumpPressed = true; this.jumped = true; this.jumpTick = this.kickTick; }
-        if (!p.grounded && p.timers.wall > 0 && p.vel.y < 3 && this.kickTick - this.lastKickTick > 6 && (!above || this.kickDir < 0)) {
-          c.jumpPressed = true; this.kickDir = -this.kickDir; this.lastKickTick = this.kickTick;
-        }
-        if (p.grounded && this.jumped && this.kickTick - this.jumpTick >= 6) this.inKick = false;
-      }
-    } else this.inKick = false;
-
     // Stuck recovery, as a player would try it: hop, then sidestep, then back off 25 m and come
     // again (sliding where the hints say) — the answer to a momentum gate. Back-off is 35 m.
-    const blocked = p.grounded && speed < 1 && !this.inKick && c.moveY > 0.5;
+    const blocked = p.grounded && speed < 1 && c.moveY > 0.5;
     this.blockedT = blocked ? (this.blockedT ?? 0) + DT : 0;
     if (this.recover) {
       const r = this.recover;
@@ -147,8 +105,9 @@ class Bot {
 }
 
 function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
-  const { level, player } = makeRun();
+  const { level, player, story } = makeRun();
   const bot = new Bot(level, player);
+  story.signal('input');
   const startS = from ? route.sections[from].s0 + 2 : props.cairns[0].s;
   level.checkpoint = Math.max(0, props.cairns.findLastIndex((c) => c.checkpoint && c.s <= startS + 20));
   level.progress = startS;
@@ -162,8 +121,13 @@ function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
     player.vel.x += level.wind.x * DT;
     player.vel.z += level.wind.z * DT;
     player.step(DT, c, camYaw);
+    if (player.events.some((e) => e.type === 'jump')) story.signal('jump');
     player.events.length = 0;
     level.step(DT, player);
+    if (story.stoneReady) story.signal('stone');
+    story.step(DT, level, player);
+    for (const l of story.out) beats.push(l.id);
+    story.out.length = 0;
     t += DT;
     const k = level.section;
     if (secs[k].enter === null) { secs[k].enter = t; if (verbose) console.log(`  ${t.toFixed(1)} s  enter ${route.sections[k].name}`); }
@@ -179,13 +143,11 @@ function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
         t += 1.0; // fade out + in
         const s2 = level.spawnPoint();
         player.teleport(s2.pos, s2.yaw);
-        bot.inKick = false;
+        story.respawned(route.sectionIndexAt(props.cairns[level.checkpoint].s));
       } else if (e.type === 'summit') summit = t;
-      else if (e.type === 'beat') beats.push(e.beat.id);
-      else if (e.type === 'collapse' && verbose) console.log(`  ${t.toFixed(1)} s  bridge collapses`);
     }
     level.events.length = 0;
-    if (args.trace && Math.round(t / DT) % 12 === 0 && level.s > Number(args.trace)) console.log(`    t ${t.toFixed(1)} s ${level.s.toFixed(1)} d ${level.d.toFixed(2)} y ${player.pos.y.toFixed(2)} v ${player.vel.toArray().map((v) => v.toFixed(1))} ${player.state} g${+player.grounded} wall ${player.timers.wall.toFixed(2)} cmd ${JSON.stringify(c)}`);
+    if (args.trace && Math.round(t / DT) % 12 === 0 && level.s > Number(args.trace)) console.log(`    t ${t.toFixed(1)} s ${level.s.toFixed(1)} d ${level.d.toFixed(2)} y ${player.pos.y.toFixed(2)} v ${player.vel.toArray().map((v) => v.toFixed(1))} ${player.state} g${+player.grounded} cmd ${JSON.stringify(c)}`);
     if (summit !== null && t > summit + 2) break; // walk on a little so the summit beats fire
     if (level.progress > lastProgress + 0.5) { lastProgress = level.progress; stallT = 0; } else stallT += DT;
     if (stallT > 25) {
@@ -216,15 +178,19 @@ else {
   // new mechanic (~6 s in sections 1–7) and retries each hard section about once (cairn → failure point).
   // Checkpoints are sparse (DECISIONS #48), so a retry replays most of its section: chutes and
   // cave about half a retry, the ridge most of one, the couloir (slide-backs) more than one.
-  const retry = { 3: 0.6, 4: 0.8, 5: 0.5, 7: 1.2 };
-  let est = run.t * 1.35 + 7 * 6;
+  // Plus ~5 s standing at each of the three whiteout notes to read them.
+  const retry = { 3: 0.6, 4: 0.8, 7: 1.2 };
+  let est = run.t * 1.35 + 7 * 6 + 3 * 5;
   for (const k in retry) est += (run.secs[k].dur ?? 0) * retry[k];
   console.log(`\nBot reached the summit in ${fmtT(run.t)} (${run.t.toFixed(1)} s).`);
   console.log(`Estimated first-time playthrough: ${fmtT(est)} (target ≈ 5–6 min).`);
-  const allBeats = mountain.route.sections.flatMap((s) => (s.beats ?? []).map((b) => b.id));
+  // Every line fires except the scripted ending (the game runs it) and the two that depend on
+  // struggling (slow in the powder, a retry in the chutes), which a clean run never triggers.
+  const optional = new Set(['ending', 'slow', 'retry']);
+  const allBeats = mountain.route.sections.flatMap((s) => (s.beats ?? []).filter((b) => !optional.has(b.when)).map((b) => b.id));
   const missed = allBeats.filter((id) => !run.beats.includes(id));
-  console.log(`Story trigger volumes entered: ${run.beats.length}/${allBeats.length}${missed.length ? ` (missed ${missed.join(', ')})` : ''}`);
-  if (missed.length) failures.push(`story triggers never entered: ${missed.join(', ')}`);
+  console.log(`Story lines fired: ${allBeats.length - missed.length}/${allBeats.length} (+ ${run.beats.filter((id) => !allBeats.includes(id)).length} conditional)${missed.length ? ` (missed ${missed.join(', ')})` : ''}; order ${run.beats.join(' ')}`);
+  if (missed.length) failures.push(`story lines never fired: ${missed.join(', ')}`);
   if (from === 0 && (est < 240 || est > 390)) failures.push(`first-time estimate ${fmtT(est)} outside 4:00–6:30`);
 }
 

@@ -1,5 +1,6 @@
 // Kinematic momentum controller (DESIGN §2, DECISIONS #5). Pure logic, no DOM: runs in Node
 // for tools/check-movement.mjs. States: run, slide, air, stumble, sit.
+// (Wall-kick removed in Phase 5, DECISIONS #60.)
 import * as THREE from 'three';
 import { SURFACE } from '../world/surfaces.js';
 
@@ -45,12 +46,9 @@ export class Controller {
     this.prevLean = new THREE.Vector2();
     this.crouch = 0; // 0 standing … 1 crouched (smoothed)
     this.prevCrouch = 0;
-    this.timers = { coyote: 0, buffer: 0, groundLock: 0, stumble: 0, idle: 0, wall: 0 };
+    this.timers = { coyote: 0, buffer: 0, groundLock: 0, stumble: 0, idle: 0 };
     this.jumping = false;
-    this.wallNormal = new THREE.Vector3();
-    this.wallSurface = -1;
-    this.lastKickNormal = null;
-    this.events = []; // { type: 'land'|'jump'|'kick'|'stumble', ... } drained by the game each frame
+    this.events = []; // { type: 'land'|'jump'|'stumble', ... } drained by the game each frame
     this.time = 0;
     this.topSpeed = tuning.run.speed;
   }
@@ -122,7 +120,7 @@ export class Controller {
     if (T.buffer <= 0) return;
     const onGround = this.grounded && this.state !== 'stumble';
     const coyote = !this.grounded && T.coyote > 0 && !this.jumping;
-    if (!onGround && !coyote) { this._tryWallKick(); return; }
+    if (!onGround && !coyote) return;
     const n = this.groundNormal;
     const fromSlide = this.state === 'slide' || cmd.slideHeld;
     const vn = v.dot(n);
@@ -139,23 +137,6 @@ export class Controller {
     T.coyote = 0;
     T.groundLock = t.jump.groundLock;
     this.events.push({ type: 'jump', slide: fromSlide });
-  }
-
-  /** Air jump off a steep ice/rock wall touched in the last few ms: bounce away from it. */
-  _tryWallKick() {
-    const wk = this.t.wallKick, T = this.timers, v = this.vel, n = this.wallNormal;
-    if (!wk.enabled || T.wall <= 0) return;
-    if (this.wallSurface !== SURFACE.ICE && this.wallSurface !== SURFACE.ROCK) return;
-    if (this.lastKickNormal && n.dot(this.lastKickNormal) > 0.5) return; // no climbing one wall
-    const into = v.x * n.x + v.z * n.z; // < 0 when moving into the wall
-    _a.set(v.x - into * n.x, 0, v.z - into * n.z).multiplyScalar(wk.keep);
-    _a.addScaledVector(n, Math.max(wk.out, -into * wk.reflect));
-    v.set(_a.x, wk.up, _a.z);
-    this.lastKickNormal = (this.lastKickNormal ?? new THREE.Vector3()).copy(n);
-    this.jumping = true;
-    T.buffer = 0;
-    T.wall = 0;
-    this.events.push({ type: 'kick', surface: this.wallSurface });
   }
 
   _nearCairn() {
@@ -270,13 +251,9 @@ export class Controller {
       this.pos.set(_seg.start.x, _seg.start.y - r, _seg.start.z);
       for (const c of contacts) {
         const vn = v.dot(c.normal);
-        if (c.normal.y > t.wallKick.maxNormalY) {
+        if (c.normal.y > t.body.floorNormalY) {
           if (!wasGrounded) impact = Math.max(impact, -vn);
           floor = c;
-        } else if (c.normal.y > -0.3) {
-          this.wallNormal.set(c.normal.x, 0, c.normal.z).normalize();
-          this.wallSurface = c.surface;
-          T.wall = t.wallKick.window;
         }
         if (vn < 0) v.addScaledVector(c.normal, -vn);
       }
@@ -318,7 +295,6 @@ export class Controller {
       else { this.groundNormal.copy(nH); this.groundSurface = hf.surfaceAt(this.pos.x, this.pos.z); }
       this.slopeAngle = Math.acos(Math.min(1, this.groundNormal.y));
       T.coyote = t.jump.coyote;
-      this.lastKickNormal = null;
       this.jumping = false;
       this.jumpFromSlide = false;
       if (!wasGrounded) {

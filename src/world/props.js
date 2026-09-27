@@ -1,6 +1,6 @@
-// Props and set pieces placed along the route: cairns (checkpoints), boulders and scattered rocks,
-// route marker poles, the snow bridge, wall-kick slots and step blocks, the ice-cave roof and the
-// summit pole. Produces collider specs for three-mesh-bvh and a THREE.Group of flat placeholder
+// Props placed along the route: cairns (checkpoints and story cairns), boulders, scattered rocks and
+// route marker poles (the chimneys, snow bridge, ice-cave roof and summit flag went in Phase 5,
+// DECISIONS #60–62). Produces collider specs for three-mesh-bvh and a THREE.Group of flat placeholder
 // meshes. Deterministic; runs in Node for the tools (the render group is simply unused there).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -30,20 +30,10 @@ export function buildProps(mountain) {
   const rand = rng(4242);
   const boxes = [], meshes = [], cairns = [];
   const group = new THREE.Group();
-  const rockMat = mat(SURFACE_TINTS[3]), iceMat = mat(SURFACE_TINTS[2]), snowMat = mat([0.9, 0.92, 0.97]);
+  const rockMat = mat(SURFACE_TINTS[3]);
   const ground = (x, z) => hf.heightAt(x, z);
   const rockGeos = []; // every rock and cairn stone, merged into one draw call at the end
 
-  const addBox = (spec, material, castShadow = true) => {
-    boxes.push(spec);
-    const m = new THREE.Mesh(new THREE.BoxGeometry(...spec.size), material);
-    m.position.set(...spec.center);
-    m.rotation.y = spec.yaw ?? 0;
-    m.castShadow = castShadow;
-    m.receiveShadow = true;
-    group.add(m);
-    return m;
-  };
   const addRock = (x, z, r, squash, sink = 0.3) => {
     const g = rockGeometry(rand, r, squash);
     g.rotateY(rand() * Math.PI * 2);
@@ -73,68 +63,6 @@ export function buildProps(mountain) {
     for (const pr of sec.props ?? []) {
       const p = route.place(k, pr.at, pr.d);
       addRock(p.x, p.z, pr.r, 0.8, 0.25);
-    }
-
-    // --- Wall-kick chimneys: a back panel `gap` metres before the step face, with a doorway on the
-    // `door` side (+1 = right of travel); the step block's face is the other wall.
-    for (const sl of sec.slots ?? []) {
-      const prof = route.profileAt(sec.s0 + sl.at - 1);
-      const outer = prof.w + 3, doorW = 2.2;
-      const floor = route.heightAt(sec.s0 + sl.at - 1);
-      let top = route.heightAt(sec.s0 + sl.at + 2.5);
-      const wallMat = sl.surface === SURFACE.ICE ? iceMat : rockMat;
-      // Panel spans d from the closed side's outer edge to the doorway.
-      const dA = -sl.door * outer, dB = sl.door * (prof.w - doorW);
-      const pc = route.place(k, sl.at - sl.gap - 0.5, (dA + dB) / 2);
-      addBox({
-        center: [pc.x, floor - 1 + (sl.wall + 1) / 2, pc.z], size: [Math.abs(dB - dA), sl.wall + 1, 1], surface: sl.surface, yaw: pc.yaw,
-      }, wallMat);
-      const stepLen = 3, sp = route.place(k, sl.at + stepLen / 2);
-      // Sit the block's top just above the heightfield's bicubic overshoot at the step, so you
-      // stand on the box rather than on a steep sliver of terrain poking through it.
-      for (let a = sl.at - 0.5; a <= sl.at + stepLen; a += 0.25) {
-        for (let dd = -prof.w + 0.5; dd <= prof.w - 0.5; dd += 0.5) { const q = route.place(k, a, dd); top = Math.max(top, ground(q.x, q.z) + 0.02); }
-      }
-      addBox({
-        center: [sp.x, (floor - 1 + top) / 2, sp.z], size: [2 * outer, top - floor + 1, stepLen], surface: sl.surface, yaw: sp.yaw,
-      }, wallMat);
-    }
-
-    // --- Snow bridge (collapses).
-    if (sec.bridge) {
-      const b = sec.bridge, len = b.to - b.from, mid = route.place(k, (b.from + b.to) / 2);
-      const spec = { center: [mid.x, b.top - 0.5, mid.z], size: [b.w, 1, len], surface: SURFACE.PACKED, yaw: mid.yaw, group: 'bridge' };
-      const mesh = addBox(spec, snowMat);
-      mountain.bridge = { mesh, section: k, s0: sec.s0 + b.from, s1: sec.s0 + b.to, collapseAt: sec.s0 + b.collapseAt, top: b.top };
-    }
-
-    // --- Ice-cave roof: an arched slab over the trench, extruded along the route.
-    if (sec.roof) {
-      const prof = sec.profile, half = prof.w + 14 / Math.tan((70 * Math.PI) / 180) + 2.5;
-      const cols = 9, pos = [], idx = [];
-      const rows = Math.ceil((sec.roof.to - sec.roof.from) / 2) + 1;
-      for (let r = 0; r < rows; r++) {
-        const s = sec.s0 + Math.min(sec.roof.from + r * 2, sec.roof.to), p = route.at(s), H = route.heightAt(s);
-        for (let c = 0; c < cols; c++) {
-          const d = -half + (2 * half * c) / (cols - 1), bottom = H + 12 + 2.5 * (1 - (d / half) ** 2);
-          for (const y of [bottom, bottom + 2.5]) pos.push(p.x + p.rx * d, y, p.z + p.rz * d);
-        }
-      }
-      const v = (r, c, top) => (r * cols + c) * 2 + (top ? 1 : 0);
-      for (let r = 0; r < rows - 1; r++) {
-        for (let c = 0; c < cols - 1; c++) {
-          idx.push(v(r, c, 0), v(r, c + 1, 0), v(r + 1, c, 0), v(r, c + 1, 0), v(r + 1, c + 1, 0), v(r + 1, c, 0));
-          idx.push(v(r, c, 1), v(r + 1, c, 1), v(r, c + 1, 1), v(r, c + 1, 1), v(r + 1, c, 1), v(r + 1, c + 1, 1));
-        }
-      }
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      g.setIndex(idx);
-      g.computeVertexNormals();
-      meshes.push({ geometry: g, surface: SURFACE.ICE });
-      const m = new THREE.Mesh(g, mat([0.5, 0.68, 0.95], { side: THREE.DoubleSide }));
-      m.castShadow = m.receiveShadow = true;
-      group.add(m);
     }
   });
 
@@ -167,16 +95,6 @@ export function buildProps(mountain) {
     im.castShadow = true;
     group.add(im);
   }
-
-  // --- Summit pole: tall, with a red flag, visible from far down the mountain.
-  const top = route.at(route.length - 4);
-  const hy = ground(top.x, top.z);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 6, 6), mat([0.25, 0.22, 0.2]));
-  pole.position.set(top.x, hy + 3, top.z);
-  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.9), mat([0.85, 0.12, 0.1], { side: THREE.DoubleSide }));
-  flag.position.set(top.x + 0.8, hy + 5.4, top.z);
-  group.add(pole, flag);
-  boxes.push({ center: [top.x, hy + 3, top.z], size: [0.3, 6, 0.3], surface: SURFACE.ROCK });
 
   const rocks = new THREE.Mesh(mergeGeometries(rockGeos), rockMat);
   rocks.castShadow = rocks.receiveShadow = true;

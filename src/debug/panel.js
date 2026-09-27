@@ -22,7 +22,6 @@ export function createPanel(tuning) {
   addFolder(gui, 'air', tuning.air);
   addFolder(gui, 'jump', tuning.jump);
   addFolder(gui, 'landing', tuning.landing);
-  addFolder(gui, 'wallKick', tuning.wallKick);
   const sf = gui.addFolder('surfaces');
   for (const s of tuning.surfaces) addFolder(sf, s.name, s, { friction: [0, 1, 0.001], drag: [0, 0.05, 0.0005], linDrag: [0, 2, 0.01], control: [0, 2, 0.01], grip: [0, 2, 0.01], maxWalk: [0, 89, 1] });
   sf.close();

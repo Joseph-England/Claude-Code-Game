@@ -9,6 +9,7 @@ import { loadMountain } from './world/mountain.js';
 import { buildProps } from './world/props.js';
 import { Colliders } from './world/colliders.js';
 import { LevelState } from './world/levelstate.js';
+import { Story } from './story/story.js';
 import { Controller } from './player/controller.js';
 import { ThirdPersonCamera } from './player/camera.js';
 import { Avatar } from './player/avatar.js';
@@ -50,6 +51,7 @@ scene.add(props.group);
 const colliders = new Colliders(props.boxes, props.meshes);
 const world = { heightfield: mountain.heightfield, colliders, cairns: props.cairns.map((c) => [c.x, c.y, c.z]) };
 const level = new LevelState(mountain, props.cairns, colliders, tuning);
+const story = new Story(mountain.route, props.cairns);
 const qStart = startupTier();
 const lights = createLights(scene, camera, { cascades: qStart.tier.cascades, size: qStart.tier.shadowSize });
 const snowLit = (mat, patch, key) => litMaterial(mat, { csm: lights.csm, patch, key, direct: SNOW_DIRECT });
@@ -126,7 +128,6 @@ function spawnSection(k) {
   const sec = mountain.route.sections[k];
   if (!sec) return;
   const i = props.cairns.findIndex((c) => c.section === k && c.checkpoint);
-  // Sections before the target count as done so gating (wall-kick) matches a real run.
   const s = i >= 0 ? props.cairns[i].s : sec.s0 + 2;
   level.progress = Math.max(level.progress, s);
   if (i >= 0) { spawnAt(i); return; }
@@ -153,8 +154,6 @@ function updateRespawn(dt) {
   else { fade.style.opacity = 0; respawn = null; }
 }
 
-// Bridge collapse animation (render only; the collider is already gone).
-let bridgeFall = null;
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -242,6 +241,7 @@ createLoop({
   beginFrame(frameDt) {
     for (let k = 0; k <= 8; k++) if (input.wasPressed(`Digit${k + 1}`)) spawnSection(k);
     if (input.wasPressed('KeyR')) startRespawn();
+    if (input.wasPressed('KeyE')) story.signal('stone');
     if (input.wasPressed('F3') || input.wasPressed('Backquote')) overlay.toggle();
     if (input.wasPressed('F4')) panel.toggle();
     if (input.wasPressed('F2')) showToast(`quality: ${quality.cycle()}${quality.tier.cascades !== lights.csm.cascades ? ' (shadow cascades after reload)' : ''}`, 2.5);
@@ -256,15 +256,18 @@ createLoop({
     player.vel.x += w.x * dt;
     player.vel.z += w.z * dt;
     player.step(dt, step === 0 ? cmd : { ...cmd, jumpPressed: false }, cam.yaw);
+    if (step === 0 && (cmd.moveX || cmd.moveY)) story.signal('input');
+    if (player.events.some((e) => e.type === 'jump')) story.signal('jump');
     level.step(dt, player);
+    story.step(dt, level, player);
+    lineQueue.push(...story.out);
+    story.out.length = 0;
     for (const e of level.events) {
-      if (e.type === 'oob') startRespawn();
+      if (e.type === 'oob') { if (!respawn) story.respawned(mountain.route.sectionIndexAt(props.cairns[level.checkpoint].s)); startRespawn(); }
       else if (e.type === 'checkpoint') {
         showToast('checkpoint');
         for (let i = 0; i < 60; i++) particles.emit(e.cairn.x + rnd(0.5), e.cairn.y + 0.8 + rnd(0.5), e.cairn.z + rnd(0.5), rnd(1.5), 1 + Math.random() * 2, rnd(1.5), 2 + Math.random(), 0.03, 0, 0.05, 2);
       }
-      else if (e.type === 'beat') lineQueue.push(e.beat);
-      else if (e.type === 'collapse') bridgeFall = { v: 0 };
       else if (e.type === 'summit') { summitTime = e.time; showToast(`summit · ${Math.floor(e.time / 60)}:${String(Math.floor(e.time % 60)).padStart(2, '0')}`, 5); }
     }
     level.events.length = 0;
@@ -289,13 +292,6 @@ createLoop({
     }
     player.events.length = 0;
     updateRespawn(frameDt);
-    if (bridgeFall && mountain.bridge) {
-      bridgeFall.v += 15 * frameDt;
-      const m = mountain.bridge.mesh;
-      m.position.y -= bridgeFall.v * frameDt;
-      m.rotation.z += 0.3 * frameDt;
-      if (m.position.y < mountain.bridge.top - 40) { m.visible = false; bridgeFall = null; }
-    }
     renderPos.lerpVectors(player.prevPos, player.pos, alpha);
     // Deformable snow: the path (a groove; deeper when sliding) and footprints from the gait.
     const snow = onSnow(), sliding = player.state === 'slide';

@@ -9,19 +9,20 @@ export const tuning = {
     radius: 0.35,
     height: 1.7, // standing capsule height
     slideHeight: 1.0, // crouched in a slide
+    floorNormalY: 0.5, // collider contacts with a steeper normal than this are walls, not floors
   },
 
   run: {
     speed: 5, // walking top speed on flat packed snow (user playtest: 7 was too fast for a walk)
     sprintSpeed: 9, // Shift held; unlimited stamina (DECISIONS #47)
-    accel: 10, // a = accel·control·(1 − v/top): ~0.5–0.9 s time constant ("slightly heavy")
+    accel: 22, // a = accel·control·(1 − v/top): ~0.23 s walk / 0.4 s sprint time constant (tightened, DECISIONS #63)
     overspeedBrake: 0.4, // floor of the (1 − v/speed) factor when faster than top speed
-    brake: 9, // decel with no input (× surface grip)
+    brake: 24, // decel with no input (× surface grip): a sprint stops in ~0.4 s on packed
     gravityScale: 0.5, // legs resist the slope while running
-    turnAccel: 28, // max lateral accel when turning; turn rate = turnAccel/speed
-    maxTurnRate: 12, // rad/s cap at low speed
-    skidAngle: 120, // deg; input further than this from velocity = skid-brake instead of turning
-    skidBrake: 14,
+    turnAccel: 70, // max lateral accel when turning; turn rate = turnAccel/speed
+    maxTurnRate: 16, // rad/s cap at low speed
+    skidAngle: 105, // deg; input further than this from velocity = skid-brake instead of turning
+    skidBrake: 30,
     stick: 3, // multiplier on gravity when deciding to stay glued over crests
     snapDistance: 0.45, // max drop to snap down while running
   },
@@ -35,7 +36,7 @@ export const tuning = {
   },
 
   air: {
-    control: 0.15, // fraction of run.accel available in the air
+    control: 0.3, // fraction of run.accel available in the air
     drag: 0.0025, // quadratic
     lowJumpGravity: 2.6, // gravity multiplier while rising with jump released (variable height)
     fallGravity: 1.2, // gravity multiplier while falling
@@ -55,16 +56,6 @@ export const tuning = {
     stumbleTime: 0.3,
   },
 
-  wallKick: {
-    enabled: true, // gated to the cave onward in Phase 3; always on in the gray box
-    up: 7,
-    out: 6, // minimum speed away from the wall
-    reflect: 0.6, // share of into-wall speed bounced back out (if more than `out`)
-    keep: 0.85, // share of along-wall speed kept
-    window: 0.12, // wall contact grace (s)
-    maxNormalY: 0.5, // contacts steeper than this are walls
-  },
-
   rest: { delay: 3, radius: 5 },
 
   // Avatar lean (render only). Small on foot, more when carving a slide (DECISIONS #50).
@@ -76,7 +67,7 @@ export const tuning = {
   surfaces: [
     { name: 'packed', friction: 0.06, drag: 0.004, linDrag: 0, control: 1.0, grip: 1.0, maxWalk: 38 },
     { name: 'powder', friction: 0.1, drag: 0.02, linDrag: 0.25, control: 0.85, grip: 1.1, maxWalk: 38 },
-    { name: 'ice', friction: 0.012, drag: 0.002, linDrag: 0, control: 0.3, grip: 0.1, maxWalk: 30 },
+    { name: 'ice', friction: 0.012, drag: 0.002, linDrag: 0, control: 0.22, grip: 0.05, maxWalk: 30 },
     { name: 'rock', friction: 0.45, drag: 0.004, linDrag: 0, control: 1.2, grip: 1.2, maxWalk: 55 },
   ],
 

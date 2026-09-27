@@ -24,7 +24,7 @@ Current phase: **Phase 2 — Movement & camera** (Phase 1 complete)
 - [x] Jump: variable height, coyote time, jump buffer; slide-jump; landing velocity projection
 - [x] Wall-kick
 - [x] Surface physics table (friction/drag/control) wired to the controller
-- [ ] Third-person camera: orbit, auto-follow, terrain collision, speed FOV, carve roll
+- [x] Third-person camera: orbit, auto-follow, terrain collision, speed FOV, carve roll
 - [ ] Placeholder avatar (capsule + facing) with lean
 - [ ] Dev tuning panel (lil-gui) + speed/state readout; tune until it feels good; record final constants in DECISIONS
 

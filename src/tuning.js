@@ -88,7 +88,10 @@ export const tuning = {
     followRate: 2.2, // 1/s at full strength
     slopePitch: 0.45, // share of the velocity's pitch added when following
     verticalLag: 7, // 1/s critically damped follow of the target height (kills bumps)
-    maxVerticalLag: 0.8, // m
+    verticalLead: 2.5, // 1/s low-pass on vertical velocity used as the spring's lead term
+    maxLead: 3, // m
+    maxVerticalLag: 4, // m
+    minTargetHeight: 0.4, // m above the feet the lagging target may never go below
     fovMin: 60,
     fovMax: 75,
     fovSpeedMin: 8,
@@ -99,6 +102,8 @@ export const tuning = {
     rollRate: 4,
     clearance: 0.45, // m kept between camera and terrain/colliders
     minDistance: 1.1,
+    liftRate: 10, // 1/s rise when terrain behind the player needs a higher boom
+    liftRelax: 2, // 1/s ease back down after lifting over terrain
     pullOutRate: 2.5, // 1/s ease back out after a collision pull-in
   },
 

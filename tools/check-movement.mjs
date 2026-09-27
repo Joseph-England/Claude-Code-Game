@@ -7,6 +7,8 @@ import { tuning } from '../src/tuning.js';
 import { createLoop, FIXED_DT } from '../src/core/loop.js';
 import { buildCourse } from '../src/world/course.js';
 import { Colliders } from '../src/world/colliders.js';
+import { ThirdPersonCamera } from '../src/player/camera.js';
+import * as THREE from 'three';
 
 const DT = FIXED_DT;
 const D = Math.PI / 180;
@@ -244,6 +246,65 @@ for (const [v, slide, wantAir] of [[12, true, false], [22, true, true], [7, fals
   // Camera yaw 0: moveY −0.87 heads +z toward the wall.
   record('glancing kick off long rock wall: speed away from wall', kicked ? -kicked.z : NaN, 'm/s', tuning.wallKick.out - 0.05);
   if (!kicked) failures.push('glancing wall-kick did not trigger');
+}
+
+// 11. Camera: bots tour the course at 60 fps while the orbit sweeps; the camera must never go
+//     below the terrain or inside a collider, and must stay smooth over the rollers.
+{
+  const course = buildCourse();
+  const cw = { heightfield: course.heightfield, colliders: new Colliders(course.boxes), cairns: course.cairns };
+  const boxes = course.boxes.map((b) => new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(...b.center), new THREE.Vector3(...b.size)).expandByScalar(0.05));
+  const scenarios = [
+    { name: 'run: slide the smooth lane', pos: [0, 0, -170], yaw: Math.PI, cmd: () => cmd({ slideHeld: true }), secs: 14, orbit: false },
+    { name: 'run: rollers', pos: [-14, 0, -170], yaw: Math.PI, cmd: () => cmd({ slideHeld: true }), secs: 8, orbit: false, jerk: true },
+    { name: 'run: kicker line', pos: [17, 0, -130], yaw: Math.PI, cmd: () => cmd({ slideHeld: true }), secs: 8, orbit: false },
+    { name: 'slope lanes: climb 30°/40°', pos: [44, 0, 20], yaw: -Math.PI / 2, cmd: () => cmd({ moveY: 1 }), secs: 8, orbit: true },
+    { name: 'half-pipe: carve', pos: [0, 0, 62], yaw: Math.PI, cmd: (i) => cmd({ slideHeld: i > 60, moveY: i < 60 ? 1 : 0, moveX: Math.sin(i / 70) }), secs: 14, orbit: true },
+    { name: 'tunnel: run through', pos: [-70, 0, 96], yaw: Math.PI, cmd: () => cmd({ moveY: 1 }), secs: 5, orbit: true },
+    { name: 'chimney: orbit inside', pos: [-117.75, 0, 100], yaw: 0, cmd: () => cmd(), secs: 6, orbit: true },
+  ];
+  for (const sc of scenarios) {
+    const c = new Controller(cw, tuning);
+    const p = [sc.pos[0], cw.heightfield.heightAt(sc.pos[0], sc.pos[2]), sc.pos[2]];
+    c.teleport(p, sc.yaw);
+    const cam3 = new ThirdPersonCamera(new THREE.PerspectiveCamera(60, 16 / 9, 0.05, 1000), cw, tuning);
+    cam3.reset(c.pos, sc.yaw);
+    let minClear = Infinity, inside = 0, frame = 0, tick = 0;
+    const ys = [];
+    const rp = new THREE.Vector3();
+    const loop = createLoop({
+      beginFrame: (dt) => {
+        const a = frame / 60;
+        if (sc.orbit) cam3.look(Math.sin(a * 0.9) * 0.05, Math.sin(a * 1.7) * 0.03, dt);
+        else cam3.look(0, 0, dt);
+      },
+      update: (dt) => { c.step(dt, sc.cmd(tick++), cam3.yaw); },
+      render: (alpha, dt) => {
+        rp.lerpVectors(c.prevPos, c.pos, alpha);
+        cam3.update(dt, rp, c, c.crouch);
+        const cp = cam3.camera.position;
+        minClear = Math.min(minClear, cp.y - cw.heightfield.heightAt(cp.x, cp.z));
+        if (boxes.some((b) => b.containsPoint(cp))) inside++;
+        ys.push([cp.clone(), rp.clone(), cam3.dist, cam3.pitch, cam3.lift, cam3.y, cw.heightfield.heightAt(cp.x, cp.z), c.state]);
+        frame++;
+      },
+    });
+    for (let f = 0; f < sc.secs * 60; f++) loop.advance(1 / 60);
+    record(`camera ${sc.name}: min terrain clearance`, minClear, 'm', 0.2);
+    record(`camera ${sc.name}: frames inside colliders`, inside, 'frames', 0, 0);
+    if (sc.jerk) {
+      // Relative height of camera above the player: frame-to-frame change (bumps show up here).
+      // Second difference of camera vs player position per frame: how much jerkier the camera is.
+      let camJ = 0, plJ = 0, where = 0;
+      for (let i = 2; i < ys.length; i++) {
+        const cj = Math.abs(ys[i][0].y - 2 * ys[i - 1][0].y + ys[i - 2][0].y);
+        if (cj > camJ) { camJ = cj; where = i; }
+        plJ = Math.max(plJ, Math.abs(ys[i][1].y - 2 * ys[i - 1][1].y + ys[i - 2][1].y));
+      }
+      if (process.env.DEBUG) for (let i = where - 3; i <= where + 2; i++) console.log(i, ys[i][1].x.toFixed(1), ys[i][1].z.toFixed(1), ys[i][0].y.toFixed(3), ys[i][1].y.toFixed(3), ys[i][2].toFixed(3), ys[i][3].toFixed(3), ys[i][4].toFixed(3), ys[i][5].toFixed(3), ys[i][6].toFixed(3), ys[i][7]);
+      record(`camera ${sc.name}: max vertical jerk camera / player`, camJ / plJ, '×', 0, 0.5);
+    }
+  }
 }
 
 // Write the table.

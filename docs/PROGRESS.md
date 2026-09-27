@@ -1,6 +1,6 @@
 # Progress
 
-Current phase: **Phase 4 — Atmosphere & rendering** (Phases 1–3 complete)
+Current phase: **Phase 5 — Story, audio & flow** (Phases 1–4 complete)
 
 ## Phase 1: Foundation & design
 - [x] Create CLAUDE.md operating rules
@@ -62,6 +62,21 @@ mechanic works; respawns work everywhere; no soft-locks; 60 fps on Medium-equiva
 
 **Done when:** the level looks like the design (sunset arc, snow, fog, particles, post) and holds
 60 fps on Medium on integrated graphics; every showcase item is shipped or its fallback is logged.
+
+**Measured (Phase 4, headless Chromium + SwiftShader, 1280×720; `tools/smoke.mjs`):**
+
+| Tier | Section | Draw calls | Triangles (incl. shadow passes) |
+|---|---|---|---|
+| Medium | 1 The Foot | 83 | 326k |
+| Medium | 4 Cornice Ridge | 85 | 275k |
+| Medium | 7 Summit Push | 83 | 329k |
+| Low | 1 / 4 / 7 | 63 / 63 / 61 | 247k / 193k / 254k |
+| High | 3 Ice Chutes | 113 | 442k |
+
+Budget (DESIGN §6, Medium): ≤ 150 calls, ≤ 400k triangles: met. Frame time is not measurable here
+(software GL: ~0.4–0.7 s/frame, so the auto benchmark correctly picks Low and dynamic resolution
+drops to 0.5). On real hardware, F3 shows GPU ms (timer query) per frame. Physics is unchanged
+(≈ 3.5 µs/step).
 
 ## Phase 5: Story, audio & flow
 - [ ] Game state machine: title → playing → ending → credits → title
@@ -164,3 +179,30 @@ work, README is complete.
   replacing `render/lights.js` and the flat fog/background in `game.js`. The terrain material is
   `MeshStandardMaterial` patched in `render/terrain.js`; the Phase 4 snow shader should keep its
   height-texture vertex code (and the depth material) and replace the fragment part.
+
+### Session 4 — Phase 4: Atmosphere & rendering (2026-09-27)
+- **Playtest notes (done first):** Shift sprints (9 m/s), walk is 5 m/s, slide moved to C / right
+  mouse, unlimited stamina (#47). Harder route: 5 checkpoints instead of 14, a 46° summit couloir
+  climbed on a zig-zag rock line (step off it and you slide back), ice patches between rock
+  shelters on a narrower, gustier ridge, an 8.5 m crevasse; every surface now has a job (#48).
+  HUD text on dark backings; the Weight looks like a stain with a vignette, not a second person;
+  cairn notes look like notes (#49). Procedural avatar replaces the capsule: lean capped at 0.08 rad
+  on foot, and the "blob" (the old squashed rest pose) is now a real sit (#50).
+- **Completed:** every Phase 4 item. `render/post.js` (HDR target, bloom, grade, AgX, vignette,
+  grain, speed streaks/CA, FXAA), `atmosphere.js` (transmittance + sky-view LUTs, Earth's shadow,
+  sun disc, stars, JS sun colour), `arc.js` (sun path #52, snow density and grade per section),
+  `sunshadow.js` + `lights.js` + `materials.js` (ray-marched terrain shadows, CSM for props/avatar,
+  sky-LUT ambient, alpenglow; #53), `snow.js` (#54), `trails.js` (#55), `fog.js` (#56),
+  `particles.js` (#57), `quality.js` (#59), `player/avatar.js` (#50). Tools: `tools/smoke.mjs`.
+  Screenshots used: 5 (trailhead figure, cave, ridge, summit push ×2).
+- **Broken / deferred:** 60 fps on integrated graphics is unverified (software GL only here); please
+  check F3 on real hardware (GPU ms, scale, calls). The post-sunset look (Earth's shadow, Belt of
+  Venus, stars, alpenglow) is implemented but was not screenshotted: it only appears after reaching
+  the summit, and Phase 5's ending camera will frame it. Shadow cascade count changes apply after a
+  reload (#59). Trails fade 64 m behind you (#55). The one soft-lock sweep miss (Opening +30,
+  d = 19: a hollow off the trail) is a bot limit; R and the 12 s hint cover it.
+- **Next step:** Phase 5, first item: game state machine (title → playing → ending → credits →
+  title) in `src/main.js`/`game.js`. The ending should drive `sunElevation(p, sinceSummit)` (already
+  sets the sun under the horizon over 40 s after arrival) and turn the camera east toward Earth's
+  shadow and the alpenglow on the far ranges. Keep the voice styles from #49 in the narrator.
+

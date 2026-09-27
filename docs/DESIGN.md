@@ -250,6 +250,16 @@ before the step face with a doorway at one side.
 - **Arc** — desaturated and flat at the start; progressively warmer; whiteout drains to monochrome;
   post-storm is the colour climax; summit falls into blue hour.
 
+### As built (Phase 4; `src/render/`)
+Pipeline: sky-view LUT + terrain sun-visibility map + trail ring buffer (off-screen) → scene into a
+half-float target with depth (sky triangle, terrain, props, avatar, particles) → atmosphere pass
+(aerial perspective, height fog, whiteout) → bloom → grade/AgX/vignette/grain/speed → FXAA.
+Modules: `atmosphere.js` (LUTs, sky, sun colour), `sunshadow.js` (ray-marched terrain shadows),
+`lights.js` (CSM for props/avatar), `materials.js` (shared world lighting: sky-LUT ambient,
+alpenglow), `snow.js`, `trails.js`, `fog.js`, `particles.js`, `post.js`, `arc.js` (sun path, snow
+density and grade per section), `quality.js`. Decisions #51–59. Medium: 83–85 draw calls and
+275–329k triangles (both including shadow passes).
+
 ## 5. Audio (all procedural Web Audio)
 
 - **Wind** — pink/brown noise through modulated bandpass filters; gust envelopes (synced with ridge

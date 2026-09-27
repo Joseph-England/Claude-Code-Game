@@ -118,6 +118,8 @@ html, body {
 #credits.show .roll > :nth-child(3) { transition-delay: 3s; }
 #credits.show .roll > :nth-child(4) { transition-delay: 5.5s; }
 #credits.show .roll > :nth-child(5) { transition-delay: 9s; }
+#credits.show .roll > :nth-child(6) { transition-delay: 13s; }
+#credits .back { margin-top: 30px; opacity: 0.6; }
 #credits h2 { font-weight: normal; letter-spacing: 0.32em; text-transform: uppercase; font-size: 30px; margin: 0 0 18px 0.32em; color: #fff0ee; }
 #credits p { font-size: 17px; margin: 0 0 22px; }
 #credits .small { font: 13px/1.6 system-ui, sans-serif; color: #b8aec2; }

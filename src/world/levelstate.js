@@ -2,6 +2,7 @@
 // tracking, cairn checkpoints + respawn points, out-of-bounds detection, wind (ridge gusts,
 // whiteout headwind) and the summit. Story lines are armed and fired by the narrator (story.js).
 import { SURFACE } from './surfaces.js';
+import { stormCylinders, stormAt, stormNear, STORM_HEAD } from './storm.js';
 
 export class LevelState {
   /** mountain: buildMountain() result with props.cairns; colliders: world colliders; tuning. */
@@ -12,6 +13,7 @@ export class LevelState {
     this.colliders = colliders;
     this.tuning = tuning;
     this.events = [];
+    this.storm = stormCylinders(this.route);
     this.reset();
   }
 
@@ -23,7 +25,7 @@ export class LevelState {
     this.checkpoint = 0;
     this.time = 0;
     this.finished = false;
-    this.wind = { x: 0, z: 0, gust: 0, warn: false, whiteout: 0 };
+    this.wind = { x: 0, z: 0, gust: 0, warn: false, whiteout: 0, stormNear: 0 };
     this.gustClock = 0;
   }
 
@@ -55,7 +57,10 @@ export class LevelState {
     const Hbase = route.heightAt(this.s, true);
 
     // Progress only counts while standing near the route bed (no credit for falling past it).
-    if (onRoute && ctl.grounded && Math.abs(this.d) < (route.profileAt(this.s).w + 6) && this.s > this.progress && this.s < this.progress + 30) {
+    // Up to 30 m ahead near the bed; standing right on the bed catches up from further (a slide
+    // along a shoulder can carry you >30 m ahead before you rejoin the path).
+    const bedW = route.profileAt(this.s).w, ahead = this.s - this.progress;
+    if (onRoute && ctl.grounded && ahead > 0 && ((Math.abs(this.d) < bedW + 6 && ahead < 30) || (Math.abs(this.d) < bedW && ahead < 120))) {
       this.progress = this.s;
     }
 
@@ -72,10 +77,13 @@ export class LevelState {
     // Wind.
     const w = this.wind;
     w.x = w.z = 0; w.gust = 0; w.warn = false;
-    w.whiteout = 0;
-    if (sec.whiteout) {
-      const [a, b] = sec.whiteout;
-      w.whiteout = Math.min(1, Math.max(0, Math.min(ls - a, b - ls) / 12));
+    // The gap's storm: where you are in it, how near it is, and its wind down the gap into your face.
+    w.whiteout = stormAt(this.storm, ctl.pos.x, ctl.pos.z);
+    w.stormNear = stormNear(this.storm, ctl.pos.x, ctl.pos.z);
+    const head = STORM_HEAD * Math.max(w.whiteout, 0.2 * w.stormNear); // it builds on the approach
+    if (onRoute && head > 0) {
+      const p = route.at(this.s);
+      w.x -= p.dx * head; w.z -= p.dz * head;
     }
     if (sec.wind && ls >= sec.wind.from && ls <= sec.wind.to && onRoute) {
       const p = route.at(this.s);
@@ -92,7 +100,6 @@ export class LevelState {
           w.z = p.rz * wd.gust * w.gust * scale;
         }
       }
-      if (wd.head) { w.x -= p.dx * wd.head * w.whiteout; w.z -= p.dz * wd.head * w.whiteout; }
     } else {
       this.gustClock = 0;
     }

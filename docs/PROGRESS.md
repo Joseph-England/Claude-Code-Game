@@ -101,6 +101,15 @@ Playtest notes from Session 4's build (done first):
 sound and the ending working, and the tone reads as intended.
 
 ## Phase 6: Polish, performance & release
+Playtest notes from Session 5's build (done first, Session 6):
+- [x] Footsteps: crunchier, lower packed; varied powder; a real boot-on-rock sound; per-step variation; quieter (DECISIONS #73)
+- [x] Gust and storm wind sound; mix balance (DECISIONS #73)
+- [x] Walking made the core: foot-planted IK gait, slope posture, stepping turns, powder kicks, climbing breath (DECISIONS #74)
+- [x] No sitting: stand and admire the view at the top; no auto-sit at cairns (DECISIONS #75)
+- [x] Scarf no longer clips through the figure (DECISIONS #76)
+- [x] Whiteout motivated: a wind gap between two horns; the storm is a place you see, enter and leave (DECISIONS #77)
+- [x] Final ascent is a walk up the summit ridge, no platforming (DECISIONS #78)
+
 - [ ] Bug bash: full playthroughs on each quality tier; fix all blockers
 - [ ] Performance pass: profile, hit budgets, reduce draw calls/overdraw
 - [ ] Settings menu: quality, mouse sensitivity, invert Y, volume sliders, reduce motion
@@ -239,3 +248,31 @@ work, README is complete.
   possible yet (Phase 6 pause menu could add it).
 - **Next step:** Phase 6, first item: bug bash — full playthroughs on each quality tier (start with
   the title → credits loop twice in a row, to confirm the reset: stone, notes, sun, music level).
+
+### Session 6 — Phase 6 playtest notes (2026-09-27)
+- **Completed (all user playtest notes, done first):** synthesized footsteps (`src/audio/steps.js`)
+  with per-play variation and a lower mix; gust roar/rush with turbulence and a warning swell; storm
+  howl and approach roar (#73). Foot-planted IK gait with toe-off, steady hips on slopes, climb lean,
+  stepping turns, powder kicks; effort breathing on steep climbs (#74). No sitting: the ending stands
+  at the viewpoint and turns to the alpenglow; the cairn auto-sit is gone (#75). Scarf capsule
+  colliders, inelastic contact, settled resets, ribbon width across the strip (#76). The whiteout is
+  a wind gap: horns either side of a col, and the storm is an analytic volume in the fog pass that
+  you see from the approach and behind you, with wind/snow/audio from the same field (#77). Summit
+  Push rebuilt as a walk up the summit ridge (#78). New dev tools: `tools/check-gait.mjs` (foot slip,
+  hip bob, scarf penetration), `window.__game.tp(s, back)` (teleport along the route), `evalfile:`
+  steps in `tools/flow.mjs`.
+- **Measured:** footstep spectral centroid packed 16.4 kHz → ~1.1 kHz, powder ~0.3 kHz, rock
+  ~1.1 kHz, ice ~3.5 kHz; in-game packed step peak ≈ −18 dB K-weighted at the master (Phase 5:
+  −11.6 dB), ~10 dB over the wind bed. Gait: 0.000 m/s planted-foot slip (flat, ±20°, 2/5/9 m/s),
+  2–5 cm hip bob. Scarf ≤ 5 mm inside the body in all tested winds. Bot 2:16, first-time estimate
+  ≈ 4:53 climb / ≈ 5:53 title to credits; all lines fire; soft-lock sweep 3 bot misses (limit 3; all
+  in shoulder gullies off the path, R and the reminder cover them). `npm run check`, `npm run
+  playthrough`, `npm run build` pass.
+- **Broken / deferred:** audio was tuned by measurement, not by ear (please listen: the new packed
+  crunch, rock steps, gusts on the ridge, the storm's approach roar and howl). The browser analyser
+  can't measure the mix here (headless frames are ~1 s, so steps and taps are sparse). The storm's
+  look from outside was checked in screenshots at low quality only. The Phase 6 checklist itself is
+  untouched.
+- **Next step:** Phase 6, first item: bug bash — full playthroughs on each quality tier (start with
+  the title → credits loop twice in a row, to confirm the reset: stone, notes, sun, music level, the
+  standing ending's `admire`).

@@ -19,6 +19,7 @@
 //                 retry, gust, cairn (reading note `cairn` of the section), stone, ending (scripted).
 //                 `after: id` queues the line straight after that one; `fallback` fires a conditional
 //                 line at the end of its stretch if its condition never came.
+//   storm, horns  the gap's storm (storm.js) and the horns either side of it (terrain-gen.js)
 //   oob           out-of-bounds rule: fall below routeH - below, above routeH + above, |d| > side
 //   bot           hints for the automated playthrough: slide ranges, jumps, lateral line, rock edges
 import { SURFACE } from './surfaces.js';
@@ -131,13 +132,16 @@ export const SECTIONS = [
   },
   {
     name: 'Whiteout', len: 165, turn: 70,
+    // A col between two rock horns (DECISIONS #77): the wind is funnelled through the gap and
+    // tears snow off the flanks, so the storm sits here and nowhere else — seen from the climb out
+    // of the hollow, walked into, and still blowing behind you when you come out (storm.js).
     knots: [[0, 49], [165, 66]],
-    profile: { type: 'plateau', w: 20, bank: 8, shoulder: 30 },
+    profile: { type: 'col', w: 14 },
+    horns: { height: 62, from: -30, to: 200 }, // terrain-gen raises the flanks into horns
     surface: POWDER,
     trail: { amp: 3, wave: 70, w: 1.4 },
     cairns: [[36, -4, 'note'], [86, -4, 'note'], [138, -4, 'note']], // A, B, C (spread out: user playtest) — "keep the stones on your left"
-    wind: { from: 6, to: 160, head: 2.2 },
-    whiteout: [8, 156],
+    storm: true,
     beats: [
       { at: 4, id: 17, voice: 'W', text: 'no one can see you in here.' },
       { at: 0, id: 18, voice: 'O', text: 'I stopped here too. It passed.', when: 'cairn', cairn: 0 },
@@ -150,15 +154,15 @@ export const SECTIONS = [
   },
   {
     name: 'Summit Push', len: 150, turn: 45,
-    // Storm clears. Slide into a dip and ride its speed up a 45° bank, then the couloir: a 46° snow
-    // face between ice walls, too steep to stand on, climbed by a zig-zag rock line (step off it
-    // and you slide back to the bottom). A rock ramp, then the last snow slope.
-    knots: [[0, 62], [12, 62], [28, 55], [34, 55, 1], [38, 59.2, 1], [48, 59.2], [88, 100], [98, 100], [112, 105], [135, 116], [150, 117]],
-    profile: { type: 'trail', w: 6, shoulder: 18 },
-    profiles: [[44, 110, { type: 'cave', w: 6, wall: 10, shoulder: 16 }]],
+    // The last climb is a walk (user playtest, DECISIONS #78): the storm thins behind you onto a
+    // broad snow shoulder, which narrows into the summit ridge — a steady 20–25° pull with the sky
+    // opening on both sides and the low sun ahead. No tricks at the end: just walking, slower as
+    // it steepens, harder breathing, the view growing, the top coming into sight.
+    knots: [[0, 62], [18, 64], [55, 78], [95, 97], [125, 110], [143, 116], [150, 117]],
+    profile: { type: 'trail', w: 8, shoulder: 20 },
+    profiles: [[52, 150, { type: 'ridge', w: 4, drop: 34, shoulder: 34 }]],
     surface: PACKED,
-    climb: { from: 44, to: 92, w: 1.7, line: [[44, 0], [54, 3.5], [62, -3], [70, 3], [78, -3.5], [86, 2], [92, 0]] },
-    paint: [[92, 112, ROCK], [32, 42, ROCK, 3, 99]], // incl. a rock edge up the bank for walkers
+    paint: [[60, 148, ROCK, 4.2, 99], [60, 148, ROCK, -99, -4.2]], // rock breaks through at the ridge's edges
     cairns: [[6, -4]],
     beats: [
       { at: 10, id: 22, voice: 'W', text: 'it\'ll be dark soon.' },
@@ -167,7 +171,6 @@ export const SECTIONS = [
       { at: 66, id: 25, voice: 'Y', text: 'I\'m tired. I\'m still going.', after: 24 },
     ],
     oob: { below: 12, side: 40 },
-    bot: { slide: [[12, 42]], edge: [26, 42, 4.5] },
   },
   {
     name: 'Summit', len: 26, turn: 0,
@@ -182,8 +185,8 @@ export const SECTIONS = [
       { at: 0, id: 29, voice: 'Y', text: 'The light stays on the peaks after the sun goes. I never noticed that.', when: 'ending' },
       { at: 0, id: 30, voice: 'Y', text: 'I\'m still here.', when: 'ending' },
     ],
-    summit: 12, // end trigger (local s): the ending takes over and walks you to the sit spot
-    sit: 18,
+    summit: 12, // end trigger (local s): the ending takes over and walks you to the viewpoint
+    view: 18,
     oob: { below: 10, side: 40 },
   },
 ];

@@ -98,19 +98,15 @@ export class Controller {
   }
 
   _chooseState(dt, cmd, wishMag) {
-    const t = this.t, T = this.timers;
+    const T = this.timers;
     if (!this.grounded) { this.state = 'air'; return; }
     const surf = this.surfaceParams;
     const steep = this.slopeAngle > surf.maxWalk * D2R;
     if (T.stumble > 0) { this.state = 'stumble'; return; }
     if (cmd.slideHeld || steep) { this.state = 'slide'; T.idle = 0; return; }
-    // Rest: standing still near a cairn for rest.delay seconds sits you down.
-    const still = wishMag < 0.01 && this.vel.lengthSq() < 0.09 && !cmd.jumpPressed;
-    if (this.state === 'sit' && still) return;
-    if (still && this._nearCairn()) {
-      T.idle += dt;
-      if (T.idle >= t.rest.delay) { this.state = 'sit'; this.vel.set(0, 0, 0); return; }
-    } else T.idle = 0;
+    // No automatic rest-sit any more (user playtest: the sit was awkward; DECISIONS #75). 'sit'
+    // stays a state the game can set, and it holds while nothing is pressed.
+    if (this.state === 'sit' && wishMag < 0.01 && !cmd.jumpPressed) return;
     this.state = 'run';
   }
 
@@ -137,14 +133,6 @@ export class Controller {
     T.coyote = 0;
     T.groundLock = t.jump.groundLock;
     this.events.push({ type: 'jump', slide: fromSlide });
-  }
-
-  _nearCairn() {
-    const r2 = this.t.rest.radius ** 2;
-    for (const c of this.world.cairns ?? []) {
-      if ((c[0] - this.pos.x) ** 2 + (c[2] - this.pos.z) ** 2 < r2) return true;
-    }
-    return false;
   }
 
   _groundForces(dt, cmd, wish, wishMag) {

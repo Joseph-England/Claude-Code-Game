@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 
 const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
+const UP = new THREE.Vector3(0, 1, 0);
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const THIGH = 0.44, SHIN = 0.44, TORSO = 0.54;
@@ -93,18 +94,33 @@ export class Avatar {
     scene.add(this.root);
 
     this.pose = { ...POSES.lie };
-    this.phase = 0;
-    this.gait = 0; // 0 still … 1 full sprint stride
+    this.phase = 0; // gait cycle 0…1 (left foot strikes at 0, right at 0.5)
+    this.gait = 0; // 0 still … 1 moving
+    this.ikW = 0; // 0 posed legs … 1 feet planted by IK
+    this.prevYaw = 0;
     this.side = 0;
     this.fwd = 0;
     this.wake = 1; // 0 lying in the snow … 1 up (the opening sets 0 and animates it)
     this.reach = 0; // leaving a stone: 0 … 1 … 0 (driven by the game)
+    this.admire = 0; // the ending: 0 … 1 lifts the head a little to the view
     this.scarf = new Scarf(scene);
     this._neckW = new THREE.Vector3();
     this._chestW = new THREE.Vector3();
     this._rightW = new THREE.Vector3();
     this._fwdW = new THREE.Vector3();
     this.wind = new THREE.Vector3();
+    // Scarf colliders (DECISIONS #76): capsules [parent, a, b, radius] in the parent's local space,
+    // turned into world space every frame — the jacket, the pack, the bedroll, the head, the upper
+    // arms. The old single chest sphere left the pack, bedroll, shoulders and neck uncovered.
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    this.scarfShapes = [
+      [this.torso, V(0, 0.06, 0), V(0, 0.4, 0), 0.19],
+      [this.torso, V(0, 0.16, 0.2), V(0, 0.42, 0.2), 0.1],
+      [this.torso, V(-0.14, 0.51, 0.2), V(0.14, 0.51, 0.2), 0.065],
+      [this.head, V(0, 0.13, 0), V(0, 0.2, 0), 0.13],
+      ...this.arms.map((arm) => [arm.shoulder, V(0, 0, 0), V(0, -0.3, 0), 0.075]),
+    ];
+    this.scarfCaps = this.scarfShapes.map(([, , , r]) => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), r }));
   }
 
   reset() { this.scarf.needsReset = true; }
@@ -134,49 +150,89 @@ export class Avatar {
       P[key] += (want - P[key]) * (this.wake < 1 ? 1 : kp);
     }
 
-    // Gait: phase advances with distance; stride grows with speed (walk 5 → sprint 9 m/s).
-    const running = state === 'run' && ctl.grounded && this.wake >= 1;
-    const gWant = running ? clamp(hs / 9, 0, 1) : 0;
-    this.gait += (gWant - this.gait) * k;
-    const stride = 0.9 + 0.9 * this.gait; // metres per step
-    if (running) this.phase += (Math.PI * hs * dt) / stride;
-    const amp = this.gait > 0.02 ? 0.35 + 0.55 * this.gait : 0;
-    const ph = this.phase;
-
-    const yaw = this.root.rotation.y, fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+    // --- Legs (DECISIONS #74). On foot the feet are placed, not swung: each foot is planted for
+    // its stance and stays where it landed while the body passes over it, then lifts and is
+    // carried forward; two-bone IK bends the leg to reach the snow under that foot, so on a slope
+    // the uphill knee bends and the hips settle onto the downhill leg. Cadence and stance share
+    // follow speed (brisk walk → sprint), feet lift higher in powder, the body leans into a climb,
+    // and turning on the spot is done in small steps.
+    const yaw = this.root.rotation.y, fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = -fz, rz = fx;
+    const hf = ctl.world?.heightfield;
+    const onFoot = state === 'run' && ctl.grounded && this.wake >= 1;
+    this.ikW += ((onFoot ? 1 - this.reach : 0) - this.ikW) * (onFoot ? k : 1 - Math.exp(-18 * dt));
+    let yawRate = Math.atan2(Math.sin(yaw - this.prevYaw), Math.cos(yaw - this.prevYaw)) / Math.max(dt, 1e-4);
+    this.prevYaw = yaw;
+    if (!onFoot) yawRate = 0;
+    const run = smooth(5.5, 9, hs), moveW = onFoot ? smooth(0.15, 1, hs) : 0;
+    const turnW = onFoot ? smooth(0.3, 1.2, Math.abs(yawRate)) * (1 - moveW) : 0;
+    const powder = ctl.groundSurface === 1;
+    const cadence = 1.9 + 0.32 * hs - (powder ? 0.2 : 0); // steps per second
+    // Stance share of the cycle, chosen so a planted foot travels ±0.3–0.42 m about the hip: long
+    // stances when slow (a walk), short ones with a flight phase when fast (a jog, a run).
+    const reachFwd = THREE.MathUtils.lerp(0.3, 0.42, smooth(1, 9, hs));
+    const duty = clamp((reachFwd * cadence) / Math.max(hs, 0.1), 0.22, 0.62);
+    if (onFoot) this.phase = (this.phase + dt * (moveW * cadence * 0.5 + turnW * 1.1)) % 1;
+    this.gait += (moveW - this.gait) * k;
+    const A = moveW * (duty * hs) / cadence + turnW * 0.07; // foot travel either side of the hip
+    const lift = moveW * (0.07 + 0.08 * run + (powder ? 0.1 : 0)) + turnW * 0.05;
+    const n = ctl.groundNormal, uphill = clamp(-(n.x * fx + n.z * fz) / Math.max(n.y, 0.3), -0.6, 1);
+    const g0 = hf ? hf.heightAt(pos.x, pos.z) : 0, onCollider = (ctl.heightAboveGround ?? 0) > 0.05;
+    // Going downhill the hips ride steadily lower (where the next heel strike will need them),
+    // instead of dropping at every step.
+    const ride = Math.min(0.9, 0.06 + Math.sqrt(0.87 ** 2 - Math.min(A, 0.6) ** 2) + Math.min(0, uphill * A));
+    let pelvis = ride - moveW * (0.02 + 0.04 * run) * (0.5 + 0.5 * Math.cos(4 * Math.PI * (this.phase - duty / 2)));
     for (const leg of this.legs) {
-      const p = ph + (leg.side > 0 ? Math.PI : 0);
-      // Foot plant (leg at its forward-most point): report a footprint.
-      const c = Math.cos(p);
-      if (running && leg.prevC > 0 && c <= 0 && this.onFoot) {
-        this.onFoot(pos.x + fz * -leg.side * 0.12 + fx * 0.3 * amp, pos.z - fx * -leg.side * 0.12 + fz * 0.3 * amp, ctl);
+      const u = (this.phase + (leg.side > 0 ? 0.5 : 0)) % 1;
+      let sx, up = 0;
+      // Stance: the foot stays put; late in it the heel peels up (toe-off), which lets the back leg
+      // reach further so the hips don't dip on every step of a slope.
+      if (u < duty) { sx = A * (1 - (2 * u) / duty); up = A > 0.01 ? 0.1 * moveW * Math.max(0, -sx / A) ** 2 : 0; }
+      else { const e = (u - duty) / (1 - duty); sx = -A + 2 * A * e * e * (3 - 2 * e); up = lift * Math.sin(Math.PI * e) + 0.1 * moveW * (1 - e) ** 2; }
+      const wx = pos.x + fx * sx + rx * leg.side * 0.1, wz = pos.z + fz * sx + rz * leg.side * 0.1;
+      const g = hf && !onCollider ? clamp(hf.heightAt(wx, wz) - g0, -0.5, 0.5) : 0;
+      // Heel strike: the foot comes down at the start of its stance.
+      if (onFoot && leg.prevU !== undefined && u < leg.prevU && (moveW > 0.3 || turnW > 0.3) && this.onFoot) {
+        this.onFoot(wx, wz, ctl, leg.side, moveW < 0.3);
       }
-      leg.prevC = c;
-      const swing = Math.sin(p) * amp;
-      const lift = Math.max(0, Math.cos(p)) * amp * 1.6; // knee bends while the leg swings through
-      leg.hip.rotation.x = P.thigh + swing;
-      leg.knee.rotation.x = -(P.knee + lift);
+      leg.prevU = u;
+      leg.sx = sx; leg.g = g; leg.up = up;
+      // Only a planted foot holds the hips down; a swinging one just folds its knee.
+      if (u < duty || moveW < 0.05) pelvis = Math.min(pelvis, g + up + 0.06 + Math.sqrt(Math.max(0, 0.87 ** 2 - sx * sx)));
     }
-    // Hip height: the lower of the two feet touches the ground.
-    let drop = 0;
+    // Drops at once (a planted foot must stay reachable), rises smoothly.
+    this.pelvis = this.pelvis === undefined || pelvis < this.pelvis ? pelvis : this.pelvis + (pelvis - this.pelvis) * (1 - Math.exp(-25 * dt));
+    let poseDrop = 0;
     for (const leg of this.legs) {
-      const t1 = leg.hip.rotation.x, t2 = t1 + leg.knee.rotation.x;
-      drop = Math.max(drop, THIGH * Math.cos(t1) + SHIN * Math.cos(t2) + 0.06);
+      // Two-bone IK in the leg's plane: thigh angle from the hip toward the ankle plus the knee's
+      // share; the knee bends forward.
+      const down = this.pelvis - (leg.g + leg.up + 0.06);
+      const D = clamp(Math.hypot(leg.sx, down), 0.2, THIGH + SHIN - 0.002);
+      const bend = Math.PI - Math.acos(clamp((THIGH * THIGH + SHIN * SHIN - D * D) / (2 * THIGH * SHIN), -1, 1));
+      const thigh = Math.atan2(leg.sx, down) + Math.acos(clamp((THIGH * THIGH + D * D - SHIN * SHIN) / (2 * THIGH * D), -1, 1));
+      leg.hip.rotation.x = THREE.MathUtils.lerp(P.thigh, thigh, this.ikW);
+      leg.knee.rotation.x = THREE.MathUtils.lerp(-P.knee, -bend, this.ikW);
+      poseDrop = Math.max(poseDrop, THIGH * Math.cos(P.thigh) + SHIN * Math.cos(P.thigh - P.knee) + 0.06);
     }
     // Lying: the hips tip back and rest on the snow.
     const tilt = 1.45 * (1 - up);
     this.hips.rotation.x = tilt;
-    this.hips.position.y = state === 'air' ? THIGH + SHIN - 0.1 : THREE.MathUtils.lerp(0.13, drop, up);
+    const hipsPose = state === 'air' ? THIGH + SHIN - 0.1 : THREE.MathUtils.lerp(0.13, poseDrop, up);
+    this.hips.position.y = THREE.MathUtils.lerp(hipsPose, this.pelvis, this.ikW);
 
-    this.torso.rotation.x = -(P.torso + this.gait * 0.12);
-    this.torso.rotation.y = Math.sin(ph) * 0.12 * amp;
-    this.head.rotation.x = -P.head * 0.6 + this.gait * 0.1;
+    // Upper body: leans into a climb (and a little back going down), more when sprinting; the
+    // shoulders counter-rotate against the stride; the arms swing with the opposite foot.
+    const [L, Rl] = this.legs;
+    const climb = clamp(uphill, -0.4, 0.9) * 0.32 * this.ikW * (0.4 + 0.6 * moveW);
+    this.torso.rotation.x = -(P.torso + (0.02 + 0.12 * run) * this.gait + climb);
+    this.torso.rotation.y = (Rl.sx - L.sx) * 0.18 * this.ikW;
+    this.head.rotation.x = -P.head * 0.6 + 0.06 * run + climb * 0.7 + 0.16 * this.admire;
     for (const arm of this.arms) {
-      const p = ph + (arm.side > 0 ? 0 : Math.PI);
+      const opp = arm.side > 0 ? L : Rl;
+      const swing = (opp.sx / 0.55) * (0.45 + 0.35 * run) * this.ikW;
       const reach = arm.side > 0 ? P.reach : 0; // the right hand places the stone
-      arm.shoulder.rotation.x = P.arm + Math.sin(p) * amp * 0.9 + reach * 0.5;
+      arm.shoulder.rotation.x = P.arm + swing + reach * 0.5;
       arm.shoulder.rotation.z = arm.side * P.armOut;
-      arm.elbow.rotation.x = P.elbow + Math.max(0, Math.sin(p)) * amp * 0.4 - reach * 0.2;
+      arm.elbow.rotation.x = P.elbow + (0.35 + 0.6 * run) * this.gait * this.ikW + Math.max(0, swing) * 0.35 - reach * 0.2;
     }
 
     // Lean: small into turns (tan θ = a_lat/g, scaled), a little forward with acceleration.
@@ -192,20 +248,22 @@ export class Avatar {
     this.lean.rotation.set(-this.fwd, 0, -this.side, 'YXZ');
     if (state === 'stumble') this.lean.rotation.x += Math.sin(ctl.time * 40) * 0.12;
 
-    // Scarf: tied at the back of the neck, width across the shoulders; the chest keeps it off.
+    // Scarf: tied at the back of the collar; the body's capsules keep it outside the figure.
     this.root.updateMatrixWorld(true);
     this.neck.getWorldPosition(this._neckW);
-    this.torso.localToWorld(this._chestW.set(0, 0.3, 0.08)); // chest + pack
+    this.torso.localToWorld(this._chestW.set(0, 0.3, 0.08));
+    this.scarfShapes.forEach(([obj, a, b], i) => { obj.localToWorld(this.scarfCaps[i].a.copy(a)); obj.localToWorld(this.scarfCaps[i].b.copy(b)); });
     this._rightW.set(Math.cos(yaw), 0, -Math.sin(yaw));
     this._fwdW.set(fx, 0, fz);
-    this._neckW.addScaledVector(this._fwdW, -0.07);
-    this.scarf.update(dt, this._neckW, this._rightW, this.wind, this._chestW);
+    this._neckW.addScaledVector(this._fwdW, -0.13); // the knot sits on the back of the collar
+    this.scarf.update(dt, this._neckW, this._rightW, this.wind, this._chestW, this.scarfCaps);
   }
 }
 
 // Scarf: a strip of 10 particles simulated as position-based cloth at a fixed 240 Hz — gravity,
 // aerodynamic drag toward the wind's velocity (so it streams back in proportion to your speed
-// through the air, not to your acceleration), stretch and bend constraints, and a chest sphere.
+// through the air, not to your acceleration), stretch and bend constraints, and capsule colliders
+// for the body.
 // Rendered as a double-sided ribbon plus a knot at the neck.
 class Scarf {
   constructor(scene, n = 10, seg = 0.08) {
@@ -214,6 +272,7 @@ class Scarf {
     this.p = Array.from({ length: n }, () => new THREE.Vector3());
     this.prev = Array.from({ length: n }, () => new THREE.Vector3());
     this.v = Array.from({ length: n }, () => new THREE.Vector3());
+    this.push = Array.from({ length: n }, () => new THREE.Vector3()); // collision push this substep
     this.anchorPrev = new THREE.Vector3();
     this.needsReset = true;
     this.acc = 0;
@@ -236,10 +295,44 @@ class Scarf {
     this._a = new THREE.Vector3();
   }
 
-  update(dt, anchor, right, wind, chest) {
+  /** Stretch, bend and body-collision constraints (Gauss-Seidel, `iters` passes). */
+  project(caps, iters) {
+    const { p, n, seg } = this, tmp = this._t, a = this._a;
+    // Symmetric projection (the root has infinite mass). Moving only the child — "follow the
+    // leader" — pumps energy into a swinging strip; that was the old scarf's wild flailing.
+    for (let it = 0; it < iters; it++) {
+      for (let i = 1; i < n; i++) {
+        tmp.subVectors(p[i], p[i - 1]);
+        const d = tmp.length() || 1e-6, c = (seg - d) / d;
+        if (i === 1) p[i].addScaledVector(tmp, c);
+        else { p[i].addScaledVector(tmp, c * 0.5); p[i - 1].addScaledVector(tmp, -c * 0.5); }
+      }
+      // Bend: keep i and i+2 at least 1.5 segments apart (a strip of wool, not a chain).
+      for (let i = 0; i < n - 2; i++) {
+        tmp.subVectors(p[i + 2], p[i]);
+        const d = tmp.length() || 1e-6, min = 1.5 * seg;
+        if (d < min) { const c = ((min - d) / d) * 0.5; if (i > 0) p[i].addScaledVector(tmp, -c); p[i + 2].addScaledVector(tmp, c); }
+      }
+      // Push out of the body's capsules, with a margin for the ribbon's half-width.
+      for (let i = 1; i < n; i++) {
+        for (const c of caps) {
+          a.subVectors(c.b, c.a);
+          const u = Math.max(0, Math.min(1, tmp.subVectors(p[i], c.a).dot(a) / a.lengthSq()));
+          tmp.copy(c.a).addScaledVector(a, u).sub(p[i]).negate(); // closest point → particle
+          const r = tmp.length(), R = c.r + 0.03;
+          if (r < R) { tmp.multiplyScalar((R - r) / (r || 1e-6)); p[i].add(tmp); this.push[i].add(tmp); }
+        }
+      }
+    }
+  }
+
+  update(dt, anchor, right, wind, chest, caps) {
     const { p, prev, v, n, seg } = this, tmp = this._t, a = this._a;
     if (this.needsReset || p[0].distanceToSquared(anchor) > 1) {
-      for (let i = 0; i < n; i++) { p[i].copy(anchor).y -= i * seg; v[i].set(0, 0, 0); }
+      // Laid down the back, outside the body (hanging straight down would start inside the pack
+      // and be flung out by the colliders).
+      for (let i = 0; i < n; i++) { p[i].set(anchor.x - right.z * i * seg * 0.55, anchor.y - i * seg * 0.8, anchor.z + right.x * i * seg * 0.55); v[i].set(0, 0, 0); }
+      this.project(caps, 40); // settle it outside the body before it starts moving
       this.anchorPrev.copy(anchor);
       this.needsReset = false;
     }
@@ -263,36 +356,25 @@ class Scarf {
         prev[i].copy(p[i]);
         p[i].addScaledVector(v[i], H);
       }
-      // Symmetric projection (the root has infinite mass). Moving only the child — "follow the
-      // leader" — pumps energy into a swinging strip; that was the old scarf's wild flailing.
-      for (let it = 0; it < 6; it++) {
-        for (let i = 1; i < n; i++) {
-          tmp.subVectors(p[i], p[i - 1]);
-          const d = tmp.length() || 1e-6, c = (seg - d) / d;
-          if (i === 1) p[i].addScaledVector(tmp, c);
-          else { p[i].addScaledVector(tmp, c * 0.5); p[i - 1].addScaledVector(tmp, -c * 0.5); }
-        }
-        // Bend: keep i and i+2 at least 1.7 segments apart (a strip of wool, not a chain).
-        for (let i = 0; i < n - 2; i++) {
-          tmp.subVectors(p[i + 2], p[i]);
-          const d = tmp.length() || 1e-6, min = 1.7 * seg;
-          if (d < min) { const c = ((min - d) / d) * 0.5; if (i > 0) p[i].addScaledVector(tmp, -c); p[i + 2].addScaledVector(tmp, c); }
-        }
-        for (let i = 1; i < n; i++) {
-          tmp.subVectors(p[i], chest);
-          const r = tmp.length(), R = 0.26;
-          if (r < R) p[i].addScaledVector(tmp, (R - r) / (r || 1e-6));
-        }
-      }
-      for (let i = 1; i < n; i++) v[i].subVectors(p[i], prev[i]).divideScalar(H);
+      for (let i = 1; i < n; i++) this.push[i].set(0, 0, 0);
+      this.project(caps, 6);
+      // Velocity from the move, minus most of what the body's push added: contact is soft and
+      // inelastic, so the body brushing the strip (or a reset) never flings it.
+      for (let i = 1; i < n; i++) v[i].subVectors(p[i], prev[i]).addScaledVector(this.push[i], -0.85).divideScalar(H);
     }
     this.anchorPrev.copy(anchor);
     p[0].copy(anchor);
-    const wdt = 0.055;
+    // The ribbon's width lies across the strip (the shoulders' direction with the strip's own
+    // direction taken out), so it never folds edge-on into a thin rod when it streams sideways.
+    const wdt = 0.055, side = this._a, t = this._t;
     for (let i = 0; i < n; i++) {
+      t.subVectors(p[Math.min(i + 1, n - 1)], p[Math.max(i - 1, 0)]).normalize();
+      side.copy(right).addScaledVector(t, -right.dot(t));
+      if (side.lengthSq() < 0.09) { side.crossVectors(t, UP); if (side.lengthSq() < 1e-4) side.copy(right); }
+      side.normalize();
       const o = i * 6, taper = wdt * (1 - 0.25 * (i / n));
-      this.pos[o] = p[i].x - right.x * taper; this.pos[o + 1] = p[i].y; this.pos[o + 2] = p[i].z - right.z * taper;
-      this.pos[o + 3] = p[i].x + right.x * taper; this.pos[o + 4] = p[i].y; this.pos[o + 5] = p[i].z + right.z * taper;
+      this.pos[o] = p[i].x - side.x * taper; this.pos[o + 1] = p[i].y - side.y * taper; this.pos[o + 2] = p[i].z - side.z * taper;
+      this.pos[o + 3] = p[i].x + side.x * taper; this.pos[o + 4] = p[i].y + side.y * taper; this.pos[o + 5] = p[i].z + side.z * taper;
     }
     const geo = this.mesh.geometry;
     geo.attributes.position.needsUpdate = true;

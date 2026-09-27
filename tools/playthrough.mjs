@@ -246,7 +246,6 @@ if (!args.quick) {
 
 // Momentum gates: from a standstill, the recovery a player would find must work.
 //   The Foot bank: back up onto the flat, run at it, jump at its foot.
-//   Summit Push bank: walk back to the dip's rim, slide in.
 function gateTest(k, startLs, jumpAtLs, slide, passLs, line = 0) {
   const { level, player } = makeRun();
   const sec = route.sections[k];
@@ -266,12 +265,10 @@ function gateTest(k, startLs, jumpAtLs, slide, passLs, line = 0) {
   return false;
 }
 {
-  const foot = route.sections.findIndex((x) => x.name === 'The Foot'), push = route.sections.findIndex((x) => x.name === 'Summit Push');
+  const foot = route.sections.findIndex((x) => x.name === 'The Foot');
   const g = {
     'Foot bank, walking the rock edge': gateTest(foot, 120, null, false, 134, 6),
     'Foot bank, slide from the top of the slope': gateTest(foot, 82, null, true, 134),
-    'Summit Push bank, walking the rock edge': gateTest(push, 26, null, false, 40, 4.5),
-    'Summit Push bank, slide from the rim': gateTest(push, 12, null, true, 40),
   };
   console.log(`Momentum gates from rest: ${Object.entries(g).map(([k, v]) => `${k} ${v ? '✓' : '✗'}`).join('; ')}`);
   for (const [k, v] of Object.entries(g)) if (!v) failures.push(`gate: ${k} fails`);

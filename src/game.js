@@ -28,6 +28,7 @@ import { Particles } from './render/particles.js';
 import { startupTier, Quality, GpuTimer } from './render/quality.js';
 import { glitter } from './render/snow.js';
 import { SURFACE } from './world/surfaces.js';
+import { STORM_R, STORM_TOP, STORM_NORM } from './world/storm.js';
 import { litMaterial, world as worldU } from './render/materials.js';
 import { sunElevation, SUN_AZIMUTH, snowDensity, grade } from './render/arc.js';
 import { DebugOverlay } from './debug/overlay.js';
@@ -72,6 +73,11 @@ worldU.uSunVisSize.value = sunShadow.size;
 const fog = new FogPass(); // after the tint swap above: it copies the world uniform references
 pipeline.fog = fog;
 fog.u.uSunColor.value = atmosphere.sunColor;
+// The gap's storm: ~16 m visibility at its heart; the wind streams down the gap toward you.
+{
+  const sec = mountain.route.sections.find((x) => x.storm), mid = mountain.route.at(sec.s0 + sec.len / 2);
+  fog.setStorm(level.storm, STORM_R, STORM_TOP, 1 / (16 * STORM_NORM), new THREE.Vector3(-mid.dx, 0, -mid.dz).multiplyScalar(12));
+}
 
 // Spindrift emitters along the ridge crest and the summit.
 const crest = [];
@@ -90,7 +96,17 @@ const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
 const cam = new ThirdPersonCamera(camera, world, tuning);
 const avatar = new Avatar(scene, tuning);
-avatar.onFoot = (x, z) => { if (onSnow()) trails.foot(x, z); audio.footstep(player.groundSurface, player.speed); };
+// Each heel strike: a footprint, a step sound (panned to that foot; soft for shuffling turns) and,
+// in powder, a little kick of snow off the boot.
+avatar.onFoot = (x, z, ctl, side, shuffle) => {
+  const snow = onSnow();
+  if (snow) trails.foot(x, z);
+  audio.footstep(player.groundSurface, shuffle ? 1.5 : player.speed, side);
+  if (snow && player.groundSurface === SURFACE.POWDER && !shuffle) {
+    const y = mountain.heightfield.heightAt(x, z) - 0.1, v = player.vel;
+    for (let i = 0; i < 5; i++) particles.emit(x + rnd(0.12), y, z + rnd(0.12), v.x * 0.25 + rnd(0.5), 0.8 + Math.random() * 1.1, v.z * 0.25 + rnd(0.5), 0.35 + Math.random() * 0.3, 0.03, 0.8, 0.7, 0);
+  }
+};
 const onSnow = () => player.grounded && (player.groundSurface === SURFACE.POWDER || player.groundSurface === SURFACE.PACKED) && player.heightAboveGround < 0.1;
 // Every other standard material (props, backdrop, avatar) gets the world lighting.
 scene.traverse((o) => {
@@ -147,6 +163,7 @@ function newRun() {
   stuckT = 0; lastProgress = 0;
   spawnAt(0, false);
   avatar.wake = 0;
+  avatar.admire = 0;
   flow.wake = null;
   flow.firstCheckpoint = true;
   if (stoneMesh) { scene.remove(stoneMesh); stoneMesh = null; }
@@ -293,8 +310,8 @@ function updateAudio(dt) {
     alt: THREE.MathUtils.clamp((player.pos.y + 10) / 140, 0, 1),
     speed: player.speed, airSpeed: player.speed + 6 * g.gust,
     sliding: player.state === 'slide', grounded: player.grounded, surface: player.groundSurface,
-    sprinting: player.speed > 6.5, powder: player.groundSurface === SURFACE.POWDER, sitting: player.state === 'sit',
-    gust: g.gust, gustSide: (g.x * _right.x + g.z * _right.z) / gl, whiteout: g.whiteout, shelter: hollow,
+    sprinting: player.speed > 6.5, powder: player.groundSurface === SURFACE.POWDER, sitting: player.state === 'sit', climbing: player.state === 'run' && player.vel.y > 1.1,
+    gust: g.gust, gustWarn: g.warn, gustSide: (g.x * _right.x + g.z * _right.z) / gl, whiteout: g.whiteout, stormNear: g.stormNear ?? 0, shelter: hollow,
     calm: flow.mode === 'ending' ? smooth(since, 4, 30) : 0,
     mood: title ? 0 : sec.name === 'The Descent' && ls > 70 ? 9 : level.section,
     musicDuck: title ? 0.7 : flow.mode === 'credits' ? 0.6 : 1,
@@ -343,20 +360,25 @@ function updateParticles(dt) {
     }
   }
   // Weather: breeze + gusts + the whiteout's blizzard along the route.
-  const wo = level.wind.whiteout, here = mountain.route.at(level.s);
-  fx.wind.set(1.2 + level.wind.x * 0.9 - here.dx * 11 * wo, 0, 0.6 + level.wind.z * 0.9 - here.dz * 11 * wo);
+  // The gap's wind reaches down the approach before the storm does: snow thickens and streams.
+  const wo = level.wind.whiteout, near = level.wind.stormNear, here = mountain.route.at(level.s);
+  const blow = 11 * wo + 4 * near * (1 - wo);
+  fx.wind.set(1.2 + level.wind.x * 0.9 - here.dx * blow, 0, 0.6 + level.wind.z * 0.9 - here.dz * blow);
   const gustDir = level.wind.gust > 0.02 ? level.wind : null;
   fx.light.copy(atmosphere.ambientSky).multiplyScalar(0.8).add(new THREE.Color().copy(atmosphere.sunColor).multiplyScalar(0.05));
   const k = level.section;
   particles.update({
     time: t, wind: gustDir ? fx.wind.clone().add(new THREE.Vector3(gustDir.x, 0, gustDir.z)) : fx.wind,
-    snowDensity: Math.max(snowDensity(mountain.route, level.s), wo), streak: wo,
+    snowDensity: Math.max(snowDensity(mountain.route, level.s), wo, 0.45 * near), streak: Math.max(wo, 0.35 * near),
     driftStrength: (k === 4 || k === 8) && flow.mode === 'playing' ? 0.35 + 0.65 * level.wind.gust : 0, light: fx.light,
   });
 }
 
 // Dev/test handle (tools/smoke.mjs reads it).
-window.__game = { skipEnding: (sec) => { summitTime -= sec; }, renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, story, props, mountain, input, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
+window.__game = { cam, avatar, tuning,
+  // Dev: stand at route arc length s (facing along the route, or back down it).
+  tp: (s, back = false) => { const p = mountain.route.at(s), yaw = p.yaw + (back ? Math.PI : 0); player.teleport([p.x, mountain.heightfield.heightAt(p.x, p.z), p.z], yaw); cam.reset(player.pos, yaw); return s; },
+  skipEnding: (sec) => { summitTime -= sec; }, renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, story, props, mountain, input, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
 
 createLoop({
   beginFrame(frameDt) {
@@ -387,7 +409,7 @@ createLoop({
     if (controlsEl.style.opacity === '1' && (flow.controlsT += frameDt) > 16) controlsEl.style.opacity = 0;
     if (flow.mode === 'ending') {
       const since = level.time - summitTime;
-      ending.update(since, player, atmosphere.sunDir);
+      ending.update(since, player, atmosphere.sunDir, avatar);
       if (since > ENDING_FADE && fade.style.opacity !== '1') { fade.style.transition = 'opacity 4s'; fade.style.opacity = 1; }
       if (since > ENDING_END) startCredits();
     }
@@ -457,9 +479,9 @@ createLoop({
     if (flow.mode === 'title') titleCamera(flow.t);
     else if (flow.mode === 'ending') ending.camera(camera, level.time - summitTime, atmosphere.sunDir);
     else cam.update(frameDt, renderPos, player, crouch);
-    // Whiteout: the fog pass closes in to ~16 m and drains to a lavender white lit by the sky.
+    // The storm's colour: a lavender white lit by the sky (the fog pass places it in the gap).
     const wo = level.wind.whiteout;
-    fog.u.uWhiteout.value = wo;
+    fog.u.uTime.value = level.time;
     fog.u.uWhiteColor.value.copy(atmosphere.ambientSky).multiplyScalar(0.55).addScalar(0.25 * atmosphere.sunColor.g / 16 + 0.08);
     windEl.style.opacity = flow.mode === 'playing' && (level.wind.warn || level.wind.gust > 0.2) ? 1 : 0;
     const sinceSummit = summitTime === null ? -1 : level.time - summitTime;

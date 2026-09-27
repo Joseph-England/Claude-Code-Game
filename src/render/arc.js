@@ -28,3 +28,14 @@ export function sectionValue(route, table, s) {
   return table[k];
 }
 export const snowDensity = (route, s) => sectionValue(route, SNOW, s);
+
+// Colour grade per section: [saturation, temperature (− cool, + warm), contrast]. Numb and grey at
+// the start, warming as you climb, cold in the cave, drained in the whiteout, the colour climax
+// after the storm, a cooler blue hour on the summit (DESIGN §1 "Emotional arc", §4 "Arc").
+const GRADE = [
+  [0.45, -0.3, 0.92], [0.6, -0.15, 0.95], [0.72, 0, 1.0], [1.0, 0.25, 1.05], [1.05, 0.3, 1.08],
+  [0.85, -0.5, 1.0], [0.2, -0.1, 0.9], [1.3, 0.45, 1.1], [1.15, -0.1, 1.05],
+];
+export function grade(route, s) {
+  return [0, 1, 2].map((i) => sectionValue(route, GRADE.map((g) => g[i]), s));
+}

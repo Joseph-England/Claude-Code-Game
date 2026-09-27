@@ -23,7 +23,7 @@ import { FogPass } from './render/fog.js';
 import { Particles } from './render/particles.js';
 import { SURFACE } from './world/surfaces.js';
 import { litMaterial, world as worldU } from './render/materials.js';
-import { sunElevation, SUN_AZIMUTH, snowDensity } from './render/arc.js';
+import { sunElevation, SUN_AZIMUTH, snowDensity, grade } from './render/arc.js';
 import { DebugOverlay } from './debug/overlay.js';
 import { createPanel } from './debug/panel.js';
 
@@ -168,6 +168,21 @@ const renderPos = new THREE.Vector3();
 let summitTime = null;
 let stuckT = 0, lastProgress = 0;
 
+// Grade, exposure, speed effects and the alpenglow, all from the route and the sun.
+const smooth = THREE.MathUtils.smoothstep;
+function updateLook(dt) {
+  const g = pipeline.grade, [sat, temp, contrast] = grade(mountain.route, level.s);
+  g.uSat.value = sat; g.uTemp.value = temp; g.uContrast.value = contrast;
+  const sunY = atmosphere.sunDir.y;
+  g.uExposure.value = 0.62 * (1 + 2.2 * smooth(-sunY, -0.03, 0.09));
+  g.uSpeed.value += (smooth(player.speed, 14, 30) - g.uSpeed.value) * Math.min(1, dt * 4);
+  g.uTime.value = level.time;
+  const glow = smooth(-sunY, -0.035, 0.01) * (1 - smooth(-sunY, 0.05, 0.12));
+  worldU.uGlow.value.setRGB(1.0, 0.32, 0.45).multiplyScalar(2.2 * glow);
+  worldU.uGlowDir.value.set(atmosphere.sunDir.x, 0, atmosphere.sunDir.z).normalize().setY(0.05).normalize();
+  worldU.uGlowH.value = THREE.MathUtils.lerp(-300, 900, smooth(-sunY, -0.03, 0.09));
+}
+
 function updateParticles(dt) {
   const t = level.time, v = player.vel, sp = player.speed;
   // Slide spray.
@@ -286,6 +301,7 @@ createLoop({
     const sinceSummit = summitTime === null ? -1 : level.time - summitTime;
     atmosphere.setSun(sunElevation(level.progressFraction, sinceSummit), SUN_AZIMUTH, level.time);
     updateParticles(frameDt);
+    updateLook(frameDt);
     lights.update(atmosphere.sunDir, atmosphere.sunColor);
     sunShadow.update(atmosphere.sunDir);
     worldU.uBounce.value.copy(atmosphere.ambientGround);

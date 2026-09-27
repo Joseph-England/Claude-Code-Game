@@ -137,6 +137,7 @@ function spawnSection(k) {
 // --- Flow: title → playing (the opening: lying in the snow until the first input) → ending →
 // credits → title. The title sits over the live scene; the run resets when it comes back round.
 const flow = { mode: 'title', t: 0, wake: null, controlsT: 0, stuckShown: -99 };
+let stoneMesh = null, reachT = -1;
 function newRun() {
   level.reset();
   story.reset();
@@ -147,6 +148,8 @@ function newRun() {
   avatar.wake = 0;
   flow.wake = null;
   flow.firstCheckpoint = true;
+  if (stoneMesh) { scene.remove(stoneMesh); stoneMesh = null; }
+  reachT = -1;
 }
 function startPlaying() {
   if (flow.mode !== 'title') return;
@@ -226,6 +229,34 @@ const quality = new Quality(qStart, pipeline, (t) => {
 let cmd = null;
 let avatarSink = 0;
 const renderPos = new THREE.Vector3();
+
+// Cairn notes and leaving a stone (DESIGN §1 lines 18–21). Reading the last whiteout note, you can
+// press E to leave a stone of your own on that cairn: the figure crouches and reaches, a stone
+// lands on the stack with a knock, the note lets go and "I'll leave one too." follows.
+const stoneGeo = new THREE.DodecahedronGeometry(0.16, 0).scale(1, 0.62, 1.1);
+function updateStone(dt) {
+  const ready = flow.mode === 'playing' && story.stoneReady && reachT < 0;
+  promptEl.textContent = input.lastDevice === 'gamepad' ? 'X · leave a stone' : 'E · leave a stone';
+  promptEl.style.opacity = ready && narrator.cur?.line.voice === 'O' ? 1 : 0;
+  if (ready && cmd.interact) { reachT = 0; story.signal('stone'); }
+  if (reachT >= 0) {
+    reachT += dt;
+    avatar.reach = Math.sin(Math.PI * Math.min(1, reachT / 1.8));
+    cmd = { ...cmd, moveX: 0, moveY: 0, jumpPressed: false, slideHeld: false };
+    if (reachT >= 0.9 && !stoneMesh && story.stoneCairn) {
+      const c = story.stoneCairn;
+      stoneMesh = new THREE.Mesh(stoneGeo, props.rockMaterial);
+      stoneMesh.position.set(c.x + 0.05, c.top + 0.06, c.z - 0.03);
+      stoneMesh.rotation.y = 1.3;
+      stoneMesh.castShadow = true;
+      scene.add(stoneMesh);
+      audio.stone();
+      narrator.hurry();
+      for (let i = 0; i < 16; i++) particles.emit(c.x + rnd(0.3), c.top, c.z + rnd(0.3), rnd(0.6), 0.4 + Math.random() * 0.6, rnd(0.6), 1.5 + Math.random(), 0.02, 0, 0.1, 2);
+    }
+    if (reachT >= 1.8) { reachT = -2; avatar.reach = 0; }
+  }
+}
 
 // Title: a low camera beside the figure lying in the snow, looking up the valley toward the summit,
 // drifting very slowly.
@@ -318,7 +349,7 @@ function updateParticles(dt) {
 }
 
 // Dev/test handle (tools/smoke.mjs reads it).
-window.__game = { renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
+window.__game = { renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, story, props, mountain, input, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
 
 createLoop({
   beginFrame(frameDt) {
@@ -327,7 +358,6 @@ createLoop({
     if (playing) {
       for (let k = 0; k <= 8; k++) if (input.wasPressed(`Digit${k + 1}`)) { avatar.wake = 1; flow.wake = 1; spawnSection(k); }
       if (input.wasPressed('KeyR') && flow.wake >= 1) startRespawn();
-      if (input.wasPressed('KeyE')) story.signal('stone');
     }
     if (input.wasPressed('F3') || input.wasPressed('Backquote')) overlay.toggle();
     if (input.wasPressed('F4')) panel.toggle();
@@ -346,6 +376,7 @@ createLoop({
       if (flow.wake >= 1) { flow.controlsT = 0; controlsEl.style.opacity = 1; }
     }
     if (flow.wake === null || flow.wake < 1) cmd = { ...cmd, moveX: 0, moveY: 0, jumpPressed: false, jumpHeld: false, slideHeld: false };
+    updateStone(frameDt);
     if (controlsEl.style.opacity === '1' && (flow.controlsT += frameDt) > 16) controlsEl.style.opacity = 0;
     if (flow.mode === 'ending' && flow.t > 8) { fade.style.transition = 'opacity 3s'; fade.style.opacity = 1; }
     if (flow.mode === 'ending' && flow.t > 11.5) startCredits();

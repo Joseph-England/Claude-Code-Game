@@ -71,6 +71,7 @@ export class Input {
     // Shift sprints; C or the right mouse button slides (DECISIONS #47).
     let sprintHeld = k.has('ShiftLeft') || k.has('ShiftRight');
     let slideHeld = k.has('KeyC') || this.mouseRight;
+    let interact = this.pressed.has('KeyE') || this.pressed.has('KeyF');
 
     const pad = navigator.getGamepads?.().find((p) => p && p.connected && p.mapping === 'standard');
     if (pad) {
@@ -87,11 +88,13 @@ export class Input {
       this.padJumpWas = jump;
       jumpHeld ||= jump;
       slideHeld ||= b[1]?.pressed || b[7]?.value > 0.3;
+      if (b[2]?.pressed && !this.padXWas) interact = true; // X: leave a stone
+      this.padXWas = b[2]?.pressed;
       sprintHeld ||= b[10]?.pressed || b[4]?.pressed || b[6]?.value > 0.3; // L3, LB or LT
     }
 
     if (s.invertY) lookY = -lookY;
-    const cmd = { moveX: mx, moveY: my, lookX, lookY, jumpPressed, jumpHeld, slideHeld, sprintHeld };
+    const cmd = { moveX: mx, moveY: my, lookX, lookY, jumpPressed, jumpHeld, slideHeld, sprintHeld, interact };
     this.pressed.clear();
     return cmd;
   }

@@ -57,6 +57,7 @@ export function buildProps(mountain) {
         rockGeos.push(g);
         h += r * 0.9;
       }
+      cairns.at(-1).top = h;
     }
 
     // --- Set-piece boulders.
@@ -100,5 +101,5 @@ export function buildProps(mountain) {
   rocks.castShadow = rocks.receiveShadow = true;
   group.add(rocks);
 
-  return { boxes, meshes, cairns, group };
+  return { boxes, meshes, cairns, group, rockMaterial: rockMat };
 }

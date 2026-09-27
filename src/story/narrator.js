@@ -25,7 +25,7 @@ export class Narrator {
   push(line, opts = {}) { this.queue.push({ line, ...opts }); }
 
   /** Let the current line go early (e.g. the player got up while "stay down" was showing). */
-  hurry() { if (this.cur?.phase === 'hold') this.cur.hold = Math.min(this.cur.hold, this.cur.t + 0.2); }
+  hurry() { if (this.cur?.phase === 'hold') { this.cur.hold = Math.min(this.cur.hold, this.cur.t + 0.2); this.cur.release = true; } }
 
   clear() {
     this.queue.length = 0;
@@ -40,7 +40,7 @@ export class Narrator {
     if (this.cur) {
       const c = this.cur, tm = TIMING[c.line.voice];
       c.t += dt;
-      const staying = c.line.voice === 'O' && noteHere === c.line && c.t < 30;
+      const staying = c.line.voice === 'O' && noteHere === c.line && c.t < 30 && !c.release;
       if (c.phase === 'hold' && c.t >= c.hold && !staying) {
         c.phase = 'out';
         c.t = 0;

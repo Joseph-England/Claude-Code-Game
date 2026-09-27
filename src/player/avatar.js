@@ -114,7 +114,7 @@ export class Avatar {
     // arms. The old single chest sphere left the pack, bedroll, shoulders and neck uncovered.
     const V = (x, y, z) => new THREE.Vector3(x, y, z);
     this.scarfShapes = [
-      [this.torso, V(0, 0.06, 0), V(0, 0.44, 0), 0.19],
+      [this.torso, V(0, 0.06, 0), V(0, 0.4, 0), 0.19],
       [this.torso, V(0, 0.16, 0.2), V(0, 0.42, 0.2), 0.1],
       [this.torso, V(-0.14, 0.51, 0.2), V(0.14, 0.51, 0.2), 0.065],
       [this.head, V(0, 0.13, 0), V(0, 0.2, 0), 0.13],
@@ -255,7 +255,7 @@ export class Avatar {
     this.scarfShapes.forEach(([obj, a, b], i) => { obj.localToWorld(this.scarfCaps[i].a.copy(a)); obj.localToWorld(this.scarfCaps[i].b.copy(b)); });
     this._rightW.set(Math.cos(yaw), 0, -Math.sin(yaw));
     this._fwdW.set(fx, 0, fz);
-    this._neckW.addScaledVector(this._fwdW, -0.1);
+    this._neckW.addScaledVector(this._fwdW, -0.13); // the knot sits on the back of the collar
     this.scarf.update(dt, this._neckW, this._rightW, this.wind, this._chestW, this.scarfCaps);
   }
 }
@@ -272,6 +272,7 @@ class Scarf {
     this.p = Array.from({ length: n }, () => new THREE.Vector3());
     this.prev = Array.from({ length: n }, () => new THREE.Vector3());
     this.v = Array.from({ length: n }, () => new THREE.Vector3());
+    this.push = Array.from({ length: n }, () => new THREE.Vector3()); // collision push this substep
     this.anchorPrev = new THREE.Vector3();
     this.needsReset = true;
     this.acc = 0;
@@ -294,10 +295,44 @@ class Scarf {
     this._a = new THREE.Vector3();
   }
 
+  /** Stretch, bend and body-collision constraints (Gauss-Seidel, `iters` passes). */
+  project(caps, iters) {
+    const { p, n, seg } = this, tmp = this._t, a = this._a;
+    // Symmetric projection (the root has infinite mass). Moving only the child — "follow the
+    // leader" — pumps energy into a swinging strip; that was the old scarf's wild flailing.
+    for (let it = 0; it < iters; it++) {
+      for (let i = 1; i < n; i++) {
+        tmp.subVectors(p[i], p[i - 1]);
+        const d = tmp.length() || 1e-6, c = (seg - d) / d;
+        if (i === 1) p[i].addScaledVector(tmp, c);
+        else { p[i].addScaledVector(tmp, c * 0.5); p[i - 1].addScaledVector(tmp, -c * 0.5); }
+      }
+      // Bend: keep i and i+2 at least 1.5 segments apart (a strip of wool, not a chain).
+      for (let i = 0; i < n - 2; i++) {
+        tmp.subVectors(p[i + 2], p[i]);
+        const d = tmp.length() || 1e-6, min = 1.5 * seg;
+        if (d < min) { const c = ((min - d) / d) * 0.5; if (i > 0) p[i].addScaledVector(tmp, -c); p[i + 2].addScaledVector(tmp, c); }
+      }
+      // Push out of the body's capsules, with a margin for the ribbon's half-width.
+      for (let i = 1; i < n; i++) {
+        for (const c of caps) {
+          a.subVectors(c.b, c.a);
+          const u = Math.max(0, Math.min(1, tmp.subVectors(p[i], c.a).dot(a) / a.lengthSq()));
+          tmp.copy(c.a).addScaledVector(a, u).sub(p[i]).negate(); // closest point → particle
+          const r = tmp.length(), R = c.r + 0.03;
+          if (r < R) { tmp.multiplyScalar((R - r) / (r || 1e-6)); p[i].add(tmp); this.push[i].add(tmp); }
+        }
+      }
+    }
+  }
+
   update(dt, anchor, right, wind, chest, caps) {
     const { p, prev, v, n, seg } = this, tmp = this._t, a = this._a;
     if (this.needsReset || p[0].distanceToSquared(anchor) > 1) {
-      for (let i = 0; i < n; i++) { p[i].copy(anchor).y -= i * seg; v[i].set(0, 0, 0); }
+      // Laid down the back, outside the body (hanging straight down would start inside the pack
+      // and be flung out by the colliders).
+      for (let i = 0; i < n; i++) { p[i].set(anchor.x - right.z * i * seg * 0.55, anchor.y - i * seg * 0.8, anchor.z + right.x * i * seg * 0.55); v[i].set(0, 0, 0); }
+      this.project(caps, 40); // settle it outside the body before it starts moving
       this.anchorPrev.copy(anchor);
       this.needsReset = false;
     }
@@ -321,33 +356,11 @@ class Scarf {
         prev[i].copy(p[i]);
         p[i].addScaledVector(v[i], H);
       }
-      // Symmetric projection (the root has infinite mass). Moving only the child — "follow the
-      // leader" — pumps energy into a swinging strip; that was the old scarf's wild flailing.
-      for (let it = 0; it < 6; it++) {
-        for (let i = 1; i < n; i++) {
-          tmp.subVectors(p[i], p[i - 1]);
-          const d = tmp.length() || 1e-6, c = (seg - d) / d;
-          if (i === 1) p[i].addScaledVector(tmp, c);
-          else { p[i].addScaledVector(tmp, c * 0.5); p[i - 1].addScaledVector(tmp, -c * 0.5); }
-        }
-        // Bend: keep i and i+2 at least 1.7 segments apart (a strip of wool, not a chain).
-        for (let i = 0; i < n - 2; i++) {
-          tmp.subVectors(p[i + 2], p[i]);
-          const d = tmp.length() || 1e-6, min = 1.7 * seg;
-          if (d < min) { const c = ((min - d) / d) * 0.5; if (i > 0) p[i].addScaledVector(tmp, -c); p[i + 2].addScaledVector(tmp, c); }
-        }
-        // Push out of the body's capsules, with a margin for the ribbon's half-width.
-        for (let i = 1; i < n; i++) {
-          for (const c of caps) {
-            a.subVectors(c.b, c.a);
-            const u = Math.max(0, Math.min(1, tmp.subVectors(p[i], c.a).dot(a) / a.lengthSq()));
-            tmp.copy(c.a).addScaledVector(a, u).sub(p[i]).negate(); // closest point → particle
-            const r = tmp.length(), R = c.r + 0.045;
-            if (r < R) p[i].addScaledVector(tmp, (R - r) / (r || 1e-6));
-          }
-        }
-      }
-      for (let i = 1; i < n; i++) v[i].subVectors(p[i], prev[i]).divideScalar(H);
+      for (let i = 1; i < n; i++) this.push[i].set(0, 0, 0);
+      this.project(caps, 6);
+      // Velocity from the move, minus most of what the body's push added: contact is soft and
+      // inelastic, so the body brushing the strip (or a reset) never flings it.
+      for (let i = 1; i < n; i++) v[i].subVectors(p[i], prev[i]).addScaledVector(this.push[i], -0.85).divideScalar(H);
     }
     this.anchorPrev.copy(anchor);
     p[0].copy(anchor);

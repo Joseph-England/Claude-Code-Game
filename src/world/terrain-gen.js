@@ -80,6 +80,12 @@ export function profileHeight(p, H, N, d) {
       const d0 = p.w + p.bank / T45;
       return shoulder(H + p.bank, N, d0, p.shoulder, d);
     }
+    case 'col': {
+      // The path through the gap: a flat bed, then the flanks climb all the way to the natural
+      // (horned) terrain by the edge of the route's reach, so there is no seam where carving stops.
+      if (d <= p.w) return H;
+      return lerp(H, N, smooth(p.w, 62, d));
+    }
     default: // trail, basin
       return shoulder(H, N, p.w, p.shoulder, d);
   }
@@ -109,14 +115,17 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
   const summit = pts[pts.length - 1];
   for (const p of pts) p.push(Math.hypot(p[0] - summit[0], p[1] - summit[1]));
   const warp = [0, 0];
+  const hornSec = route.sections.find((sec) => sec.horns);
+  const horn = hornSec && { s0: hornSec.s0, ...hornSec.horns };
   for (let j = 0; j < cn; j++) {
     const z = origin + j * CC;
     for (let i = 0; i < cn; i++) {
       const x = origin + i * CC;
-      let wsum = 0, hs = 0, rs = 0, dmin = Infinity;
-      for (const p of pts) {
+      let wsum = 0, hs = 0, rs = 0, dmin = Infinity, imin = 0;
+      for (let q = 0; q < pts.length; q++) {
+        const p = pts[q];
         const d2 = (x - p[0]) ** 2 + (z - p[1]) ** 2;
-        if (d2 < dmin) dmin = d2;
+        if (d2 < dmin) { dmin = d2; imin = q; }
         const w = 1 / ((d2 + 900) ** 1.5);
         wsum += w; hs += w * p[2]; rs += w * p[3];
       }
@@ -133,6 +142,18 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
       const cap = summit[2] - 18 - 0.22 * r, k = 12;
       const hh = Math.max(k - Math.abs(h - cap), 0) / k;
       h = Math.min(h, cap) - hh * hh * k * 0.25;
+      // Horns either side of the col (DECISIONS #77): the flanks rise from the path's edge to rock
+      // crests 50–100 m out, tallest mid-gap, so the gap reads as a gap and its wind has a reason.
+      // They stand above the cone (it would flatten them) but stay below the summit.
+      if (horn) {
+        const ls = imin * 8 - horn.s0, wall = smooth(16, 52, dRoute) * (1 - smooth(100, 190, dRoute));
+        const along = smooth(horn.from, horn.from + 60, ls) * (1 - smooth(horn.to - 80, horn.to, ls));
+        if (wall * along > 0) {
+          const top = Math.min(summit[2] - 10, pts[imin][2] + horn.height * (0.75 + 0.5 * ridged) * wall * along);
+          const kk = 8, d = top - h; // soft maximum
+          h = d > kk ? top : d > -kk ? h + (d + kk) ** 2 / (4 * kk) : h;
+        }
+      }
       // Fall away to the valley floor at the map edge.
       const edge = Math.min(x - origin, origin + size - x, z - origin, origin + size - z);
       h = lerp(WORLD.valley, h, smooth(0, 140, edge));

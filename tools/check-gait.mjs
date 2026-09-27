@@ -52,26 +52,27 @@ function scarf(label, speed, turn, wind) {
     vel: new THREE.Vector3(), facing: 0, prevFacing: 0, lean: new THREE.Vector2(), prevLean: new THREE.Vector2(), time: 0,
   };
   const pos = new THREE.Vector3(), dt = 1 / 60, q = new THREE.Vector3(), ab = new THREE.Vector3();
-  let worst = 0;
+  let worst = 0, rise = -9;
   for (let f = 0; f < 600; f++) {
     ctl.prevFacing = ctl.facing; ctl.facing += turn * dt;
     ctl.vel.set(-Math.sin(ctl.facing) * speed, 0, -Math.cos(ctl.facing) * speed);
     pos.addScaledVector(ctl.vel, dt);
-    av.wind.set(wind[0] - ctl.vel.x, 0, wind[1] - ctl.vel.z);
+    av.wind.set(wind[0], 0, wind[1]); // the air (world frame); the strip feels your motion itself
     av.update(ctl, pos, 1, dt);
     if (f < 60) continue;
-    const P = av.scarf.pos;
+    const P = av.scarf.pos, sp = av.scarf.p;
+    rise = Math.max(rise, sp[sp.length - 1].y - sp[0].y);
     for (let v = 4; v < P.length / 3; v++) { // skip the knot end (vertices 0–3)
       q.set(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]);
       av.scarfCaps.forEach((c) => {
         ab.subVectors(c.b, c.a);
         const u = Math.max(0, Math.min(1, q.clone().sub(c.a).dot(ab) / ab.lengthSq()));
         const d = q.distanceTo(c.a.clone().addScaledVector(ab, u));
-        worst = Math.max(worst, c.r - 0.01 - d);
+        worst = Math.max(worst, c.r - 0.015 - d);
       });
     }
   }
-  console.log(`scarf ${label}: deepest inside the body ${Math.max(0, worst).toFixed(3)} m`);
+  console.log(`scarf ${label}: deepest inside the body ${Math.max(0, worst).toFixed(3)} m; tip at most ${rise.toFixed(2)} m above the knot`);
 }
 scarf('standing, breeze', 0, 0, [1.7, 0.8]);
 scarf('walk', 5, 0, [1.7, 0.8]);

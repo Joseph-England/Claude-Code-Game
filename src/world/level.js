@@ -19,6 +19,7 @@
 //                 retry, gust, cairn (reading note `cairn` of the section), stone, ending (scripted).
 //                 `after: id` queues the line straight after that one; `fallback` fires a conditional
 //                 line at the end of its stretch if its condition never came.
+//   storm, horns  the gap's storm (storm.js) and the horns either side of it (terrain-gen.js)
 //   oob           out-of-bounds rule: fall below routeH - below, above routeH + above, |d| > side
 //   bot           hints for the automated playthrough: slide ranges, jumps, lateral line, rock edges
 import { SURFACE } from './surfaces.js';
@@ -131,13 +132,16 @@ export const SECTIONS = [
   },
   {
     name: 'Whiteout', len: 165, turn: 70,
+    // A col between two rock horns (DECISIONS #77): the wind is funnelled through the gap and
+    // tears snow off the flanks, so the storm sits here and nowhere else — seen from the climb out
+    // of the hollow, walked into, and still blowing behind you when you come out (storm.js).
     knots: [[0, 49], [165, 66]],
-    profile: { type: 'plateau', w: 20, bank: 8, shoulder: 30 },
+    profile: { type: 'col', w: 14 },
+    horns: { height: 62, from: -30, to: 200 }, // terrain-gen raises the flanks into horns
     surface: POWDER,
     trail: { amp: 3, wave: 70, w: 1.4 },
     cairns: [[36, -4, 'note'], [86, -4, 'note'], [138, -4, 'note']], // A, B, C (spread out: user playtest) — "keep the stones on your left"
-    wind: { from: 6, to: 160, head: 2.2 },
-    whiteout: [8, 156],
+    storm: true,
     beats: [
       { at: 4, id: 17, voice: 'W', text: 'no one can see you in here.' },
       { at: 0, id: 18, voice: 'O', text: 'I stopped here too. It passed.', when: 'cairn', cairn: 0 },

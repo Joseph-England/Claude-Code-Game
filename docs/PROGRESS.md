@@ -95,7 +95,7 @@ Playtest notes from Session 4's build (done first):
 - [x] Generative music by section + procedural reverb IRs (open air / sheltered; the cave is gone, DECISIONS #69)
 - [x] Ending sequence: camera reveal, sit, sunset, final lines, fade
 - [x] Credits with support-resources line
-- [ ] Pacing pass: full playthroughs, adjust trigger timing and section lengths
+- [x] Pacing pass: full playthroughs, adjust trigger timing and section lengths (DECISIONS #72)
 
 **Done when:** a first-time player can go from title to credits in ~5 minutes with every line,
 sound and the ending working, and the tone reads as intended.

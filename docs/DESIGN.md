@@ -114,8 +114,7 @@ Movement feel is the heart of the game. The character is a **kinematic body** wi
 - **Landing** — velocity is projected onto the landing surface. Landing on a downslope that matches
   your arc keeps (even gains) speed; landing flat bleeds the normal component; a very hard flat landing
   causes a 0.3 s stumble.
-- **Wall-kick** (ice cave onward) — jump while touching a steep ice/rock wall in the air: reflect off
-  it. Taught in the cave, used once or twice in the final push.
+- ~~Wall-kick~~ — removed in Phase 5 (DECISIONS #60): it no longer fit the theme.
 - **Steep slopes** — snow above ~38° can't be walked up; you slide back down. Rock grips up to ~55°
   so rock outcrops are the "stairs" of the mountain.
 - **Air control** — weak (~15% of ground), enough to correct, not to steer a jump.
@@ -169,7 +168,6 @@ All numbers below are measured headlessly by `tools/check-movement.mjs` at the f
 | Forgiving inputs | coyote 100 ms, buffer 120 ms | 60 ms late off a ledge works, 160 ms doesn't; early press jumps on touchdown |
 | Landings reward matching the slope | keep tangential velocity, bleed normal | 10 m/s hop onto 30° downslope → 16 m/s; ≥ 11 m/s into the ground (≈ 3.4 m flat drop) stumbles 0.3 s |
 | Ramps emerge from terrain | leave ground when v²/R > g·cosθ·stick (slide 1, run 3) | R = 20 m crest: slide stays down at 12 m/s, launches at 22; running stays down |
-| Wall-kick is learnable | 7 up, ≥ 6 out, 0.12 s wall grace, no repeat off one wall | 3.5 m chimney climbed to 8 m in 5 relaxed kicks |
 
 Notes:
 - Speeds on long ice/packed pitches reach 30–40 m/s; there is still no cap (DECISIONS #18), so Phase 3
@@ -194,9 +192,9 @@ One continuous route, ~1.6 km of path, ~550 m of climb. Sun elevation is tied to
 | 2 | **Powder Fields** — wide basin | 0:40 | Powder drag vs. packed trails; finding the line | Effort vs. result |
 | 3 | **Ice Chutes** — two linked half-pipes | 0:45 | Slide down to earn speed, slide-jump launches, landing on downslopes | First joy |
 | 4 | **Cornice Ridge** — narrow crest | 0:40 | Wind gusts push laterally; rock for grip; precision | Intrusive thoughts |
-| 5 | **The Collapse / Ice Cave** — bridge falls, blue-violet cave | 0:50 | Wall-kicks, half-pipe walls, climbing back out toward light | Relapse |
+| 5 | **The Descent** — the ridge runs out; down into a hollow, then up | 0:40 | Slide down, carry the speed up the far side, climb out | Setback; going down to get back up |
 | 6 | **Whiteout** — blizzard plateau | 0:40 | Low visibility; navigate cairn to cairn; stronger drag | Isolation → connection |
-| 7 | **Summit Push** — steep final face, storm clears | 0:40 | Everything: slide-launch off a dip, rock steps, one wall-kick | Resolve |
+| 7 | **Summit Push** — steep final face, storm clears | 0:40 | Everything: slide-launch off a dip, a rock line up the couloir, rock steps | Resolve |
 | 8 | **Summit** | 0:30 | Walk, sit; no challenge | Quiet, ambiguous ending |
 
 ### Teaching (no tutorial popups)
@@ -207,7 +205,6 @@ One continuous route, ~1.6 km of path, ~550 m of climb. Sun elevation is tied to
   possible but slow.
 - Section 3's first chute is safe (fall = slide back to start of chute); the second needs a launch,
   with a slow rock detour for players who can't.
-- The cave has a sealed, low-risk half-pipe to learn wall-kick before it matters.
 - Failure costs little: falls off the mountain fade to the last cairn in < 1.5 s.
 
 ### As built (Phase 3; data in `src/world/level.js`, measured by `npm run playthrough`)
@@ -222,14 +219,16 @@ cross-section profiles (trail, basin, pipe, ridge, cave, plateau, summit).
 | 2 | Powder Fields | 120 m | 12 → 34 | 23.1 s | Powder basin (52 m wide); a meandering packed trail is the fast line |
 | 3 | Ice Chutes | 260 m | 34 → 15 → 21 → 5 → 8 | 23.9 s | Ice half-pipe 1, packed rise + cairn, half-pipe 2, packed kicker, 7 m crevasse (70° walls), downslope landing, carry-up exit |
 | 4 | Cornice Ridge | 140 m | 8 → 46 | 27.4 s | 6 m crest with 52° falls; gusts every 5.5 s (telegraphed 0.8 s, halved on rock patches) |
-| 5 | The Collapse | 110 m | bridge 46, cave 30 → 42 → 49 | 27.9 s | Snow bridge collapses 8 m in → 16 m fall into an ice trench under a roof; teaching chimney (2.2 m, one kick); exit chimney (7 m) into daylight; ramp out |
-| 6 | Whiteout | 110 m | 49 → 62 | 21.9 s | Powder plateau between drift banks, fog closes to 55 m, headwind, cairns A/B/C on the left of a packed path |
-| 7 | Summit Push | 140 m | 62 → 55 → 101 | 30.6 s | Slide into a dip and ride up a 4.2 m bank (rock edge for walkers), 38° rock face, rock gully with a 4.4 m kick chimney, last slope |
-| 8 | Summit | 26 m | 101 → 102 | 2.3 s | Round top with 60 m falls, summit pole, sit spot (end trigger) |
+| 5 | The Descent (Phase 5, replaces the Collapse) | 130 m | 46 → 22 → 49 | 12.6 s | The ridge runs out; a long packed slope down into a sheltered hollow (checkpoint cairn at the bottom), then the path climbs out; slide down and the speed carries you part of the way up |
+| 6 | Whiteout | 165 m | 49 → 66 | 22.5 s | Powder plateau between drift banks, fog closes in, headwind, note cairns A/B/C at 36 / 86 / 138 m on the left of a packed path |
+| 7 | Summit Push | 150 m | 62 → 55 → 117 | 21.2 s | Slide into a dip and ride up the bank (rock edge for walkers), the 46° couloir on its zig-zag rock line, a rock ramp (was a kick chimney), last slope |
+| 8 | Summit | 26 m | 117 → 118 | — | Round top with 60 m falls; the ending takes over 12 m in (no flag) |
 
-Bot total 3:05; first-time estimate ≈ 5:30 (1.35 × bot + ~6 s hesitation per new mechanic + one
-retry in each of chutes, ridge, cave and push). Chimneys are the Phase 2 layout: a back panel 3.5 m
-before the step face with a doorway at one side.
+Phase 5 numbers (tighter controls, no chimneys): bot 2:16, first-time estimate ≈ 4:54 for the
+climb, ≈ 5:54 title to credits with the opening (~8 s) and the 52 s ending. The estimate is 1.35 ×
+bot + ~6 s hesitation per new mechanic + a retry share in the chutes, ridge and push + ~5 s reading
+each note. `npm run playthrough` also replays the narrator's timing at that pace: no line waits more
+than ~4 s behind another except direct answers, which follow their line by design.
 
 ## 4. Visuals
 

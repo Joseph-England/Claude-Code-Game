@@ -37,7 +37,7 @@ export const SECTIONS = [
     beats: [
       { at: 0, id: 1, voice: 'W', text: 'stay down. it\'s easier.' },
       { at: 0, id: 2, voice: 'Y', text: 'Get up.', when: 'input' },
-      { at: 14, id: 3, voice: 'W', text: 'it\'s the same mountain every day.' },
+      { at: 20, id: 3, voice: 'W', text: 'it\'s the same mountain every day.' },
     ],
     oob: { below: 12, side: 60 },
   },
@@ -64,8 +64,8 @@ export const SECTIONS = [
     // A packed trail meanders up the basin (brighter; the fast line). trail(s) gives its offset.
     trail: { amp: 9, wave: 60, w: 1.2 },
     beats: [
-      { at: 6, id: 5, voice: 'W', text: 'everything takes more than it should.' },
-      { at: 14, id: 6, voice: 'Y', text: 'There\'s a way through. I just have to find it again.', when: 'trail', until: 90, fallback: true },
+      { at: 2, id: 5, voice: 'W', text: 'everything takes more than it should.' },
+      { at: 22, id: 6, voice: 'Y', text: 'There\'s a way through. I just have to find it again.', when: 'trail', until: 90, fallback: true },
       { at: 60, id: 7, voice: 'W', text: 'everyone else finds this easy.', when: 'slow', until: 115 },
     ],
     oob: { below: 12, side: 70 },
@@ -135,11 +135,11 @@ export const SECTIONS = [
     profile: { type: 'plateau', w: 20, bank: 8, shoulder: 30 },
     surface: POWDER,
     trail: { amp: 3, wave: 70, w: 1.4 },
-    cairns: [[28, -4, 'note'], [82, -4, 'note'], [138, -4, 'note']], // A, B, C (spread out: user playtest) — "keep the stones on your left"
+    cairns: [[36, -4, 'note'], [86, -4, 'note'], [138, -4, 'note']], // A, B, C (spread out: user playtest) — "keep the stones on your left"
     wind: { from: 6, to: 160, head: 2.2 },
     whiteout: [8, 156],
     beats: [
-      { at: 8, id: 17, voice: 'W', text: 'no one can see you in here.' },
+      { at: 4, id: 17, voice: 'W', text: 'no one can see you in here.' },
       { at: 0, id: 18, voice: 'O', text: 'I stopped here too. It passed.', when: 'cairn', cairn: 0 },
       { at: 0, id: 19, voice: 'O', text: 'Keep the stones on your left. Rest if you need to.', when: 'cairn', cairn: 1 },
       { at: 0, id: 20, voice: 'O', text: 'You don\'t have to do this alone. I didn\'t.', when: 'cairn', cairn: 2 },
@@ -161,8 +161,8 @@ export const SECTIONS = [
     paint: [[92, 112, ROCK], [32, 42, ROCK, 3, 99]], // incl. a rock edge up the bank for walkers
     cairns: [[6, -4]],
     beats: [
-      { at: 4, id: 22, voice: 'W', text: 'it\'ll be dark soon.' },
-      { at: 4, id: 23, voice: 'Y', text: 'I know.', after: 22 },
+      { at: 10, id: 22, voice: 'W', text: 'it\'ll be dark soon.' },
+      { at: 10, id: 23, voice: 'Y', text: 'I know.', after: 22 },
       { at: 66, id: 24, voice: 'W', text: 'you\'re so tired.' },
       { at: 66, id: 25, voice: 'Y', text: 'I\'m tired. I\'m still going.', after: 24 },
     ],

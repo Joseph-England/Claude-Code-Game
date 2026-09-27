@@ -10,9 +10,9 @@ const smooth = THREE.MathUtils.smootherstep;
 const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
 
 // [time, line id] — the narrator queues them, so they never overlap.
-const LINES = [[1.5, 26], [12, 27], [28, 29], [41, 30]];
-export const ENDING_FADE = 50; // start fading to black
-export const ENDING_END = 55; // credits
+const LINES = [[1.5, 26], [11, 27], [26, 29], [38, 30]];
+export const ENDING_FADE = 47; // start fading to black
+export const ENDING_END = 52; // credits
 
 export class Ending {
   constructor({ route, heightfield, story, audio }) {

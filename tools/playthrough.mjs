@@ -13,6 +13,7 @@ import { FIXED_DT } from '../src/core/loop.js';
 import * as THREE from 'three';
 import { SURFACE } from '../src/world/surfaces.js';
 import { Story } from '../src/story/story.js';
+import { ENDING_END } from '../src/story/ending.js';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? true]));
 const DT = FIXED_DT;
@@ -116,6 +117,7 @@ function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
   const secs = route.sections.map(() => ({ enter: null, respawns: 0, reasons: [], maxSpeed: 0 }));
   let lastProgress = level.progress, stallT = 0, t = 0, summit = null;
   const beats = [];
+  lineTimes.length = 0;
   while (t < maxTime) {
     const { c, camYaw } = bot.command();
     player.vel.x += level.wind.x * DT;
@@ -126,7 +128,7 @@ function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
     level.step(DT, player);
     if (story.stoneReady) story.signal('stone');
     story.step(DT, level, player);
-    for (const l of story.out) beats.push(l.id);
+    for (const l of story.out) { beats.push(l.id); lineTimes.push([t, l]); }
     story.out.length = 0;
     t += DT;
     const k = level.section;
@@ -158,6 +160,7 @@ function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
   return { ok: summit !== null, t: summit ?? t, secs, why: summit === null ? 'timeout' : '', beats };
 }
 
+const lineTimes = [];
 const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 const from = Number(args.from ?? 0);
 const run = playthrough({ from, verbose: !!args.verbose });
@@ -192,6 +195,31 @@ else {
   console.log(`Story lines fired: ${allBeats.length - missed.length}/${allBeats.length} (+ ${run.beats.filter((id) => !allBeats.includes(id)).length} conditional)${missed.length ? ` (missed ${missed.join(', ')})` : ''}; order ${run.beats.join(' ')}`);
   if (missed.length) failures.push(`story lines never fired: ${missed.join(', ')}`);
   if (from === 0 && (est < 240 || est > 390)) failures.push(`first-time estimate ${fmtT(est)} outside 4:00–6:30`);
+  // Title to credits: + the opening (lying, getting up: ~8 s) + the ending (ENDING_END).
+  console.log(`Estimated title to credits: ${fmtT(est + 8 + ENDING_END)} (opening ~8 s, ending ${ENDING_END} s).`);
+  // Line pacing at a first-time player's pace (trigger times scaled by estimate / bot time): replay
+  // the narrator's timing model (src/story/narrator.js) and report how late each line appears
+  // after its trigger. Notes are held while the player stands and reads (~5 s, included in `est`).
+  const T = { W: [1.4, 1.6], Y: [0.8, 1.0], O: [0.9, 1.2] };
+  let free = 0, prev = null, worst = [0, null];
+  const rows = [];
+  const pace = est / run.t;
+  for (const [bt, l] of lineTimes) {
+    // The bot gets up at once; a player lies there a few seconds, then the get-up takes 2.6 s.
+    const at = l.id === 1 ? 0 : l.id === 2 ? 4 : 6.6 + bt * pace;
+    const gap = prev ? (l.after === prev.id ? 0.3 : 1.2) : 0;
+    const start = Math.max(at, free + gap), [fi, fo] = T[l.voice];
+    const hold = Math.max(l.voice === 'O' ? 4.5 : 2.6, 2.2 + 0.055 * l.text.length);
+    free = start + fi + hold + fo;
+    prev = l;
+    const late = start - at;
+    // Answers (`after`) and the stone line wait for their predecessor by design.
+    if (late > worst[0] && !l.after && l.when !== 'stone') worst = [late, l.id];
+    rows.push(`${l.id}@${fmtT(at)}${late > 0.5 ? `+${late.toFixed(1)}` : ''}`);
+  }
+  console.log(`Line timing (first-time pace ×${pace.toFixed(2)}; +n = seconds late in the queue): ${rows.join(' ')}`);
+  console.log(`Latest line: ${worst[1] ?? '-'} (${worst[0].toFixed(1)} s after its trigger).`);
+  if (worst[0] > 6) failures.push(`line ${worst[1]} waits ${worst[0].toFixed(1)} s in the queue (lines too crowded)`);
 }
 
 // Every cairn respawn: the player lands on solid ground, in bounds, and stays put.

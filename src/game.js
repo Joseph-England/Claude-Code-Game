@@ -55,7 +55,7 @@ const overlay = new DebugOverlay();
 const panel = createPanel(tuning);
 
 // --- Placeholder HUD: toast, story line, gust hint, fade.
-const toast = $('toast'), line = $('line'), fade = $('fade'), windEl = $('wind');
+const toast = $('toast'), line = $('line'), weightVig = $('weight-vignette'), fade = $('fade'), windEl = $('wind');
 let toastTimer = 0, lineTimer = 0;
 const lineQueue = [];
 function showToast(text, secs = 1.6) { toast.textContent = text; toast.style.opacity = 1; toastTimer = secs; }
@@ -63,6 +63,7 @@ function showLine(b) {
   line.textContent = b.text;
   line.className = `voice-${b.voice}`;
   line.style.opacity = 1;
+  weightVig.style.opacity = b.voice === 'W' ? 1 : 0;
   lineTimer = 2.5 + 0.06 * b.text.length;
 }
 
@@ -130,7 +131,7 @@ createLoop({
     if (input.wasPressed('F3') || input.wasPressed('Backquote')) overlay.toggle();
     if (input.wasPressed('F4')) panel.toggle();
     if (toastTimer > 0 && (toastTimer -= frameDt) <= 0) toast.style.opacity = 0;
-    if (lineTimer > 0 && (lineTimer -= frameDt) <= 0) line.style.opacity = 0;
+    if (lineTimer > 0 && (lineTimer -= frameDt) <= 0) { line.style.opacity = 0; weightVig.style.opacity = 0; }
     if (lineTimer <= 0 && lineQueue.length && line.style.opacity !== '1') showLine(lineQueue.shift());
     cmd = input.sample(frameDt);
     cam.look(cmd.lookX, cmd.lookY, frameDt);

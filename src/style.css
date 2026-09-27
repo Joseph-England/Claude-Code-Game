@@ -21,33 +21,60 @@ html, body {
   border-radius: 4px;
   pointer-events: none;
 }
+/* All HUD text sits on a soft dark backing so it reads on white snow and on sunset colours alike. */
 #hint, #toast {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
   color: #fff;
   font: 13px/1.4 system-ui, sans-serif;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.5);
+  background: rgba(12, 10, 22, 0.55);
+  padding: 4px 12px;
+  border-radius: 12px;
   pointer-events: none;
   white-space: nowrap;
 }
-#hint { bottom: 10px; opacity: 0.8; }
-#toast { top: 18%; font-size: 20px; transition: opacity 0.4s; }
+#hint { bottom: 10px; opacity: 0.85; }
+#toast { top: 18%; font-size: 18px; transition: opacity 0.4s; opacity: 0; letter-spacing: 0.03em; }
 #loading {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
   color: #e8e0f0; font: 15px/1.4 system-ui, sans-serif; background: #1a1024; letter-spacing: 0.04em;
 }
 #loading[hidden] { display: none; }
 #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; }
-#line {
-  position: fixed; left: 50%; bottom: 16%; transform: translateX(-50%); max-width: 70vw; text-align: center;
-  font: 20px/1.4 Georgia, serif; opacity: 0; transition: opacity 0.6s; pointer-events: none;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+/* Voices (DESIGN §1). The Weight is not "someone else": it is the depression, so it looks like a
+   stain — dim, heavy, centred, pressing in with a dark vignette. You speak plainly in the lower
+   third. Others are physical notes found in cairns, so they look like one. */
+#weight-vignette {
+  position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.2s;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(8, 6, 16, 0.55) 100%);
 }
-#line.voice-W { color: #c9ccd6; font-style: italic; text-transform: lowercase; bottom: 44%; }
-#line.voice-Y { color: #fff6ea; }
-#line.voice-O { color: #ffc46b; }
+#line {
+  position: fixed; left: 50%; bottom: 14%; transform: translateX(-50%); max-width: 70vw; text-align: center;
+  font: 21px/1.4 Georgia, serif; opacity: 0; transition: opacity 0.6s; pointer-events: none;
+  padding: 10px 40px; border-radius: 40px;
+}
+#line.voice-W {
+  bottom: 45%; color: #b9b6c6; font-style: italic; text-transform: lowercase; letter-spacing: 0.06em;
+  font-size: 19px; background: radial-gradient(ellipse at center, rgba(10, 8, 18, 0.72) 0%, rgba(10, 8, 18, 0.45) 55%, transparent 75%);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 18px rgba(40, 30, 60, 0.9);
+  filter: blur(0.3px);
+}
+#line.voice-Y {
+  color: #fff4e2; background: linear-gradient(90deg, transparent, rgba(24, 14, 12, 0.55) 18%, rgba(24, 14, 12, 0.55) 82%, transparent);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+#line.voice-O {
+  color: #ffcf85; font: 20px/1.4 'Segoe Print', 'Bradley Hand', 'Comic Neue', cursive; border-radius: 6px; padding: 10px 22px;
+  background: rgba(30, 20, 10, 0.72); border: 1px solid rgba(255, 196, 107, 0.35); text-shadow: 0 1px 2px #000;
+}
+#line.voice-O::before {
+  content: 'a note tucked into the cairn'; display: block; font: italic 12px/1.6 Georgia, serif;
+  color: rgba(255, 220, 170, 0.7); letter-spacing: 0.05em;
+}
 #wind {
   position: fixed; top: 10%; left: 50%; transform: translateX(-50%); color: #fff; opacity: 0;
-  font: 16px system-ui, sans-serif; transition: opacity 0.25s; pointer-events: none; text-shadow: 0 1px 3px #0008;
+  font: 16px system-ui, sans-serif; transition: opacity 0.25s; pointer-events: none;
+  background: rgba(12, 10, 22, 0.55); padding: 4px 14px; border-radius: 12px; text-shadow: 0 1px 3px #000;
 }

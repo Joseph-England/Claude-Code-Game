@@ -29,3 +29,5 @@ Numbered and append-only. A decision stands unless a later entry reverses it wit
 25. **Quality tiers Low/Medium/High, auto-picked by a 2 s benchmark, plus dynamic resolution on Low/Medium.** Medium targets integrated GPUs at 60 fps.
 26. **Controls:** WASD/arrows move, mouse look (pointer lock), Space jump, Shift slide, Esc pause. Gamepad: left stick, right stick, A jump, B/RT slide, Start pause.
 27. **Dev-only `lil-gui` tuning panel and stats overlay**, stripped from production builds via `import.meta.env.DEV`.
+28. **Claude owns all GitHub work (user request, Session 1).** Each session develops on its assigned branch, opens a PR to `main`, waits for the `build` check to go green, merges it (merge commit), and confirms the Pages deploy run on `main` succeeds. If the branch's previous PR is already merged, restart the branch from `origin/main` first. The user does not need to merge manually.
+29. **The workflow builds every PR to `main` (build job only; deploy runs only on pushes to `main`).** Gives a CI signal before merging.

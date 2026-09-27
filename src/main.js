@@ -7,6 +7,7 @@ import { buildCourse } from './world/course.js';
 import { Colliders } from './world/colliders.js';
 import { Controller } from './player/controller.js';
 import { ThirdPersonCamera } from './player/camera.js';
+import { Avatar } from './player/avatar.js';
 import { createGraybox } from './render/graybox.js';
 
 const canvas = document.getElementById('game');
@@ -27,17 +28,14 @@ const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
 const cam = new ThirdPersonCamera(camera, world, tuning);
 
-// Stand-in body until the avatar item lands.
-const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 1.0, 6, 12), new THREE.MeshStandardMaterial({ color: 0xd04040 }));
-body.castShadow = true;
-scene.add(body);
+const avatar = new Avatar(scene, tuning);
 
 function spawn(i) {
   const s = course.spawns[i];
   player.teleport(s.pos, s.yaw);
   cam.reset(player.pos, s.yaw);
 }
-spawn(0);
+spawn(Math.min(course.spawns.length - 1, Math.max(0, Number(new URLSearchParams(location.search).get('spawn')) || 0)));
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -66,8 +64,7 @@ createLoop({
     player.events.length = 0;
     renderPos.lerpVectors(player.prevPos, player.pos, alpha);
     const crouch = THREE.MathUtils.lerp(player.prevCrouch, player.crouch, alpha);
-    body.position.set(renderPos.x, renderPos.y + 0.85 - crouch * 0.35, renderPos.z);
-    body.scale.y = 1 - crouch * 0.4;
+    avatar.update(player, renderPos, alpha, frameDt);
     cam.update(frameDt, renderPos, player, crouch);
     gray.follow(renderPos);
     renderer.render(scene, camera);

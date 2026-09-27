@@ -25,7 +25,7 @@ Current phase: **Phase 2 — Movement & camera** (Phase 1 complete)
 - [x] Wall-kick
 - [x] Surface physics table (friction/drag/control) wired to the controller
 - [x] Third-person camera: orbit, auto-follow, terrain collision, speed FOV, carve roll
-- [ ] Placeholder avatar (capsule + facing) with lean
+- [x] Placeholder avatar (capsule + facing) with lean
 - [ ] Dev tuning panel (lil-gui) + speed/state readout; tune until it feels good; record final constants in DECISIONS
 
 **Done when:** on the gray-box course you can run, jump, slide, slide-jump, wall-kick and feel clear

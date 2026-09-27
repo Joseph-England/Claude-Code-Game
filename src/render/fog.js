@@ -33,7 +33,12 @@ const FRAG = /* glsl */`
     // Aerial perspective.
     vec3 ext = (betaR * 0.76 + vec3(betaMe * 0.2)) * 1e-3 * uAerial; // per metre at ~2 km
     vec3 T = exp(-ext * d);
-    vec3 horizon = skyRad(vec3(rd.x, max(rd.y, 0.0) * 0.5 + 0.03, rd.z));
+    // As the sun sets the valleys fall into shadow first: haze and fog seen below the horizon take
+    // the dimmer sky colour from higher up instead of the glowing horizon band, so the sunset glow
+    // stays in the sky (user playtest: it seemed to rise out of the valleys).
+    float sunLit = smoothstep(0.0, 0.14, uSunDir.y);
+    float down = clamp(-rd.y * 3.0, 0.0, 0.45) * (1.0 - 0.7 * sunLit);
+    vec3 horizon = skyRad(vec3(rd.x, max(rd.y, 0.0) * 0.5 + 0.03 + down, rd.z));
     col = col * T + horizon * (1.0 - T);
     // Height fog.
     float b = 1.0 / uFogHeight;
@@ -42,7 +47,8 @@ const FRAG = /* glsl */`
     float fogAmt = uFogDensity * exp(-oy * b) * (1.0 - exp(-d * ry * b)) / (ry * b);
     fogAmt = 1.0 - exp(-max(fogAmt, 0.0));
     float mu = max(dot(rd, uSunDir), 0.0);
-    vec3 fogCol = skyRad(vec3(rd.x, 0.05, rd.z)) * 0.9 + uSunColor * 0.06 * pow(mu, 12.0);
+    vec3 fogCol = mix(skyRad(vec3(rd.x, 0.4, rd.z)) * 0.7, skyRad(vec3(rd.x, 0.05, rd.z)) * 0.9, sunLit)
+                + uSunColor * 0.06 * pow(mu, 12.0) * sunLit;
     col = mix(col, fogCol, fogAmt);
     // Whiteout.
     float w = uWhiteout * (1.0 - exp(-d / uWhiteDist));

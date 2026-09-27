@@ -9,9 +9,10 @@ export const SUN_AZIMUTH = 112 * D2R; // west-south-west: into the sun on the su
 export function sunElevation(p, sinceSummit = -1) {
   const e = 12 - 11.2 * Math.pow(THREE.MathUtils.clamp(p, 0, 1), 1.15); // +12° → +0.8° at the top
   if (sinceSummit < 0) return e * D2R;
-  // After arrival the sun keeps going: under the horizon to −5° over ~40 s (Phase 5's ending owns it).
+  // After arrival the sun keeps going: under the horizon to −3° over ~40 s (the ending). −3° keeps
+  // the Belt of Venus and the alpenglow on the far peaks (−5° was nearly black; DECISIONS #71).
   const u = THREE.MathUtils.smootherstep(sinceSummit, 0, 40);
-  return THREE.MathUtils.lerp(e, -5, u) * D2R;
+  return THREE.MathUtils.lerp(e, -3, u) * D2R;
 }
 
 // Snowfall density per section (0 Opening … 8 Summit): light flurries, more on the ridge, the

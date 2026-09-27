@@ -1,6 +1,6 @@
 # Progress
 
-Current phase: **Phase 5 — Story, audio & flow** (Phases 1–4 complete)
+Current phase: **Phase 6 — Polish, performance & release** (Phases 1–5 complete)
 
 ## Phase 1: Foundation & design
 - [x] Create CLAUDE.md operating rules
@@ -79,17 +79,23 @@ drops to 0.5). On real hardware, F3 shows GPU ms (timer query) per frame. Physic
 (≈ 3.5 µs/step).
 
 ## Phase 5: Story, audio & flow
-- [ ] Game state machine: title → playing → ending → credits → title
-- [ ] Title screen (with brief content note) and loading progress
-- [ ] Narrator: text UI for three voices, queue, fade timing, bell cue
-- [ ] Place all line triggers (DESIGN §1 table) including conditional lines
-- [ ] Cairn notes interaction + "add a stone" beat
-- [ ] Audio engine + procedural wind with gusts
-- [ ] Surface-aware footsteps, slide noise, breath, landings
-- [ ] Generative music by section + procedural reverb IRs (open air / cave)
-- [ ] Ending sequence: camera reveal, sit, sunset, final lines, fade
-- [ ] Credits with support-resources line
-- [ ] Pacing pass: full playthroughs, adjust trigger timing and section lengths
+Playtest notes from Session 4's build (done first):
+- [x] Remove wall-kick + chimneys; replace the bridge collapse with a descent; spread the whiteout cairns; no summit flag; tighter controls (DECISIONS #60–63)
+- [x] Avatar: better figure, no idle animation, balanced stance; scarf that behaves like cloth (DECISIONS #64)
+- [x] Mountains that read as mountains (structure of the ranges and the relief); sunset glow from the sky, not the valley fog (DECISIONS #65–66)
+- [x] Clear summit flow (ending takes over; no "press R" nag at the top) (DECISIONS #67, #71)
+
+- [x] Game state machine: title → playing → ending → credits → title
+- [x] Title screen (with brief content note) and loading progress
+- [x] Narrator: text UI for three voices, queue, fade timing, bell cue
+- [x] Place all line triggers (DESIGN §1 table) including conditional lines
+- [x] Cairn notes interaction + "add a stone" beat
+- [x] Audio engine + procedural wind with gusts
+- [x] Surface-aware footsteps, slide noise, breath, landings
+- [x] Generative music by section + procedural reverb IRs (open air / sheltered; the cave is gone, DECISIONS #69)
+- [x] Ending sequence: camera reveal, sit, sunset, final lines, fade
+- [x] Credits with support-resources line
+- [x] Pacing pass: full playthroughs, adjust trigger timing and section lengths (DECISIONS #72)
 
 **Done when:** a first-time player can go from title to credits in ~5 minutes with every line,
 sound and the ending working, and the tone reads as intended.
@@ -206,3 +212,30 @@ work, README is complete.
   sets the sun under the horizon over 40 s after arrival) and turn the camera east toward Earth's
   shadow and the alpenglow on the far ranges. Keep the voice styles from #49 in the narrator.
 
+
+### Session 5 — Phase 5: Story, audio & flow (2026-09-27)
+- **Playtest notes (done first):** wall-kick, chimneys, snow bridge, ice-cave roof and summit flag
+  removed; "The Descent" replaces the collapse (down into a sheltered hollow, then the path up);
+  whiteout notes spread to 36 / 86 / 138 m and each stays up while you stand at its cairn; tighter
+  ground control (#60–63). New climber avatar with no idle motion and a stable cloth scarf (the old
+  one's follow-the-leader constraints pumped energy into it) (#64). Structured backdrop ranges; the
+  sunset glow no longer rises out of the valley fog (#65–66). The top is now clear: the ending takes
+  over, and the "R" reminder is rare and never on the summit (#67, #71).
+- **Completed:** every Phase 5 item. `src/story/story.js` (line triggers + conditions, Node-safe),
+  `narrator.js` (queue, per-voice fades, the Weight fading over the climb), `ending.js` (walk, sit,
+  camera reveal, timed lines, fade); `src/audio/audio.js` + `music.js` (reverbs, wind, footsteps,
+  slide, breath, bells, generative score); title/credits in `index.html`; flow in `game.js`. Final
+  lines locked in DESIGN §1 (30 lines, #68). Tools: `tools/flow.mjs` (scripted headless run with
+  screenshots); `npm run playthrough` now checks every line fires and replays the narrator's timing.
+- **Measured:** bot 2:16, first-time estimate ≈ 4:54 climb / ≈ 5:54 title to credits; all 22
+  non-scripted lines fire (plus 2 struggle-only); no line waits > 4.2 s behind another (answers
+  excepted); Medium at the summit push: 109 draw calls, 344k triangles (budget 150 / 400k); audio
+  ≈ −30 dBFS RMS pre-compressor while walking. `npm run check` and `npm run playthrough` pass.
+- **Broken / deferred:** nothing known broken. Not verifiable here: how the audio actually sounds
+  (levels were measured, but please listen, especially wind vs. music balance and the footstep
+  timbres), real-hardware frame rate, and first-time timing with a real player (the ~5:54 is a
+  model). Soft-lock sweep has 3 bot misses (limit 3), one new in a hollow off the Descent's left
+  shoulder; R and the reminder cover it. The ending timeline is fixed (52 s); skipping it is not
+  possible yet (Phase 6 pause menu could add it).
+- **Next step:** Phase 6, first item: bug bash — full playthroughs on each quality tier (start with
+  the title → credits loop twice in a row, to confirm the reset: stone, notes, sun, music level).

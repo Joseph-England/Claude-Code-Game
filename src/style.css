@@ -22,59 +22,107 @@ html, body {
   pointer-events: none;
 }
 /* All HUD text sits on a soft dark backing so it reads on white snow and on sunset colours alike. */
-#hint, #toast {
+#toast, #prompt, #controls {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
   color: #fff;
   font: 13px/1.4 system-ui, sans-serif;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.5);
-  background: rgba(12, 10, 22, 0.55);
+  background: rgba(12, 10, 22, 0.5);
   padding: 4px 12px;
   border-radius: 12px;
   pointer-events: none;
   white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.8s;
 }
-#hint { bottom: 10px; opacity: 0.85; }
-#toast { top: 18%; font-size: 18px; transition: opacity 0.4s; opacity: 0; letter-spacing: 0.03em; }
-#loading {
-  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-  color: #e8e0f0; font: 15px/1.4 system-ui, sans-serif; background: #1a1024; letter-spacing: 0.04em;
-}
-#loading[hidden] { display: none; }
+#controls { bottom: 12px; }
+#toast { top: 16%; font-size: 15px; letter-spacing: 0.06em; }
+#prompt { bottom: 24%; font-size: 14px; letter-spacing: 0.05em; }
 #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; }
-/* Voices (DESIGN §1). The Weight is not "someone else": it is the depression, so it looks like a
-   stain — dim, heavy, centred, pressing in with a dark vignette. You speak plainly in the lower
+
+/* Voices (DESIGN §1, DECISIONS #49). The Weight is not "someone else": it is the depression, so it
+   looks like a stain — dim, heavy, centred, seeping in slowly with a dark vignette, and a little
+   smaller and fainter each time over the climb (--weight 1 → ~0.55). You speak plainly in the lower
    third. Others are physical notes found in cairns, so they look like one. */
 #weight-vignette {
-  position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.2s;
+  position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.4s;
   background: radial-gradient(ellipse at center, transparent 35%, rgba(8, 6, 16, 0.55) 100%);
 }
 #line {
-  position: fixed; left: 50%; bottom: 14%; transform: translateX(-50%); max-width: 70vw; text-align: center;
-  font: 21px/1.4 Georgia, serif; opacity: 0; transition: opacity 0.6s; pointer-events: none;
-  padding: 10px 40px; border-radius: 40px;
+  --fade-in: 0.8s; --fade-out: 1s; --weight: 1;
+  position: fixed; left: 50%; bottom: 15%; transform: translate(-50%, 6px); max-width: min(70vw, 760px); text-align: center;
+  font: 22px/1.45 Georgia, 'Iowan Old Style', 'Palatino Linotype', serif; opacity: 0; pointer-events: none;
+  padding: 12px 44px; border-radius: 40px; filter: blur(1.5px);
+  transition: opacity var(--fade-out) ease-in, transform var(--fade-out) ease-in, filter var(--fade-out);
+}
+#line.show {
+  opacity: 1; transform: translate(-50%, 0); filter: blur(0);
+  transition: opacity var(--fade-in) ease-out, transform var(--fade-in) ease-out, filter var(--fade-in), letter-spacing 6s linear;
 }
 #line.voice-W {
-  bottom: 64%; color: #b9b6c6; font-style: italic; text-transform: lowercase; letter-spacing: 0.06em;
-  font-size: 19px; background: radial-gradient(ellipse at center, rgba(10, 8, 18, 0.72) 0%, rgba(10, 8, 18, 0.45) 55%, transparent 75%);
+  bottom: 62%; color: #bdb9cb; font-style: italic; text-transform: lowercase; letter-spacing: 0.05em;
+  font-size: calc(15px + 5px * var(--weight));
+  background: radial-gradient(ellipse at center, rgba(10, 8, 18, 0.7) 0%, rgba(10, 8, 18, 0.42) 55%, transparent 75%);
   text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 18px rgba(40, 30, 60, 0.9);
-  filter: blur(0.3px);
+  filter: blur(3px);
 }
+#line.voice-W.show { opacity: calc(0.45 + 0.5 * var(--weight)); letter-spacing: 0.09em; filter: blur(0.4px); }
 #line.voice-Y {
-  color: #fff4e2; background: linear-gradient(90deg, transparent, rgba(24, 14, 12, 0.55) 18%, rgba(24, 14, 12, 0.55) 82%, transparent);
+  color: #fff4e2; background: linear-gradient(90deg, transparent, rgba(24, 14, 12, 0.5) 18%, rgba(24, 14, 12, 0.5) 82%, transparent);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 #line.voice-O {
-  color: #ffcf85; font: 20px/1.4 'Segoe Print', 'Bradley Hand', 'Comic Neue', cursive; border-radius: 6px; padding: 10px 22px;
-  background: rgba(30, 20, 10, 0.72); border: 1px solid rgba(255, 196, 107, 0.35); text-shadow: 0 1px 2px #000;
+  color: #ffd08a; font: 21px/1.45 'Segoe Print', 'Bradley Hand', 'Comic Neue', cursive; border-radius: 6px; padding: 12px 24px;
+  background: rgba(30, 20, 10, 0.74); border: 1px solid rgba(255, 196, 107, 0.35); text-shadow: 0 1px 2px #000;
+  transform: translate(-50%, 6px) rotate(-0.6deg);
 }
+#line.voice-O.show { transform: translate(-50%, 0) rotate(-0.6deg); }
 #line.voice-O::before {
   content: 'a note tucked into the cairn'; display: block; font: italic 12px/1.6 Georgia, serif;
   color: rgba(255, 220, 170, 0.7); letter-spacing: 0.05em;
 }
 #wind {
   position: fixed; top: 10%; left: 50%; transform: translateX(-50%); color: #fff; opacity: 0;
-  font: 16px system-ui, sans-serif; transition: opacity 0.25s; pointer-events: none;
-  background: rgba(12, 10, 22, 0.55); padding: 4px 14px; border-radius: 12px; text-shadow: 0 1px 3px #000;
+  font: 15px system-ui, sans-serif; transition: opacity 0.25s; pointer-events: none;
+  background: rgba(12, 10, 22, 0.5); padding: 4px 14px; border-radius: 12px; text-shadow: 0 1px 3px #000;
 }
+
+/* Title and credits. */
+#title, #credits {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+  color: #efe6f2; font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif; transition: opacity 1.6s, background 2s;
+}
+#title { background: #140d1d; cursor: default; }
+#title.ready { background: linear-gradient(180deg, rgba(14, 9, 22, 0.1) 0%, rgba(14, 9, 22, 0.25) 45%, rgba(14, 9, 22, 0.8) 100%); cursor: pointer; }
+#title.gone, #credits:not(.show) { opacity: 0; pointer-events: none; }
+#title .inner { max-width: 560px; padding: 24px; margin-top: 18vh; }
+#title h1 {
+  font-weight: normal; font-size: clamp(40px, 8vw, 76px); letter-spacing: 0.32em; margin: 0 0 6px; text-indent: 0.32em;
+  text-transform: uppercase; color: #fff3f0; text-shadow: 0 0 30px rgba(255, 150, 170, 0.35), 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+#title .sub { font-style: italic; font-size: 18px; margin: 0 0 34px; color: #f2d9df; text-shadow: 0 1px 6px #000; }
+#title .note {
+  font: 14px/1.6 system-ui, sans-serif; color: #e3dbe8; background: rgba(12, 8, 20, 0.55); padding: 12px 18px;
+  border-radius: 10px; margin: 0 auto 26px;
+}
+#status { font: 14px/1.4 system-ui, sans-serif; letter-spacing: 0.12em; color: #d8cfe0; text-transform: lowercase; }
+#title.ready #status { animation: breathe 3.2s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: 0.45; } }
+#credits { background: #07050b; opacity: 1; }
+#credits .roll { max-width: 560px; padding: 24px; }
+#credits .roll > * { opacity: 0; transition: opacity 2.4s; }
+#credits.show .roll > * { opacity: 1; }
+#credits.show .roll > :nth-child(2) { transition-delay: 1.5s; }
+#credits.show .roll > :nth-child(3) { transition-delay: 3s; }
+#credits.show .roll > :nth-child(4) { transition-delay: 5.5s; }
+#credits.show .roll > :nth-child(5) { transition-delay: 9s; }
+#credits.show .roll > :nth-child(6) { transition-delay: 13s; }
+#credits .back { margin-top: 30px; opacity: 0.6; }
+#credits h2 { font-weight: normal; letter-spacing: 0.32em; text-transform: uppercase; font-size: 30px; margin: 0 0 18px 0.32em; color: #fff0ee; }
+#credits p { font-size: 17px; margin: 0 0 22px; }
+#credits .small { font: 13px/1.6 system-ui, sans-serif; color: #b8aec2; }
+#credits .care { font: 15px/1.7 system-ui, sans-serif; color: #e8e0ee; margin-top: 44px; }
+#credits a { color: #ffc9a8; }
+#credits .thanks { margin-top: 44px; }

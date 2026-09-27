@@ -52,7 +52,7 @@ function record(name, value, unit, lo, hi) {
 
 // 1. Flat running per surface: top speed, time to 90 %, stopping distance.
 const runTargets = { packed: [4.85, 5.05], powder: [3.5, 4.8], ice: [4.6, 5.05], rock: [4.85, 5.05] };
-const t90Targets = { packed: [0.8, 1.8], ice: [3, 12] };
+const t90Targets = { packed: [0.3, 0.8], ice: [1.8, 8] }; // tightened (DECISIONS #63)
 for (let s = 0; s < 4; s++) {
   const name = SURFACE_NAMES[s];
   const w = world('flat', flat, s);
@@ -67,7 +67,7 @@ for (let s = 0; s < 4; s++) {
   record(`run time to 90 % — ${name}`, t90, 's', ...(t90Targets[name] ?? []));
   const z0 = c.pos.z;
   const ticks = run(c, 30, cmd(), (cc) => hspeed(cc) < 0.01);
-  record(`run stop distance — ${name}`, Math.abs(c.pos.z - z0), 'm', ...(name === 'packed' ? [1, 3] : name === 'ice' ? [12, 40] : []));
+  record(`run stop distance — ${name}`, Math.abs(c.pos.z - z0), 'm', ...(name === 'packed' ? [0.3, 1.2] : name === 'ice' ? [6, 30] : []));
   record(`run stop time — ${name}`, ticks * DT, 's');
   const c3 = spawn(w, [0, 0, 180]);
   run(c3, 12, cmd({ moveY: 1, sprintHeld: true }));
@@ -219,39 +219,7 @@ for (const [v, slide, wantAir] of [[12, true, false], [22, true, true], [7, fals
   results.push({ name: 'physics steps in 3 s at each frame rate', value: finals.map((f) => f.steps).join('/'), unit: '', target: '360', ok: true });
 }
 
-// 10. Wall-kicks on the gray-box course: chimney climb and a glancing kick off the long wall.
-{
-  const course = buildCourse();
-  const cw = { heightfield: course.heightfield, colliders: new Colliders(course.boxes), cairns: course.cairns };
-  const c = spawn(cw, [-119.1, 0, 100]); // standing against the ice wall
-  let dir = -1, kicks = 0, maxY = 0, lastKickTick = -99;
-  run(c, 8, (i, cc) => {
-    if (i < 6) return cmd({ moveX: -1 }); // lean into the ice wall, jump, kick across
-    const touching = cc.timers.wall > 0 && cc.wallNormal.x * dir < -0.5; // touching the wall we head for
-    const kick = !cc.grounded && touching && i - lastKickTick > 6 && cc.pos.y < 8.3 && cc.vel.y < 3;
-    if (kick) { dir = -dir; lastKickTick = i; }
-    const topOut = cc.pos.y > 8.2 || (cc.grounded && cc.pos.y > 7);
-    return cmd({ moveX: topOut ? 1 : dir, jumpPressed: i === 6 || kick, jumpHeld: true });
-  }, (cc) => {
-    kicks += cc.events.filter((e) => e.type === 'kick').length;
-    cc.events.length = 0;
-    maxY = Math.max(maxY, cc.pos.y);
-    return cc.grounded && cc.pos.y > 7.9 && cc.time > 0.5;
-  });
-  record('chimney (3.5 m gap): kicks to top out on the 8 m block', c.grounded && c.pos.y > 7.9 ? kicks : NaN, 'kicks', 2, 8);
-  if (!(c.grounded && c.pos.y > 7.9)) failures.push(`chimney climb failed (max height ${maxY.toFixed(1)} m)`);
-
-  // Run diagonally into the long rock wall (face at z = 149.5), jump, kick on contact.
-  const g = spawn(cw, [-140, 0, 141], [0, 0, 0]);
-  let kicked = null;
-  run(g, 3, (i, cc) => cmd({ moveX: 0.5, moveY: -0.87, jumpPressed: (cc.grounded && cc.pos.z > 146.5) || (!cc.grounded && cc.timers.wall > 0), jumpHeld: true }, 0),
-    (cc) => { if (cc.events.some((e) => e.type === 'kick')) { kicked = cc.vel.clone(); return true; } });
-  // Camera yaw 0: moveY −0.87 heads +z toward the wall.
-  record('glancing kick off long rock wall: speed away from wall', kicked ? -kicked.z : NaN, 'm/s', tuning.wallKick.out - 0.05);
-  if (!kicked) failures.push('glancing wall-kick did not trigger');
-}
-
-// 11. Camera: bots tour the course at 60 fps while the orbit sweeps; the camera must never go
+// 10. Camera: bots tour the course at 60 fps while the orbit sweeps; the camera must never go
 //     below the terrain or inside a collider, and must stay smooth over the rollers.
 {
   const course = buildCourse();

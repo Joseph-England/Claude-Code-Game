@@ -13,9 +13,14 @@
 //                 offset, + = right of travel)
 //   cairns        [localS, d] checkpoints; [localS, d, 'note'] = a story cairn that is not a checkpoint
 //   climb         { from, to, line: [[localS, d]…], w }: a rock line up a snow face (DECISIONS #48)
-//   beats         story trigger volumes (placeholder text; Phase 5 finishes): { at, id, text, voice }
+//   beats         inner-voice lines (final, DESIGN §1): { at, id, voice, text, when?, until?, after?, cairn? }
+//                 fire on entering [at, at + 20] unless `when` names a condition, which is then
+//                 armed from `at` to `until` (default: section end): input, jump, trail, slow, fast,
+//                 retry, gust, cairn (reading note `cairn` of the section), stone, ending (scripted).
+//                 `after: id` queues the line straight after that one; `fallback` fires a conditional
+//                 line at the end of its stretch if its condition never came.
 //   oob           out-of-bounds rule: fall below routeH - below, above routeH + above, |d| > side
-//   bot           hints for the automated playthrough: slide ranges, jumps, lateral line, kicks
+//   bot           hints for the automated playthrough: slide ranges, jumps, lateral line, rock edges
 import { SURFACE } from './surfaces.js';
 
 const { PACKED, POWDER, ICE, ROCK } = SURFACE;
@@ -31,8 +36,8 @@ export const SECTIONS = [
     cairns: [[10, -4]],
     beats: [
       { at: 0, id: 1, voice: 'W', text: 'stay down. it\'s easier.' },
-      { at: 3, id: 2, voice: 'Y', text: 'Get up.' },
-      { at: 14, id: 3, voice: 'W', text: 'why bother. it\'s the same mountain every day.' },
+      { at: 0, id: 2, voice: 'Y', text: 'Get up.', when: 'input' },
+      { at: 20, id: 3, voice: 'W', text: 'it\'s the same mountain every day.' },
     ],
     oob: { below: 12, side: 60 },
   },
@@ -46,8 +51,7 @@ export const SECTIONS = [
     paint: [[128, 134, ROCK, 4.5, 99]], // rock grips to 55°: the walkers' way up the bank
     props: [{ type: 'boulder', at: 122, d: 9, r: 2.6 }],
     beats: [
-      { at: 16, id: 4, voice: 'Y', text: 'One thing. Then the next thing.', note: 'Phase 5: on first jump' },
-      { at: 80, id: 5, voice: 'W', text: 'downhill is always easy.', note: 'Phase 5: on first downhill slide' },
+      { at: 8, id: 4, voice: 'Y', text: 'One thing. Then the next.', when: 'jump', until: 110, fallback: true },
     ],
     oob: { below: 12, side: 60 },
     bot: { slide: [[77, 131]], edge: [118, 134, 6] }, // edge: walk the rock strip when too slow
@@ -60,9 +64,9 @@ export const SECTIONS = [
     // A packed trail meanders up the basin (brighter; the fast line). trail(s) gives its offset.
     trail: { amp: 9, wave: 60, w: 1.2 },
     beats: [
-      { at: 8, id: 6, voice: 'W', text: 'everything takes more than it should.' },
-      { at: 30, id: 7, voice: 'Y', text: 'There\'s a way through. I just have to find it again. Every time.', note: 'Phase 5: first time on packed trail' },
-      { at: 70, id: 8, voice: 'W', text: 'everyone else makes this look easy.', note: 'Phase 5: only if slow' },
+      { at: 2, id: 5, voice: 'W', text: 'everything takes more than it should.' },
+      { at: 22, id: 6, voice: 'Y', text: 'There\'s a way through. I just have to find it again.', when: 'trail', until: 90, fallback: true },
+      { at: 60, id: 7, voice: 'W', text: 'everyone else finds this easy.', when: 'slow', until: 115 },
     ],
     oob: { below: 12, side: 70 },
     bot: { line: 'trail' },
@@ -79,9 +83,9 @@ export const SECTIONS = [
     paint: [[0, 12, PACKED], [92, 132, PACKED], [186, 199.5, PACKED], [207.5, 260, PACKED]],
     cairns: [[6, -6]],
     beats: [
-      { at: 40, id: 9, voice: 'Y', text: 'Oh — I forgot what that felt like.', note: 'Phase 5: first time above sprint speed' },
-      { at: 212, id: 10, voice: 'W', text: 'don\'t get used to it.', note: 'Phase 5: only after a failed launch' },
-      { at: 245, id: 11, voice: 'Y', text: 'Speed doesn\'t last. But it carries.' },
+      { at: 12, id: 8, voice: 'Y', text: 'Oh. I forgot what that felt like.', when: 'fast', until: 200 },
+      { at: 190, id: 9, voice: 'W', text: 'don\'t get used to it.', when: 'retry', until: 215 },
+      { at: 238, id: 10, voice: 'Y', text: 'It doesn\'t last. But it carries.' },
     ],
     oob: { below: 7, side: 16 },
     bot: { slide: [[12, 199]], jump: [198.5] },
@@ -99,59 +103,47 @@ export const SECTIONS = [
     // Gusts push toward +d (right of travel). Rock shelters (× 0.35). Telegraphed 0.8 s ahead.
     wind: { from: 22, to: 132, gust: 8.5, period: 4.6, dur: 1.3, warn: 0.8, rockScale: 0.35 },
     beats: [
-      { at: 14, id: 12, voice: 'W', text: 'look how far there is to fall.' },
-      { at: 40, id: 13, voice: 'W', text: 'you\'re too much. you\'ve always been too much.', note: 'Phase 5: on first strong gust' },
-      { at: 50, id: 14, voice: 'Y', text: 'That\'s the wind. It always sounds like me.' },
-      { at: 126, id: 15, voice: 'Y', text: 'The light\'s changing.' },
+      { at: 22, id: 11, voice: 'W', text: 'you\'re too much. you\'ve always been too much.', when: 'gust', until: 132 },
+      { at: 22, id: 12, voice: 'Y', text: 'That\'s the wind. It sounds like me. It isn\'t.', after: 11 },
+      { at: 124, id: 13, voice: 'Y', text: 'The light\'s changing.' },
     ],
     oob: { below: 5, side: 30 },
     bot: { gustWait: true },
   },
   {
-    name: 'The Collapse', len: 110, turn: 36,
-    // A snow bridge spans a slot in the ridge; it gives way under you and you fall 16 m into an ice
-    // cave. A short sealed chimney teaches the wall-kick (2.2 m step: one kick); the exit is a 7 m kick chimney
-    // up into daylight, then a ramp out.
-    knots: [[0, 30, 1], [38, 31.2, 1], [38.3, 33.4, 1], [74, 34.5], [80, 35, 1], [80.3, 42, 1], [110, 49]],
-    profile: { type: 'cave', w: 4.5, wall: 20, shoulder: 30, sharp: true },
-    profiles: [[80, 110, { type: 'trail', w: 5, shoulder: 16 }]],
+    name: 'The Descent', len: 130, turn: 36,
+    // The ridge runs out. The only way on is down: a long packed slope into a sheltered hollow
+    // (slide it, and the speed carries you part of the way up the far side), then the path climbs
+    // out. Replaces the collapsing bridge and ice cave (user playtest, DECISIONS #61): going down
+    // to get back up, not falling.
+    knots: [[0, 46], [10, 46], [52, 24], [66, 22], [78, 23], [130, 49]],
+    profile: { type: 'trail', w: 5, shoulder: 20 },
+    profiles: [[52, 82, { type: 'basin', w: 12, shoulder: 22 }]],
     surface: PACKED,
-    paint: [[0, 80, ICE, -99, -3.5], [0, 80, ICE, 3.5, 99]],
-    cairns: [[22, -3]],
-    bridge: { from: -2, to: 24, w: 3.2, top: 46, collapseAt: 8 },
-    // Chimneys (the Phase 2-verified layout): a back panel 3.5 m before the step face, entered
-    // through a doorway at one side; kick between panel and face, top out on the step.
-    slots: [
-      { at: 38, gap: 3.5, wall: 4.5, door: 1, surface: ICE }, // teaching chimney: 2.2 m step, one kick
-      { at: 80, gap: 3.5, wall: 11, door: -1, surface: ICE }, // exit chimney: 7 m step
-    ],
-    roof: { from: 22, to: 70 },
+    paint: [[56, 78, POWDER, -99, -5], [56, 78, POWDER, 5, 99]],
+    cairns: [[70, -5]],
     beats: [
-      { at: 8, id: 16, voice: 'W', text: 'there it is. you were doing so well.' },
-      { at: 20, id: 17, voice: 'W', text: 'back at the bottom. like always.' },
-      { at: 64, id: 18, voice: 'Y', text: 'I know this place. I\'ve climbed out of it before.' },
-      { at: 95, id: 19, voice: 'Y', text: 'Falling isn\'t starting over. My legs remember the way.' },
+      { at: 8, id: 15, voice: 'W', text: 'down again. after all that.' },
+      { at: 74, id: 16, voice: 'Y', text: 'It\'s not starting over. It\'s the way through.' },
     ],
-    oob: { below: 8, above: 13, side: 14, aboveRange: [26, 75] },
-    bot: { kick: [38, 80] },
-    wallKick: true, // wall-kicks are enabled from here on (DESIGN §2)
+    oob: { below: 12, side: 40 },
+    bot: { slide: [[10, 62]] },
   },
   {
-    name: 'Whiteout', len: 110, turn: 70,
-    knots: [[0, 49], [110, 62]],
+    name: 'Whiteout', len: 165, turn: 70,
+    knots: [[0, 49], [165, 66]],
     profile: { type: 'plateau', w: 20, bank: 8, shoulder: 30 },
     surface: POWDER,
     trail: { amp: 3, wave: 70, w: 1.4 },
-    cairns: [[26, -4, 'note'], [58, -4, 'note'], [92, -4, 'note']], // A, B, C — "keep the stones on your left"
-    wind: { from: 6, to: 106, head: 2.2 },
-    whiteout: [8, 102],
+    cairns: [[36, -4, 'note'], [86, -4, 'note'], [138, -4, 'note']], // A, B, C (spread out: user playtest) — "keep the stones on your left"
+    wind: { from: 6, to: 160, head: 2.2 },
+    whiteout: [8, 156],
     beats: [
-      { at: 8, id: 20, voice: 'W', text: 'no one can see you in here.' },
-      { at: 26, id: 21, voice: 'O', text: 'I stopped here too. It passed.', note: 'Phase 5: cairn A note' },
-      { at: 38, id: 22, voice: 'Y', text: 'I\'m not the first one lost up here.' },
-      { at: 58, id: 23, voice: 'O', text: 'Keep the stones on your left. Rest if you need to.', note: 'Phase 5: cairn B note' },
-      { at: 92, id: 24, voice: 'O', text: 'You don\'t have to do this alone. I didn\'t.', note: 'Phase 5: cairn C note' },
-      { at: 100, id: 25, voice: 'Y', text: 'I\'ll leave one too. For whoever\'s next.', note: 'Phase 5: add-a-stone beat' },
+      { at: 4, id: 17, voice: 'W', text: 'no one can see you in here.' },
+      { at: 0, id: 18, voice: 'O', text: 'I stopped here too. It passed.', when: 'cairn', cairn: 0 },
+      { at: 0, id: 19, voice: 'O', text: 'Keep the stones on your left. Rest if you need to.', when: 'cairn', cairn: 1 },
+      { at: 0, id: 20, voice: 'O', text: 'You don\'t have to do this alone. I didn\'t.', when: 'cairn', cairn: 2 },
+      { at: 0, id: 21, voice: 'Y', text: 'I\'ll leave one too. For whoever\'s next.', when: 'stone' },
     ],
     oob: { below: 10, side: 34 },
     bot: { line: 'trail' },
@@ -160,23 +152,22 @@ export const SECTIONS = [
     name: 'Summit Push', len: 150, turn: 45,
     // Storm clears. Slide into a dip and ride its speed up a 45° bank, then the couloir: a 46° snow
     // face between ice walls, too steep to stand on, climbed by a zig-zag rock line (step off it
-    // and you slide back to the bottom). One wall-kick chimney, then the last snow slope.
-    knots: [[0, 62], [12, 62], [28, 55], [34, 55, 1], [38, 59.2, 1], [48, 59.2], [88, 100], [98, 100], [104, 100, 1], [104.3, 104.4, 1], [135, 116], [150, 117]],
+    // and you slide back to the bottom). A rock ramp, then the last snow slope.
+    knots: [[0, 62], [12, 62], [28, 55], [34, 55, 1], [38, 59.2, 1], [48, 59.2], [88, 100], [98, 100], [112, 105], [135, 116], [150, 117]],
     profile: { type: 'trail', w: 6, shoulder: 18 },
     profiles: [[44, 110, { type: 'cave', w: 6, wall: 10, shoulder: 16 }]],
     surface: PACKED,
     climb: { from: 44, to: 92, w: 1.7, line: [[44, 0], [54, 3.5], [62, -3], [70, 3], [78, -3.5], [86, 2], [92, 0]] },
-    paint: [[92, 110, ROCK], [32, 42, ROCK, 3, 99]], // incl. a rock edge up the bank for walkers
+    paint: [[92, 112, ROCK], [32, 42, ROCK, 3, 99]], // incl. a rock edge up the bank for walkers
     cairns: [[6, -4]],
-    slots: [{ at: 104, gap: 3.5, wall: 9, door: 1, surface: ROCK }],
     beats: [
-      { at: 4, id: 26, voice: 'W', text: 'it\'ll be dark soon.' },
-      { at: 8, id: 27, voice: 'Y', text: 'I know.' },
-      { at: 64, id: 28, voice: 'W', text: 'you\'re so tired.' },
-      { at: 72, id: 29, voice: 'Y', text: 'I\'m tired. I\'m still going.' },
+      { at: 10, id: 22, voice: 'W', text: 'it\'ll be dark soon.' },
+      { at: 10, id: 23, voice: 'Y', text: 'I know.', after: 22 },
+      { at: 66, id: 24, voice: 'W', text: 'you\'re so tired.' },
+      { at: 66, id: 25, voice: 'Y', text: 'I\'m tired. I\'m still going.', after: 24 },
     ],
     oob: { below: 12, side: 40 },
-    bot: { slide: [[12, 42]], kick: [104], edge: [26, 42, 4.5] },
+    bot: { slide: [[12, 42]], edge: [26, 42, 4.5] },
   },
   {
     name: 'Summit', len: 26, turn: 0,
@@ -185,11 +176,14 @@ export const SECTIONS = [
     surface: PACKED,
     cairns: [[14, -3, 'note']],
     beats: [
-      { at: 8, id: 30, voice: 'Y', text: 'I thought there\'d be something up here.' },
-      { at: 16, id: 31, voice: 'W', text: 'there\'s always another one.', note: 'Phase 5: camera reveals ranges' },
-      { at: 17, id: 32, voice: 'Y', text: 'Yeah. There is.' },
+      { at: 0, id: 26, voice: 'Y', text: 'I thought there\'d be something up here.', when: 'ending' },
+      { at: 0, id: 27, voice: 'W', text: 'there\'s always another one.', when: 'ending' },
+      { at: 0, id: 28, voice: 'Y', text: 'Yeah. There is.', when: 'ending' },
+      { at: 0, id: 29, voice: 'Y', text: 'The light stays on the peaks after the sun goes. I never noticed that.', when: 'ending' },
+      { at: 0, id: 30, voice: 'Y', text: 'I\'m still here.', when: 'ending' },
     ],
-    summit: 18, // end trigger (local s): the spot where you sit
+    summit: 12, // end trigger (local s): the ending takes over and walks you to the sit spot
+    sit: 18,
     oob: { below: 10, side: 40 },
   },
 ];

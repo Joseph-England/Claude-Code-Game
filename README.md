@@ -23,12 +23,13 @@ node tools/map.mjs map.png   # top-down map of the generated mountain and route
 
 ## Controls
 
-Click the game to capture the mouse. **WASD / arrows** move (walk) · **Shift** sprint · **mouse**
-look · **Space** jump (hold for height; from the ice cave on, also wall-kick off ice/rock walls in the
-air) · **C** or **right mouse** slide · **R** back to the last cairn · **F2** cycle quality
+Click the title to start (sound on; headphones help). **WASD / arrows** move (walk) · **Shift**
+sprint · **mouse** look · **Space** jump (hold for height) · **C** or **right mouse** slide · **E**
+leave a stone (at the last note cairn) · **R** back to the last cairn · **F2** cycle quality
 (low/medium/high) · **1–9** jump to a section (dev) · **F3** debug overlay · **F4** live tuning
-panel. Gamepad: left stick move, right stick look, A jump, B/RT slide, L3/LB/LT sprint.
-`?spawn=N` starts at section N (1–8); `?quality=low|medium|high` forces a tier;
+panel. Gamepad: left stick move, right stick look, A jump, B/RT slide, L3/LB/LT sprint, X leave a
+stone. At the summit the game takes over for the ending.
+`?spawn=N` skips the title and starts at section N (1–8); `?quality=low|medium|high` forces a tier;
 `?course=graybox` opens the Phase 2 movement test course. `node tools/smoke.mjs "?spawn=4"` loads
 the game headlessly and prints console errors, draw calls and triangles.
 

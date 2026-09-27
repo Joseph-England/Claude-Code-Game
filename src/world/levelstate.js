@@ -1,6 +1,6 @@
 // Level runtime (pure logic, no DOM; the Node playthrough uses it too): route progress, section
-// tracking, story trigger volumes, cairn checkpoints + respawn points, out-of-bounds detection,
-// the bridge collapse, wind (ridge gusts, whiteout headwind), wall-kick gating and the summit.
+// tracking, cairn checkpoints + respawn points, out-of-bounds detection, wind (ridge gusts,
+// whiteout headwind) and the summit. Story lines are armed and fired by the narrator (story.js).
 import { SURFACE } from './surfaces.js';
 
 export class LevelState {
@@ -11,10 +11,6 @@ export class LevelState {
     this.cairns = cairns;
     this.colliders = colliders;
     this.tuning = tuning;
-    this.beats = [];
-    this.route.sections.forEach((sec, k) => {
-      for (const b of sec.beats ?? []) this.beats.push({ ...b, s: sec.s0 + b.at, section: k, fired: false });
-    });
     this.events = [];
     this.reset();
   }
@@ -26,13 +22,9 @@ export class LevelState {
     this.section = 0;
     this.checkpoint = 0;
     this.time = 0;
-    this.collapsed = false;
     this.finished = false;
     this.wind = { x: 0, z: 0, gust: 0, warn: false, whiteout: 0 };
     this.gustClock = 0;
-    for (const b of this.beats) b.fired = false;
-    if (this.colliders) this.colliders.setGroupEnabled('bridge', true);
-    if (this.m.bridge) this.m.bridge.fallen = false;
   }
 
   get progressFraction() { return this.progress / this.route.length; }
@@ -67,10 +59,6 @@ export class LevelState {
       this.progress = this.s;
     }
 
-    // Wall-kicks unlock at the cave (DESIGN §2).
-    const kickFrom = route.sections.find((x) => x.wallKick)?.s0 ?? 0;
-    this.tuning.wallKick.enabled = this.progress >= kickFrom;
-
     // Checkpoints: touching (within 4.5 m of) a cairn further along than the current one.
     for (let i = this.checkpoint + 1; i < this.cairns.length; i++) {
       const c = this.cairns[i];
@@ -79,23 +67,6 @@ export class LevelState {
         this.checkpoint = i;
         this.events.push({ type: 'checkpoint', index: i, cairn: c });
       }
-    }
-
-    // Story trigger volumes: a slice of the corridor [s, s + 20] within the bed + 10 m.
-    for (const b of this.beats) {
-      if (b.fired || !onRoute) continue;
-      if (this.s >= b.s && this.s < b.s + 20 && Math.abs(this.d) < route.profileAt(b.s).w + 10) {
-        b.fired = true;
-        this.events.push({ type: 'beat', beat: b });
-      }
-    }
-
-    // Bridge collapse.
-    const br = this.m.bridge;
-    if (br && !this.collapsed && this.s >= br.collapseAt && this.s < br.s1 && ctl.pos.y > br.top - 1.5) {
-      this.collapsed = true;
-      if (this.colliders) this.colliders.setGroupEnabled('bridge', false);
-      this.events.push({ type: 'collapse' });
     }
 
     // Wind.
@@ -126,13 +97,12 @@ export class LevelState {
       this.gustClock = 0;
     }
 
-    // Out of bounds: fell below the route, climbed onto the cave roof, or strayed sideways.
+    // Out of bounds: fell below the route or strayed sideways.
     const o = sec.oob;
     if (o && onRoute) {
       const below = ctl.pos.y < Hbase - o.below;
-      const above = o.above && ls >= o.aboveRange[0] && ls <= o.aboveRange[1] && ctl.pos.y > Hbase + o.above;
       const side = Math.abs(this.d) > o.side;
-      if (below || above || side) this.events.push({ type: 'oob', reason: below ? 'fell' : above ? 'above' : 'strayed' });
+      if (below || side) this.events.push({ type: 'oob', reason: below ? 'fell' : 'strayed' });
     } else if (!onRoute) {
       this.events.push({ type: 'oob', reason: 'lost' });
     }

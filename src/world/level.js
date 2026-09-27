@@ -154,15 +154,15 @@ export const SECTIONS = [
   },
   {
     name: 'Summit Push', len: 150, turn: 45,
-    // Storm clears. Slide into a dip and ride its speed up a 45° bank, then the couloir: a 46° snow
-    // face between ice walls, too steep to stand on, climbed by a zig-zag rock line (step off it
-    // and you slide back to the bottom). A rock ramp, then the last snow slope.
-    knots: [[0, 62], [12, 62], [28, 55], [34, 55, 1], [38, 59.2, 1], [48, 59.2], [88, 100], [98, 100], [112, 105], [135, 116], [150, 117]],
-    profile: { type: 'trail', w: 6, shoulder: 18 },
-    profiles: [[44, 110, { type: 'cave', w: 6, wall: 10, shoulder: 16 }]],
+    // The last climb is a walk (user playtest, DECISIONS #78): the storm thins behind you onto a
+    // broad snow shoulder, which narrows into the summit ridge — a steady 20–25° pull with the sky
+    // opening on both sides and the low sun ahead. No tricks at the end: just walking, slower as
+    // it steepens, harder breathing, the view growing, the top coming into sight.
+    knots: [[0, 62], [18, 64], [55, 78], [95, 97], [125, 110], [143, 116], [150, 117]],
+    profile: { type: 'trail', w: 8, shoulder: 20 },
+    profiles: [[52, 150, { type: 'ridge', w: 4, drop: 34, shoulder: 34 }]],
     surface: PACKED,
-    climb: { from: 44, to: 92, w: 1.7, line: [[44, 0], [54, 3.5], [62, -3], [70, 3], [78, -3.5], [86, 2], [92, 0]] },
-    paint: [[92, 112, ROCK], [32, 42, ROCK, 3, 99]], // incl. a rock edge up the bank for walkers
+    paint: [[60, 148, ROCK, 4.2, 99], [60, 148, ROCK, -99, -4.2]], // rock breaks through at the ridge's edges
     cairns: [[6, -4]],
     beats: [
       { at: 10, id: 22, voice: 'W', text: 'it\'ll be dark soon.' },
@@ -171,7 +171,6 @@ export const SECTIONS = [
       { at: 66, id: 25, voice: 'Y', text: 'I\'m tired. I\'m still going.', after: 24 },
     ],
     oob: { below: 12, side: 40 },
-    bot: { slide: [[12, 42]], edge: [26, 42, 4.5] },
   },
   {
     name: 'Summit', len: 26, turn: 0,

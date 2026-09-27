@@ -57,7 +57,10 @@ export class LevelState {
     const Hbase = route.heightAt(this.s, true);
 
     // Progress only counts while standing near the route bed (no credit for falling past it).
-    if (onRoute && ctl.grounded && Math.abs(this.d) < (route.profileAt(this.s).w + 6) && this.s > this.progress && this.s < this.progress + 30) {
+    // Up to 30 m ahead near the bed; standing right on the bed catches up from further (a slide
+    // along a shoulder can carry you >30 m ahead before you rejoin the path).
+    const bedW = route.profileAt(this.s).w, ahead = this.s - this.progress;
+    if (onRoute && ctl.grounded && ahead > 0 && ((Math.abs(this.d) < bedW + 6 && ahead < 30) || (Math.abs(this.d) < bedW && ahead < 120))) {
       this.progress = this.s;
     }
 

@@ -50,7 +50,7 @@ mechanic works; respawns work everywhere; no soft-locks; 60 fps on Medium-equiva
 
 ## Phase 4: Atmosphere & rendering
 - [x] HDR render target + post chain skeleton (tonemap, FXAA)
-- [ ] Atmospheric scattering sky (transmittance + sky-view LUTs), sun driven by route progress; stars, Earth's shadow, Belt of Venus
+- [x] Atmospheric scattering sky (transmittance + sky-view LUTs), sun driven by route progress; stars, Earth's shadow, Belt of Venus
 - [ ] Sun light + cascaded shadow maps; sky ambient
 - [ ] Snow shader: wrap/SSS diffuse, violet shadows, glitter, triplanar detail, surface blending
 - [ ] Deformable snow trails (ring-buffer RT)

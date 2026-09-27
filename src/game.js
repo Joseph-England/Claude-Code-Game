@@ -15,6 +15,8 @@ import { Avatar } from './player/avatar.js';
 import { TerrainRenderer, createBackdrop } from './render/terrain.js';
 import { createLights } from './render/lights.js';
 import { Pipeline } from './render/post.js';
+import { Atmosphere } from './render/atmosphere.js';
+import { sunElevation, SUN_AZIMUTH } from './render/arc.js';
 import { DebugOverlay } from './debug/overlay.js';
 import { createPanel } from './debug/panel.js';
 
@@ -27,7 +29,6 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
 const SKY = new THREE.Color(0xa9b8d6), WHITE = new THREE.Color(0xe8ebf0);
-scene.background = SKY.clone();
 scene.fog = new THREE.Fog(SKY.clone(), 250, 5200);
 const camera = new THREE.PerspectiveCamera(tuning.camera.fovMin, 1, 0.1, 9000);
 
@@ -45,6 +46,7 @@ const level = new LevelState(mountain, props.cairns, colliders, tuning);
 const terrain = new TerrainRenderer(scene, mountain);
 createBackdrop(scene, mountain);
 const lights = createLights(scene);
+const atmosphere = new Atmosphere(renderer, scene);
 
 const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
@@ -181,10 +183,11 @@ createLoop({
     const wo = level.wind.whiteout;
     fogColor.copy(SKY).lerp(WHITE, wo);
     scene.fog.color.copy(fogColor);
-    scene.background.copy(fogColor);
     scene.fog.near = THREE.MathUtils.lerp(250, 4, wo);
     scene.fog.far = THREE.MathUtils.lerp(5200, 55, wo);
     windEl.style.opacity = level.wind.warn || level.wind.gust > 0.2 ? 1 : 0;
+    const sinceSummit = summitTime === null ? -1 : level.time - summitTime;
+    atmosphere.setSun(sunElevation(level.progressFraction, sinceSummit), SUN_AZIMUTH, level.time);
     lights.follow(renderPos);
     terrain.update(camera);
     pipeline.render(scene, camera);

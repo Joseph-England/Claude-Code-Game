@@ -1,16 +1,16 @@
 # Progress
 
-Current phase: **Phase 1 — Foundation & design**
+Current phase: **Phase 2 — Movement & camera** (Phase 1 complete)
 
 ## Phase 1: Foundation & design
 - [x] Create CLAUDE.md operating rules
 - [x] Write docs/DESIGN.md (story, lines, movement, level, visuals, audio, tech, showcase)
 - [x] Write docs/DECISIONS.md
 - [x] Write docs/PROGRESS.md with all six phases; create empty docs/IDEAS.md
-- [ ] Vite + Three.js skeleton with a basic rendering scene
-- [ ] GitHub Actions workflow deploying to GitHub Pages (base path `/Claude-Code-Game/`)
-- [ ] README with local run instructions
-- [ ] `npm run build` passes; commit; handoff note
+- [x] Vite + Three.js skeleton with a basic rendering scene
+- [x] GitHub Actions workflow deploying to GitHub Pages (base path `/Claude-Code-Game/`)
+- [x] README with local run instructions
+- [x] `npm run build` passes; commit; handoff note
 
 **Done when:** all docs exist and are committed; `npm run build` passes; the deploy workflow is in
 `.github/workflows/`; README explains local dev; handoff note written.
@@ -94,3 +94,15 @@ sound and the ending working, and the tone reads as intended.
 work, README is complete.
 
 ## Session Log
+
+### Session 1 — Phase 1: Foundation & design (2026-09-27)
+- **Completed:** CLAUDE.md; DESIGN.md (story + 34 draft lines, moveset, 9-section route, visuals,
+  audio, architecture, quality tiers, 6 showcase techniques with fallbacks); DECISIONS.md (#1–27);
+  this checklist for all six phases; empty IDEAS.md. Vite 8 + Three.js r186 skeleton (`src/main.js`:
+  ridged-noise slope, gradient sunset sky, low sun with shadows, slow orbiting camera; verified
+  rendering in headless Chromium). Pages workflow `.github/workflows/deploy.yml`; README.
+- **Broken / deferred:** nothing broken. The deploy only runs on pushes to `main`. Work so far is on
+  branch `claude/stoic-hypatia-40nygj`, so it must be merged to `main`, and **Settings → Pages →
+  Source = GitHub Actions** must be set once, before the link goes live.
+- **Next step:** Phase 2, first item: create `src/core/loop.js` (fixed 120 Hz step + interpolation),
+  then `src/core/input.js`. Replace the Phase 1 demo in `src/main.js` with the gray-box test course.

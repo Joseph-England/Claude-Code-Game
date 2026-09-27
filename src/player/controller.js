@@ -1,6 +1,7 @@
 // Kinematic momentum controller (DESIGN §2, DECISIONS #5). Pure logic, no DOM: runs in Node
 // for tools/check-movement.mjs. States: run, slide, air, stumble, sit.
 import * as THREE from 'three';
+import { SURFACE } from '../world/surfaces.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const D2R = Math.PI / 180;
@@ -120,7 +121,7 @@ export class Controller {
     if (T.buffer <= 0) return;
     const onGround = this.grounded && this.state !== 'stumble';
     const coyote = !this.grounded && T.coyote > 0 && !this.jumping;
-    if (!onGround && !coyote) return;
+    if (!onGround && !coyote) { this._tryWallKick(); return; }
     const n = this.groundNormal;
     const fromSlide = this.state === 'slide' || cmd.slideHeld;
     const vn = v.dot(n);
@@ -137,6 +138,23 @@ export class Controller {
     T.coyote = 0;
     T.groundLock = t.jump.groundLock;
     this.events.push({ type: 'jump', slide: fromSlide });
+  }
+
+  /** Air jump off a steep ice/rock wall touched in the last few ms: bounce away from it. */
+  _tryWallKick() {
+    const wk = this.t.wallKick, T = this.timers, v = this.vel, n = this.wallNormal;
+    if (!wk.enabled || T.wall <= 0) return;
+    if (this.wallSurface !== SURFACE.ICE && this.wallSurface !== SURFACE.ROCK) return;
+    if (this.lastKickNormal && n.dot(this.lastKickNormal) > 0.5) return; // no climbing one wall
+    const into = v.x * n.x + v.z * n.z; // < 0 when moving into the wall
+    _a.set(v.x - into * n.x, 0, v.z - into * n.z).multiplyScalar(wk.keep);
+    _a.addScaledVector(n, Math.max(wk.out, -into * wk.reflect));
+    v.set(_a.x, wk.up, _a.z);
+    this.lastKickNormal = (this.lastKickNormal ?? new THREE.Vector3()).copy(n);
+    this.jumping = true;
+    T.buffer = 0;
+    T.wall = 0;
+    this.events.push({ type: 'kick', surface: this.wallSurface });
   }
 
   _nearCairn() {

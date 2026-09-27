@@ -5,6 +5,8 @@ import { Heightfield } from '../src/world/heightfield.js';
 import { SURFACE_NAMES } from '../src/world/surfaces.js';
 import { tuning } from '../src/tuning.js';
 import { createLoop, FIXED_DT } from '../src/core/loop.js';
+import { buildCourse } from '../src/world/course.js';
+import { Colliders } from '../src/world/colliders.js';
 
 const DT = FIXED_DT;
 const D = Math.PI / 180;
@@ -210,6 +212,38 @@ for (const [v, slide, wantAir] of [[12, true, false], [22, true, true], [7, fals
   record('frame-rate spread: position after 3 s (30/60/144/240/jitter fps)', spread, 'm', 0, 0.06);
   record('frame-rate spread: jump apex', apexSpread, 'm', 0, 1e-6);
   results.push({ name: 'physics steps in 3 s at each frame rate', value: finals.map((f) => f.steps).join('/'), unit: '', target: '360', ok: true });
+}
+
+// 10. Wall-kicks on the gray-box course: chimney climb and a glancing kick off the long wall.
+{
+  const course = buildCourse();
+  const cw = { heightfield: course.heightfield, colliders: new Colliders(course.boxes), cairns: course.cairns };
+  const c = spawn(cw, [-119.1, 0, 100]); // standing against the ice wall
+  let dir = -1, kicks = 0, maxY = 0, lastKickTick = -99;
+  run(c, 8, (i, cc) => {
+    if (i < 6) return cmd({ moveX: -1 }); // lean into the ice wall, jump, kick across
+    const touching = cc.timers.wall > 0 && cc.wallNormal.x * dir < -0.5; // touching the wall we head for
+    const kick = !cc.grounded && touching && i - lastKickTick > 6 && cc.pos.y < 8.3 && cc.vel.y < 3;
+    if (kick) { dir = -dir; lastKickTick = i; }
+    const topOut = cc.pos.y > 8.2 || (cc.grounded && cc.pos.y > 7);
+    return cmd({ moveX: topOut ? 1 : dir, jumpPressed: i === 6 || kick, jumpHeld: true });
+  }, (cc) => {
+    kicks += cc.events.filter((e) => e.type === 'kick').length;
+    cc.events.length = 0;
+    maxY = Math.max(maxY, cc.pos.y);
+    return cc.grounded && cc.pos.y > 7.9 && cc.time > 0.5;
+  });
+  record('chimney (3.5 m gap): kicks to top out on the 8 m block', c.grounded && c.pos.y > 7.9 ? kicks : NaN, 'kicks', 2, 8);
+  if (!(c.grounded && c.pos.y > 7.9)) failures.push(`chimney climb failed (max height ${maxY.toFixed(1)} m)`);
+
+  // Run diagonally into the long rock wall (face at z = 149.5), jump, kick on contact.
+  const g = spawn(cw, [-140, 0, 141], [0, 0, 0]);
+  let kicked = null;
+  run(g, 3, (i, cc) => cmd({ moveX: 0.5, moveY: -0.87, jumpPressed: (cc.grounded && cc.pos.z > 146.5) || (!cc.grounded && cc.timers.wall > 0), jumpHeld: true }, 0),
+    (cc) => { if (cc.events.some((e) => e.type === 'kick')) { kicked = cc.vel.clone(); return true; } });
+  // Camera yaw 0: moveY −0.87 heads +z toward the wall.
+  record('glancing kick off long rock wall: speed away from wall', kicked ? -kicked.z : NaN, 'm/s', tuning.wallKick.out - 0.05);
+  if (!kicked) failures.push('glancing wall-kick did not trigger');
 }
 
 // Write the table.

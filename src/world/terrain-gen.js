@@ -216,9 +216,14 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
     if (k > 0 && into < L && spans[k - 1].p !== sp.p) {
       h = lerp(profileHeight(spans[k - 1].p, H, N, d), h, smooth(0, L, into));
     }
-    // Crevasses cut straight down across the whole corridor.
-    const gi = route.index(s);
-    if (route.gapDepth[gi] > 0 && d < 40) h = Math.min(h, route.hBase[gi] - route.gapDepth[gi]);
+    // Crevasses cut across the whole corridor with 70° walls (vertical cliffs make the bicubic
+    // surface ring, and the ringing spikes at the lip stopped launches dead).
+    for (const [g0, g1, depth] of route.gaps) {
+      if (s > g0 && s < g1 && d < 40) {
+        const cut = Math.min(depth, Math.min(s - g0, g1 - s) * T70);
+        h = Math.min(h, route.heightAt(s, true) - cut);
+      }
+    }
     heights[idx] = h;
     if ((idx & 262143) === 0) onProgress(0.8 + 0.1 * (idx / (n * n)), 'carving');
   }

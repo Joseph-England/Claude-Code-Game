@@ -9,6 +9,7 @@ const _triPoint = new THREE.Vector3();
 const _capPoint = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _ray = new THREE.Ray();
+const SKIN = 0.03;
 
 function indexify(g) {
   const count = g.attributes.position.count;
@@ -62,16 +63,18 @@ export class Colliders {
     for (const part of this.parts) {
       if (!part.enabled) continue;
       _box.makeEmpty().expandByPoint(seg.start).expandByPoint(seg.end);
-      _box.min.addScalar(-r);
-      _box.max.addScalar(r);
+      _box.min.addScalar(-r - SKIN);
+      _box.max.addScalar(r + SKIN);
       part.bvh.shapecast({
         intersectsBounds: (box) => box.intersectsBox(_box),
         intersectsTriangle: (tri) => {
           const dist = tri.closestPointToSegment(seg, _triPoint, _capPoint);
-          if (dist >= r) return false;
+          // A thin skin reports resting contacts (depth 0), so standing on a box top counts as
+          // floor every step and terrain snapping never pulls the body into the box.
+          if (dist >= r + SKIN) return false;
           if (dist > 1e-6) _dir.subVectors(_capPoint, _triPoint).divideScalar(dist);
           else tri.getNormal(_dir);
-          const depth = r - dist;
+          const depth = Math.max(0, r - dist);
           seg.start.addScaledVector(_dir, depth);
           seg.end.addScaledVector(_dir, depth);
           contacts.push({ normal: _dir.clone(), surface: part.surface, depth });

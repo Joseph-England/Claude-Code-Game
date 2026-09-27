@@ -50,45 +50,45 @@ export class Route {
       yaw += turnRate * ROUTE_STEP;
     }
 
-    // Heights: per section, linear knots smoothed with a moving average that never crosses a hard
-    // knot (so steps, kickers and the ridge-to-cave cliff stay sharp).
-    for (const sec of sections) {
-      const i0 = Math.round(sec.s0 / ROUTE_STEP), i1 = Math.round(sec.s1 / ROUTE_STEP);
-      const count = i1 - i0 + 1;
-      const raw = new Float64Array(count), piece = new Int32Array(count), hardSeg = new Uint8Array(count);
-      const hard = sec.knots.filter((k) => k[2]).map((k) => k[0]);
-      for (let i = 0; i < count; i++) {
-        const ls = i * ROUTE_STEP;
-        raw[i] = interpKnots(sec.knots, ls);
-        let p = 0;
-        for (const hs of hard) if (ls >= hs) p++;
-        piece[i] = p;
-        // Inside a segment between two consecutive hard knots: keep linear.
-        for (let k = 1; k < sec.knots.length; k++) {
-          const a = sec.knots[k - 1], b = sec.knots[k];
-          if (a[2] && b[2] && ls >= a[0] && ls <= b[0]) hardSeg[i] = 1;
+    // Heights: one knot list along the whole route (section-local knots shifted to global s), linear,
+    // smoothed with a moving average that never crosses a hard knot, so steps, kickers and the
+    // ridge-to-cave cliff stay sharp while section joins stay smooth.
+    const knots = sections.flatMap((sec) => sec.knots.map(([ls, h, hard]) => [sec.s0 + ls, h, hard]));
+    const hardAt = knots.filter((k) => k[2]).map((k) => k[0]);
+    const raw = new Float64Array(n), piece = new Int32Array(n), hardSeg = new Uint8Array(n);
+    let hk = 0;
+    for (let i = 0; i < n; i++) {
+      const s = i * ROUTE_STEP;
+      // At a pair of hard knots sharing one s (a cliff), the later one wins.
+      raw[i] = interpKnots(knots, s + 1e-9);
+      while (hk < hardAt.length && s >= hardAt[hk] - 1e-9) hk++;
+      piece[i] = hk;
+    }
+    for (let k = 1; k < knots.length; k++) {
+      const [sa, , ha] = knots[k - 1], [sb, , hb] = knots[k];
+      if (!ha || !hb) continue;
+      for (let i = Math.ceil(sa / ROUTE_STEP); i <= Math.floor(sb / ROUTE_STEP); i++) hardSeg[i] = 1;
+    }
+    const W = Math.round(SMOOTH_HALF / ROUTE_STEP);
+    for (let i = 0; i < n; i++) {
+      let h = raw[i];
+      if (!hardSeg[i]) {
+        let sum = 0, c = 0;
+        for (let j = Math.max(0, i - W); j <= Math.min(n - 1, i + W); j++) {
+          if (piece[j] !== piece[i] || hardSeg[j]) continue;
+          sum += raw[j]; c++;
         }
+        if (c) h = sum / c;
       }
-      const W = Math.round(SMOOTH_HALF / ROUTE_STEP);
-      for (let i = 0; i < count; i++) {
-        let h = raw[i];
-        if (!hardSeg[i]) {
-          let sum = 0, c = 0;
-          for (let j = Math.max(0, i - W); j <= Math.min(count - 1, i + W); j++) {
-            if (piece[j] !== piece[i] || hardSeg[j]) continue;
-            sum += raw[j]; c++;
-          }
-          if (c) h = sum / c;
-        }
-        // The last sample belongs to the next section unless this is the final one.
-        if (i < count - 1 || sec === sections[sections.length - 1]) this.h[i0 + i] = h;
-      }
+      this.h[i] = h;
     }
     // hBase keeps the height with crevasses bridged: out-of-bounds checks measure falls from it.
     this.hBase = this.h.slice();
     this.gapDepth = new Float64Array(n);
+    this.gaps = [];
     for (const sec of sections) {
       for (const [at, len, depth] of sec.gaps ?? []) {
+        this.gaps.push([sec.s0 + at, sec.s0 + at + len, depth]);
         for (let i = Math.floor((sec.s0 + at) / ROUTE_STEP); i <= Math.ceil((sec.s0 + at + len) / ROUTE_STEP); i++) {
           const ls = i * ROUTE_STEP - sec.s0;
           if (ls > at && ls < at + len) { this.h[i] -= depth; this.gapDepth[i] = depth; }

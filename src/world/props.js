@@ -77,26 +77,29 @@ export function buildProps(mountain) {
       addRock(p.x, p.z, pr.r, 0.8, 0.25);
     }
 
-    // --- Wall-kick slots: two thick walls leaving a `gap` corridor, and the step block at `to`.
+    // --- Wall-kick chimneys: a back panel `gap` metres before the step face, with a doorway on the
+    // `door` side (+1 = right of travel); the step block's face is the other wall.
     for (const sl of sec.slots ?? []) {
-      const prof = route.profileAt(sec.s0 + sl.from);
-      const outer = prof.w + 3, thick = outer - sl.gap / 2, len = sl.to - sl.from;
-      const mid = route.place(k, (sl.from + sl.to) / 2);
-      const floor = route.heightAt(sec.s0 + sl.from);
+      const prof = route.profileAt(sec.s0 + sl.at - 1);
+      const outer = prof.w + 3, doorW = 2.2;
+      const floor = route.heightAt(sec.s0 + sl.at - 1);
+      let top = route.heightAt(sec.s0 + sl.at + 2.5);
       const wallMat = sl.surface === SURFACE.ICE ? iceMat : rockMat;
-      for (const side of [-1, 1]) {
-        const off = side * (sl.gap / 2 + thick / 2);
-        addBox({
-          center: [mid.x + route.at(mid.s).rx * off, floor - 1 + (sl.wall + 1) / 2, mid.z + route.at(mid.s).rz * off],
-          size: [thick, sl.wall + 1, len], surface: sl.surface, yaw: mid.yaw,
-        }, wallMat);
-      }
-      const top = route.heightAt(sec.s0 + sl.to + 2.5);
-      const stepLen = 3;
-      const sp = route.place(k, sl.to + stepLen / 2 - 0.4);
+      // Panel spans d from the closed side's outer edge to the doorway.
+      const dA = -sl.door * outer, dB = sl.door * (prof.w - doorW);
+      const pc = route.place(k, sl.at - sl.gap - 0.5, (dA + dB) / 2);
       addBox({
-        center: [sp.x, (floor - 1 + top) / 2, sp.z], size: [2 * outer, top - floor + 1, stepLen], surface: SURFACE.ROCK, yaw: sp.yaw,
-      }, rockMat);
+        center: [pc.x, floor - 1 + (sl.wall + 1) / 2, pc.z], size: [Math.abs(dB - dA), sl.wall + 1, 1], surface: sl.surface, yaw: pc.yaw,
+      }, wallMat);
+      const stepLen = 3, sp = route.place(k, sl.at + stepLen / 2);
+      // Sit the block's top just above the heightfield's bicubic overshoot at the step, so you
+      // stand on the box rather than on a steep sliver of terrain poking through it.
+      for (let a = sl.at - 0.5; a <= sl.at + stepLen; a += 0.25) {
+        for (let dd = -prof.w + 0.5; dd <= prof.w - 0.5; dd += 0.5) { const q = route.place(k, a, dd); top = Math.max(top, ground(q.x, q.z) + 0.02); }
+      }
+      addBox({
+        center: [sp.x, (floor - 1 + top) / 2, sp.z], size: [2 * outer, top - floor + 1, stepLen], surface: sl.surface, yaw: sp.yaw,
+      }, wallMat);
     }
 
     // --- Snow bridge (collapses).

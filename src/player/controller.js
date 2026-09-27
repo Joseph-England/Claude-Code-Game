@@ -285,7 +285,8 @@ export class Controller {
     const gap = this.pos.y - h;
     let onHF = false;
     if (gap <= 0) onHF = true;
-    else if (wasGrounded && T.groundLock <= 0 && this.state !== 'air') {
+    // Never snap down through a collider floor resolved this step (a box top a little above terrain).
+    else if (!floor && wasGrounded && T.groundLock <= 0 && this.state !== 'air') {
       // Stay glued over a crest only if gravity can bend the path as fast as the ground falls away.
       const slide = this.state === 'slide' || this.state === 'stumble';
       const stick = slide ? t.slide.stick : t.run.stick;

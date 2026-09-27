@@ -90,7 +90,17 @@ const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
 const cam = new ThirdPersonCamera(camera, world, tuning);
 const avatar = new Avatar(scene, tuning);
-avatar.onFoot = (x, z) => { if (onSnow()) trails.foot(x, z); audio.footstep(player.groundSurface, player.speed); };
+// Each heel strike: a footprint, a step sound (panned to that foot; soft for shuffling turns) and,
+// in powder, a little kick of snow off the boot.
+avatar.onFoot = (x, z, ctl, side, shuffle) => {
+  const snow = onSnow();
+  if (snow) trails.foot(x, z);
+  audio.footstep(player.groundSurface, shuffle ? 1.5 : player.speed, side);
+  if (snow && player.groundSurface === SURFACE.POWDER && !shuffle) {
+    const y = mountain.heightfield.heightAt(x, z) - 0.1, v = player.vel;
+    for (let i = 0; i < 5; i++) particles.emit(x + rnd(0.12), y, z + rnd(0.12), v.x * 0.25 + rnd(0.5), 0.8 + Math.random() * 1.1, v.z * 0.25 + rnd(0.5), 0.35 + Math.random() * 0.3, 0.03, 0.8, 0.7, 0);
+  }
+};
 const onSnow = () => player.grounded && (player.groundSurface === SURFACE.POWDER || player.groundSurface === SURFACE.PACKED) && player.heightAboveGround < 0.1;
 // Every other standard material (props, backdrop, avatar) gets the world lighting.
 scene.traverse((o) => {
@@ -356,7 +366,7 @@ function updateParticles(dt) {
 }
 
 // Dev/test handle (tools/smoke.mjs reads it).
-window.__game = { skipEnding: (sec) => { summitTime -= sec; }, renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, story, props, mountain, input, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
+window.__game = { cam, avatar, tuning, skipEnding: (sec) => { summitTime -= sec; }, renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, story, props, mountain, input, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
 
 createLoop({
   beginFrame(frameDt) {

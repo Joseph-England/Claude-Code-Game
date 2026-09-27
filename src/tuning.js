@@ -56,8 +56,6 @@ export const tuning = {
     stumbleTime: 0.3,
   },
 
-  rest: { delay: 3, radius: 5 },
-
   // Avatar lean (render only). Small on foot, more when carving a slide (DECISIONS #50).
   avatar: { leanScale: 0.35, leanRun: 0.08, leanSlide: 0.3 },
 

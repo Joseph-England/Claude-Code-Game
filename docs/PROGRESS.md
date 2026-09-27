@@ -49,7 +49,7 @@ clips into terrain; 60 fps; build passes.
 mechanic works; respawns work everywhere; no soft-locks; 60 fps on Medium-equivalent settings.
 
 ## Phase 4: Atmosphere & rendering
-- [ ] HDR render target + post chain skeleton (tonemap, FXAA)
+- [x] HDR render target + post chain skeleton (tonemap, FXAA)
 - [ ] Atmospheric scattering sky (transmittance + sky-view LUTs), sun driven by route progress; stars, Earth's shadow, Belt of Venus
 - [ ] Sun light + cascaded shadow maps; sky ambient
 - [ ] Snow shader: wrap/SSS diffuse, violet shadows, glitter, triplanar detail, surface blending

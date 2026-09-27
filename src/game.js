@@ -14,15 +14,14 @@ import { ThirdPersonCamera } from './player/camera.js';
 import { Avatar } from './player/avatar.js';
 import { TerrainRenderer, createBackdrop } from './render/terrain.js';
 import { createLights } from './render/lights.js';
+import { Pipeline } from './render/post.js';
 import { DebugOverlay } from './debug/overlay.js';
 import { createPanel } from './debug/panel.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.85;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+const pipeline = new Pipeline(renderer);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
@@ -112,7 +111,7 @@ let bridgeFall = null;
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
-  renderer.setSize(w, h, false);
+  pipeline.setSize(w, h, Math.min(window.devicePixelRatio, 2));
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
@@ -124,6 +123,9 @@ const renderPos = new THREE.Vector3();
 const fogColor = new THREE.Color();
 let summitTime = null;
 let stuckT = 0, lastProgress = 0;
+
+// Dev/test handle (tools/smoke.mjs reads it).
+window.__game = { renderer, pipeline, level, player, get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
 
 createLoop({
   beginFrame(frameDt) {
@@ -185,7 +187,7 @@ createLoop({
     windEl.style.opacity = level.wind.warn || level.wind.gust > 0.2 ? 1 : 0;
     lights.follow(renderPos);
     terrain.update(camera);
-    renderer.render(scene, camera);
+    pipeline.render(scene, camera);
     const sec = mountain.route.sections[level.section];
     overlay.update(frameDt, player, cam, steps,
       `section  ${level.section} ${sec.name}   s ${level.s.toFixed(0)} d ${level.d.toFixed(1)}\n` +

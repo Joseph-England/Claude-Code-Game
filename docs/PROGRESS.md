@@ -33,7 +33,7 @@ differences between surfaces; speed is earned on downslopes and lost uphill/in p
 clips into terrain; 60 fps; build passes.
 
 ## Phase 3: Mountain & level (full level playable with simple visuals)
-- [ ] Noise library (value/simplex, fBm, ridged, domain warp), seeded and deterministic
+- [x] Noise library (value/simplex, fBm, ridged, domain warp), seeded and deterministic
 - [ ] Terrain generation in a Web Worker with progress reporting
 - [ ] Erosion pass (fallback: skip — DESIGN §7 #2)
 - [ ] Route spline + section definitions (0–8) and spline-SDF carving of the route into the terrain

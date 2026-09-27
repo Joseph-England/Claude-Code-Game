@@ -3,6 +3,7 @@
 // summit pole. Produces collider specs for three-mesh-bvh and a THREE.Group of flat placeholder
 // meshes. Deterministic; runs in Node for the tools (the render group is simply unused there).
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng } from './noise.js';
 import { SURFACE } from './surfaces.js';
 import { SURFACE_TINTS } from '../render/terrain.js';
@@ -31,6 +32,7 @@ export function buildProps(mountain) {
   const group = new THREE.Group();
   const rockMat = mat(SURFACE_TINTS[3]), iceMat = mat(SURFACE_TINTS[2]), snowMat = mat([0.9, 0.92, 0.97]);
   const ground = (x, z) => hf.heightAt(x, z);
+  const rockGeos = []; // every rock and cairn stone, merged into one draw call at the end
 
   const addBox = (spec, material, castShadow = true) => {
     boxes.push(spec);
@@ -47,9 +49,7 @@ export function buildProps(mountain) {
     g.rotateY(rand() * Math.PI * 2);
     g.translate(x, ground(x, z) + r * squash * (1 - sink), z);
     meshes.push({ geometry: g, surface: SURFACE.ROCK });
-    const m = new THREE.Mesh(g, rockMat);
-    m.castShadow = m.receiveShadow = true;
-    group.add(m);
+    rockGeos.push(g);
   };
 
   route.sections.forEach((sec, k) => {
@@ -63,10 +63,8 @@ export function buildProps(mountain) {
       for (let i = 0; i < 5; i++) {
         const r = 0.55 - i * 0.09;
         const g = rockGeometry(rand, r, 0.55);
-        const m = new THREE.Mesh(g, rockMat);
-        m.position.set(p.x + (rand() - 0.5) * 0.12, h + r * 0.5, p.z + (rand() - 0.5) * 0.12);
-        m.castShadow = true;
-        group.add(m);
+        g.translate(p.x + (rand() - 0.5) * 0.12, h + r * 0.5, p.z + (rand() - 0.5) * 0.12);
+        rockGeos.push(g);
         h += r * 0.9;
       }
     }
@@ -179,6 +177,10 @@ export function buildProps(mountain) {
   flag.position.set(top.x + 0.8, hy + 5.4, top.z);
   group.add(pole, flag);
   boxes.push({ center: [top.x, hy + 3, top.z], size: [0.3, 6, 0.3], surface: SURFACE.ROCK });
+
+  const rocks = new THREE.Mesh(mergeGeometries(rockGeos), rockMat);
+  rocks.castShadow = rocks.receiveShadow = true;
+  group.add(rocks);
 
   return { boxes, meshes, cairns, group };
 }

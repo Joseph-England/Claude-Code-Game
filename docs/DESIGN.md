@@ -205,6 +205,27 @@ One continuous route, ~1.6 km of path, ~550 m of climb. Sun elevation is tied to
 - The cave has a sealed, low-risk half-pipe to learn wall-kick before it matters.
 - Failure costs little: falls off the mountain fade to the last cairn in < 1.5 s.
 
+### As built (Phase 3; data in `src/world/level.js`, measured by `npm run playthrough`)
+Route 1106 m of centreline, trailhead 0 m → summit 102 m (DECISIONS #37, #41). The mountain is
+generated around the route (DECISIONS #36, #38); 14 cairns; the whole level is carved by
+cross-section profiles (trail, basin, pipe, ridge, cave, plateau, summit).
+
+| # | Section | Length | Heights (m) | Bot time | What is there |
+|---|---|---|---|---|---|
+| 0 | Opening | 40 m | 0 | 4.6 s | Packed trailhead, first cairn |
+| 1 | The Foot | 160 m | 0 → 12 | 23.4 s | Rolling hills; 12° slope with a lone boulder (first slide); a 1.6 m bank you crest with the slide's speed, with a rock strip at its right edge for walkers |
+| 2 | Powder Fields | 120 m | 12 → 34 | 23.1 s | Powder basin (52 m wide); a meandering packed trail is the fast line |
+| 3 | Ice Chutes | 260 m | 34 → 15 → 21 → 5 → 8 | 23.9 s | Ice half-pipe 1, packed rise + cairn, half-pipe 2, packed kicker, 7 m crevasse (70° walls), downslope landing, carry-up exit |
+| 4 | Cornice Ridge | 140 m | 8 → 46 | 27.4 s | 6 m crest with 52° falls; gusts every 5.5 s (telegraphed 0.8 s, halved on rock patches) |
+| 5 | The Collapse | 110 m | bridge 46, cave 30 → 42 → 49 | 27.9 s | Snow bridge collapses 8 m in → 16 m fall into an ice trench under a roof; teaching chimney (2.2 m, one kick); exit chimney (7 m) into daylight; ramp out |
+| 6 | Whiteout | 110 m | 49 → 62 | 21.9 s | Powder plateau between drift banks, fog closes to 55 m, headwind, cairns A/B/C on the left of a packed path |
+| 7 | Summit Push | 140 m | 62 → 55 → 101 | 30.6 s | Slide into a dip and ride up a 4.2 m bank (rock edge for walkers), 38° rock face, rock gully with a 4.4 m kick chimney, last slope |
+| 8 | Summit | 26 m | 101 → 102 | 2.3 s | Round top with 60 m falls, summit pole, sit spot (end trigger) |
+
+Bot total 3:05; first-time estimate ≈ 5:30 (1.35 × bot + ~6 s hesitation per new mechanic + one
+retry in each of chutes, ridge, cave and push). Chimneys are the Phase 2 layout: a back panel 3.5 m
+before the step face with a doorway at one side.
+
 ## 4. Visuals
 
 - **Sky** — physically based single-scattering atmosphere (Rayleigh + Mie + ozone) computed into a

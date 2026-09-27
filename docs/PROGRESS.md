@@ -1,6 +1,6 @@
 # Progress
 
-Current phase: **Phase 3 — Mountain & level** (Phases 1–2 complete)
+Current phase: **Phase 4 — Atmosphere & rendering** (Phases 1–3 complete)
 
 ## Phase 1: Foundation & design
 - [x] Create CLAUDE.md operating rules
@@ -39,11 +39,11 @@ clips into terrain; 60 fps; build passes.
 - [x] Route spline + section definitions (0–8) and spline-SDF carving of the route into the terrain
 - [x] Splat map: surface types painted by section, slope and route
 - [x] Chunked terrain renderer with 3 LODs + skirts (height texture in vertex shader)
-- [ ] Section set pieces: ice chutes, cornice ridge (wind gust zones), snow bridge collapse, ice cave mesh, whiteout plateau, final face, summit
-- [ ] Props: cairns (checkpoints), rocks; collision meshes into BVH
-- [ ] Checkpoints + respawn (fade back to last cairn < 1.5 s); out-of-bounds detection
-- [ ] Progress tracking along the route (drives sun elevation later) + section trigger volumes
-- [ ] Full playthrough test: first-time route ≈ 5 min; fix blockers and soft-locks
+- [x] Section set pieces: ice chutes, cornice ridge (wind gust zones), snow bridge collapse, ice cave mesh, whiteout plateau, final face, summit
+- [x] Props: cairns (checkpoints), rocks; collision meshes into BVH
+- [x] Checkpoints + respawn (fade back to last cairn < 1.5 s); out-of-bounds detection
+- [x] Progress tracking along the route (drives sun elevation later) + section trigger volumes
+- [x] Full playthrough test: first-time route ≈ 5 min; fix blockers and soft-locks
 
 **Done when:** the whole level is playable start to finish with flat-shaded visuals; every section's
 mechanic works; respawns work everywhere; no soft-locks; 60 fps on Medium-equivalent settings.
@@ -131,3 +131,36 @@ work, README is complete.
 - **Next step:** Phase 3, first item: noise library (`src/world/noise.js`: seeded value/simplex,
   fBm, ridged, domain warp). The Phase 2 course stays reachable for testing (keep `buildCourse`,
   e.g. behind `?course=graybox`).
+
+### Session 3 — Phase 3: Mountain & level (2026-09-27)
+- **Completed:** every Phase 3 item. `world/noise.js` (seeded value/simplex, fBm, ridged, warp);
+  `world/level.js` (all 9 sections as data: lengths, turns, height knots, profiles, surfaces, cairns,
+  story beats with the draft lines as placeholder text, OOB rules, wind, bridge, chimneys, roof, bot
+  hints); `world/route.js` (constant-curvature centreline, smoothed heights with hard knots,
+  crevasses); `world/erosion.js`; `world/terrain-gen.js` + `terrain.worker.js` + `mountain.js`
+  (macro shape from the route + cone + warped ridged noise, erosion, 1 m upsample, route distance
+  field, profile carving with adaptive shoulders, splat map, backdrop ranges; ~2 s in the worker
+  with progress); `render/terrain.js` (16×16 chunks, 3 instanced LODs + skirts, height texture in
+  the vertex shader, splat tints: terrain = 3 draw calls); `world/props.js` (cairns, boulder,
+  rocks merged into one mesh, marker poles, snow bridge, chimneys, ice-cave roof, summit pole);
+  `world/levelstate.js` (progress, sections, trigger volumes, checkpoints, OOB, collapse, gusts,
+  headwind, whiteout, wall-kick gating, summit); `game.js` (loading progress, HUD placeholders,
+  1.0 s respawn fade, stuck hint). `tools/playthrough.mjs` (`npm run playthrough`, also in CI) and
+  `tools/map.mjs`. Decisions #36–46; DESIGN §3 "As built".
+- **Measured:** bot reaches the summit in 3:05 with 0 respawns; first-time estimate ≈ 5:30; all 32
+  story trigger volumes entered; 14/14 cairn respawns stable; both momentum banks clear from rest
+  (slide or rock edge); soft-lock sweep 270/272. In the browser (Powder Fields view): 221k
+  triangles, 27 draw calls incl. shadows, mountain generated in 1.5 s.
+- **Broken / deferred:** 60 fps is not verifiable headless (software GL); budgets above look fine,
+  please confirm with F3 on real hardware. The two sweep misses are bot limits, reviewed: (1) Summit
+  Push +50, d = −18: the bot backs into a scattered rock; (2) Summit Push +90, d = −17: dropped on
+  the gully rim, the bot falls into the chimney from the side and its script doesn't recover (a
+  player can walk along the rim, which also bypasses that chimney; acceptable). Profile changes
+  far from the centreline still leave a few straight terrain seams (visible on the map). Beats that
+  depend on events (first jump, first slide, failed launch, "if slow") are placed as location
+  volumes; Phase 5 adds their conditions. Wall-kick contacts only come from colliders, so
+  heightfield cliffs are never kickable (by design). The avatar, sun, sky and fog are placeholders.
+- **Next step:** Phase 4, first item: HDR render target + post chain skeleton (tonemap, FXAA),
+  replacing `render/lights.js` and the flat fog/background in `game.js`. The terrain material is
+  `MeshStandardMaterial` patched in `render/terrain.js`; the Phase 4 snow shader should keep its
+  height-texture vertex code (and the depth material) and replace the fragment part.

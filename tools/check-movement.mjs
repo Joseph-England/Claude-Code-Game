@@ -51,8 +51,8 @@ function record(name, value, unit, lo, hi) {
 }
 
 // 1. Flat running per surface: top speed, time to 90 %, stopping distance.
-const runTargets = { packed: [6.8, 7.05], powder: [4.5, 6.2], ice: [6.5, 7.05], rock: [6.8, 7.05] };
-const t90Targets = { packed: [1.2, 2.2], ice: [4, 12] };
+const runTargets = { packed: [4.85, 5.05], powder: [3.5, 4.8], ice: [4.6, 5.05], rock: [4.85, 5.05] };
+const t90Targets = { packed: [0.8, 1.8], ice: [3, 12] };
 for (let s = 0; s < 4; s++) {
   const name = SURFACE_NAMES[s];
   const w = world('flat', flat, s);
@@ -67,8 +67,11 @@ for (let s = 0; s < 4; s++) {
   record(`run time to 90 % — ${name}`, t90, 's', ...(t90Targets[name] ?? []));
   const z0 = c.pos.z;
   const ticks = run(c, 30, cmd(), (cc) => hspeed(cc) < 0.01);
-  record(`run stop distance — ${name}`, Math.abs(c.pos.z - z0), 'm', ...(name === 'packed' ? [1.5, 4] : name === 'ice' ? [12, 40] : []));
+  record(`run stop distance — ${name}`, Math.abs(c.pos.z - z0), 'm', ...(name === 'packed' ? [1, 3] : name === 'ice' ? [12, 40] : []));
   record(`run stop time — ${name}`, ticks * DT, 's');
+  const c3 = spawn(w, [0, 0, 180]);
+  run(c3, 12, cmd({ moveY: 1, sprintHeld: true }));
+  record(`sprint top speed — ${name}`, hspeed(c3), 'm/s', ...(name === 'powder' ? [6, 8.5] : name === 'ice' ? [8, 9.05] : [8.5, 9.05]));
 }
 
 // 2. Slide stopping distance from 15 m/s on flat, per surface.
@@ -119,7 +122,7 @@ const flatW = world('flat', flat, 0);
 function jumpApex(opts) {
   const c = spawn(flatW, [0, 0, 150], opts.vel ?? [0, 0, 0]);
   let apex = 0, air = 0, x0 = c.pos.z, landedAt = null;
-  const ticks = run(c, 5, (i) => cmd({ moveY: opts.move ? 1 : 0, slideHeld: !!opts.slide, jumpPressed: i === 0, jumpHeld: i < (opts.hold ?? 1e9) }),
+  const ticks = run(c, 5, (i) => cmd({ moveY: opts.move ? 1 : 0, sprintHeld: !!opts.sprint, slideHeld: !!opts.slide, jumpPressed: i === 0, jumpHeld: i < (opts.hold ?? 1e9) }),
     (cc, i) => { apex = Math.max(apex, cc.pos.y); if (!cc.grounded) air = (i + 1) * DT; else if (i > 2) { landedAt = cc; return true; } });
   return { apex, air, dist: Math.abs(c.pos.z - x0), speedAfter: hspeed(c), c };
 }
@@ -128,12 +131,12 @@ record('jump height — full hold', full.apex, 'm', 1.3, 1.5);
 record('jump airtime — full hold', full.air, 's', 0.8, 1.05);
 const tap = jumpApex({ hold: 1 });
 record('jump height — tap (released at once)', tap.apex, 'm', 0.4, 0.75);
-const running = jumpApex({ move: true, vel: [0, 0, -7] });
-record('running jump distance at 7 m/s', running.dist, 'm', 5, 8);
-record('horizontal speed kept after landing', running.speedAfter, 'm/s', 6.8);
+const running = jumpApex({ move: true, sprint: true, vel: [0, 0, -9] });
+record('sprinting jump distance at 9 m/s', running.dist, 'm', 5, 8);
+record('horizontal speed kept after landing', running.speedAfter, 'm/s', 8.8);
 const sj = jumpApex({ slide: true, vel: [0, 0, -15] });
 record('slide-jump height at 15 m/s', sj.apex, 'm', 0.6, full.apex - 0.2);
-record('slide-jump distance at 15 m/s', sj.dist, 'm', 1.5 * running.dist);
+record('slide-jump distance at 15 m/s', sj.dist, 'm', 1.2 * running.dist);
 record('slide-jump speed kept after landing', sj.speedAfter, 'm/s', 14.5);
 
 // 6. Coyote time and jump buffer (run off a 3 m ledge at z = 0).

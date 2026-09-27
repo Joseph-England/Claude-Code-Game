@@ -12,8 +12,9 @@ export const tuning = {
   },
 
   run: {
-    speed: 7, // top speed on flat packed snow
-    accel: 10, // a = accel·control·(1 − v/speed): ~0.7 s time constant ("slightly heavy")
+    speed: 5, // walking top speed on flat packed snow (user playtest: 7 was too fast for a walk)
+    sprintSpeed: 9, // Shift held; unlimited stamina (DECISIONS #47)
+    accel: 10, // a = accel·control·(1 − v/top): ~0.5–0.9 s time constant ("slightly heavy")
     overspeedBrake: 0.4, // floor of the (1 − v/speed) factor when faster than top speed
     brake: 9, // decel with no input (× surface grip)
     gravityScale: 0.5, // legs resist the slope while running

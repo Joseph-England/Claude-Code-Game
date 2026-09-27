@@ -52,6 +52,7 @@ export class Controller {
     this.lastKickNormal = null;
     this.events = []; // { type: 'land'|'jump'|'kick'|'stumble', ... } drained by the game each frame
     this.time = 0;
+    this.topSpeed = tuning.run.speed;
   }
 
   teleport(p, yaw = this.facing) {
@@ -69,7 +70,7 @@ export class Controller {
   get surfaceParams() { return this.t.surfaces[this.groundSurface]; }
 
   /**
-   * One fixed step. cmd: { moveX, moveY, jumpPressed, jumpHeld, slideHeld }, camYaw: radians.
+   * One fixed step. cmd: { moveX, moveY, jumpPressed, jumpHeld, slideHeld, sprintHeld }, camYaw: radians.
    */
   step(dt, cmd, camYaw) {
     const t = this.t, T = this.timers, v = this.vel;
@@ -194,7 +195,9 @@ export class Controller {
         } else {
           if (speed > 0.5) this._turnToward(v, wish, n, Math.min(t.run.maxTurnRate, (t.run.turnAccel * ctrl) / speed), dt);
           else if (speed > 1e-3) v.copy(wish).multiplyScalar(speed); // pivot freely when nearly still
-          const f = Math.max(1 - v.dot(wish) / (t.run.speed * wishMag), -t.run.overspeedBrake);
+          // Walk by default, sprint while held (no stamina: DECISIONS #47).
+          this.topSpeed = cmd.sprintHeld ? t.run.sprintSpeed : t.run.speed;
+          const f = Math.max(1 - v.dot(wish) / (this.topSpeed * wishMag), -t.run.overspeedBrake);
           v.addScaledVector(wish, t.run.accel * ctrl * f * dt);
         }
       } else {
@@ -239,7 +242,7 @@ export class Controller {
       const before = Math.hypot(v.x, v.z);
       v.x += wish.x * wishMag * t.run.accel * t.air.control * dt;
       v.z += wish.z * wishMag * t.run.accel * t.air.control * dt;
-      const after = Math.hypot(v.x, v.z), cap = Math.max(before, t.run.speed);
+      const after = Math.hypot(v.x, v.z), cap = Math.max(before, this.topSpeed);
       if (after > cap) { v.x *= cap / after; v.z *= cap / after; }
     }
     const s = v.length();

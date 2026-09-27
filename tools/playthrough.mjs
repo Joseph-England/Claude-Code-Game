@@ -52,7 +52,7 @@ class Bot {
       const e = route.at(Math.min(level.s + 4, sec.s0 + bot.edge[1] + 2));
       camYaw = Math.atan2(-(e.x + e.rx * bot.edge[2] - p.pos.x), -(e.z + e.rz * bot.edge[2] - p.pos.z));
     }
-    const c = { moveX: 0, moveY: 1, jumpPressed: false, jumpHeld: false, slideHeld: false };
+    const c = { moveX: 0, moveY: 1, jumpPressed: false, jumpHeld: false, slideHeld: false, sprintHeld: true };
     // Slide where the hint says so, but only while it is worth it (moving, or the bed drops ahead).
     const falling = route.heightAt(level.s + 6) < route.heightAt(level.s) - 0.4;
     for (const [a, b] of bot.slide ?? []) if (ls >= a && ls < b && (speed > 4 || falling)) c.slideHeld = true;
@@ -62,13 +62,14 @@ class Bot {
     // the panel, jump, then kick between panel and step face until above the step, then top out.
     const kickAt = (bot.kick ?? []).find((a) => ls > a - 9 && ls < a + 0.5);
     if (kickAt !== undefined) {
+      c.sprintHeld = false; // nobody sprints inside a chimney
       const slot = sec.slots.find((sl) => sl.at === kickAt);
       const prof = route.profileAt(sec.s0 + kickAt - 1);
       const here = route.at(level.s);
       const top = route.heightAt(sec.s0 + kickAt + 2.5);
       const gapStart = kickAt - slot.gap; // panel's front face
       const lat = level.d;
-      const climbing = this.inKick && (!p.grounded || this.kickTick < 12);
+      const climbing = this.inKick && (!p.grounded || !this.jumped || this.kickTick - this.jumpTick < 6);
       if (!climbing && p.grounded && ls < gapStart + 0.9) {
         // Approach: walk through the doorway into the gap.
         this.inKick = false;
@@ -83,8 +84,8 @@ class Bot {
         c.moveX = Math.abs(lat) > 1.2 ? Math.max(-1, Math.min(1, -0.6 * lat)) : 0;
         c.moveY = 0;
       } else if (!climbing && p.grounded) {
-        // Start a climb: step back toward the panel, jump on tick 6.
-        this.inKick = true; this.kickTick = 0; this.kickDir = -1; this.lastKickTick = -99;
+        // Start a climb: step back to the panel, then jump.
+        this.inKick = true; this.jumped = false; this.kickTick = 0; this.kickDir = -1; this.lastKickTick = -99;
       }
       if (this.inKick) {
         camYaw = here.yaw;
@@ -96,11 +97,11 @@ class Bot {
         c.moveY = above && this.kickDir > 0 ? 1 : this.kickDir;
         const latVel = p.vel.x * here.rx + p.vel.z * here.rz;
         c.moveX = Math.max(-1, Math.min(1, -0.8 * lat - 0.5 * latVel));
-        if (this.kickTick === 6) c.jumpPressed = true;
+        if (!this.jumped && p.grounded && (ls < gapStart + 1.0 || this.kickTick > 60)) { c.jumpPressed = true; this.jumped = true; this.jumpTick = this.kickTick; }
         if (!p.grounded && p.timers.wall > 0 && p.vel.y < 3 && this.kickTick - this.lastKickTick > 6 && (!above || this.kickDir < 0)) {
           c.jumpPressed = true; this.kickDir = -this.kickDir; this.lastKickTick = this.kickTick;
         }
-        if (p.grounded && this.kickTick >= 12) this.inKick = false;
+        if (p.grounded && this.jumped && this.kickTick - this.jumpTick >= 6) this.inKick = false;
       }
     } else this.inKick = false;
 
@@ -246,7 +247,7 @@ function gateTest(k, startLs, jumpAtLs, slide, passLs, line = 0) {
     level.step(DT, player);
     level.events.length = 0;
     const ls = level.s - sec.s0, tgt = route.at(level.s + 6);
-    const cmdNow = { moveX: 0, moveY: 1, jumpPressed: jumpAtLs !== null && Math.abs(ls - jumpAtLs) < 0.1, jumpHeld: true, slideHeld: slide && ls > 14 };
+    const cmdNow = { moveX: 0, moveY: 1, sprintHeld: !slide, jumpPressed: jumpAtLs !== null && Math.abs(ls - jumpAtLs) < 0.1, jumpHeld: true, slideHeld: slide && ls > 14 };
     const tx = tgt.x + tgt.rx * line, tz = tgt.z + tgt.rz * line;
     player.step(DT, cmdNow, Math.atan2(-(tx - player.pos.x), -(tz - player.pos.z)));
     if (ls > passLs && player.grounded) return true;

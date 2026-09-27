@@ -34,7 +34,7 @@ const FRAG = /* glsl */`
       vec2 p = t0 + dirT * t;
       if (p.x < 0.0 || p.y < 0.0 || p.x > float(uN) || p.y > float(uN)) break;
       float clear = h0 + rise * t - hAt(p);
-      vis = min(vis, 12.0 * clear / t);
+      vis = min(vis, 5.0 * clear / t);
       if (vis < 0.0) break;
       t *= 1.07; t += 0.4;
       if (t > 900.0) break;

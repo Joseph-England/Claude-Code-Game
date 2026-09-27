@@ -4,6 +4,7 @@
 // Each frame, chunks are frustum-culled on the CPU and sorted into the three instanced meshes:
 // the whole terrain is 3 draw calls (plus 3 for the shadow pass).
 import * as THREE from 'three';
+import { snowFragment } from './snow.js';
 
 export const CHUNK = 64;
 const LODS = [{ step: 1, dist: 170 }, { step: 2, dist: 420 }, { step: 4, dist: Infinity }];
@@ -100,28 +101,13 @@ export class TerrainRenderer {
       uHeight: { value: this.heightTex }, uOrigin: { value: new THREE.Vector2(hf.origin, hf.origin) },
       uCell: { value: hf.cell }, uN: { value: n },
     };
-    const tints = SURFACE_TINTS.map((c) => new THREE.Vector3(...c));
     this.chunksPerSide = Math.floor((hf.size) / CHUNK);
     this.meshes = LODS.map((lod, l) => {
       const uniforms = { ...common, uStep: { value: lod.step }, uSkirt: { value: SKIRT[l] } };
       const mat = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
       const patch = (shader) => {
         patchVertex(shader, uniforms);
-        shader.uniforms.uSplat = { value: this.splatTex };
-        shader.uniforms.uTints = { value: tints };
-        shader.fragmentShader = shader.fragmentShader
-          .replace('#include <common>', `#include <common>
-            uniform sampler2D uSplat; uniform vec3 uTints[4]; uniform vec2 uOrigin; uniform float uCell; uniform int uN;
-            varying vec2 vWorldXZ;`)
-          .replace('#include <color_fragment>', `#include <color_fragment>
-            vec2 suv = ((vWorldXZ - uOrigin) / uCell + 0.5) / float(uN);
-            vec4 w = texture2D(uSplat, suv);
-            vec3 tint = (uTints[0] * w.r + uTints[1] * w.g + uTints[2] * w.b + uTints[3] * w.a) / max(w.r + w.g + w.b + w.a, 1e-3);
-            // Faint 4 m grid for speed and scale readability (gray-box aid, fades with distance).
-            vec2 gq = abs(fract(vWorldXZ / 4.0 - 0.5) - 0.5) / fwidth(vWorldXZ / 4.0);
-            float grid = 1.0 - min(min(gq.x, gq.y), 1.0);
-            tint *= 1.0 - 0.07 * grid;
-            diffuseColor.rgb *= tint;`);
+        snowFragment(shader, { splat: this.splatTex, origin: new THREE.Vector2(hf.origin - hf.cell / 2, hf.origin - hf.cell / 2), size: n * hf.cell });
       };
       if (opts.lit) opts.lit(mat, patch, `terrain${l}`); else mat.onBeforeCompile = patch;
       const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
@@ -192,14 +178,16 @@ export class TerrainRenderer {
 }
 
 /** Distant ranges (render only): a coarse static mesh, far below the play area inside it. */
-export function createBackdrop(scene, mountain) {
+export function createBackdrop(scene, mountain, lit) {
   const { backdrop, backdropN: bn, backdropSize: size } = mountain;
   const g = new THREE.PlaneGeometry(size, size, bn - 1, bn - 1);
   g.rotateX(-Math.PI / 2);
   const p = g.attributes.position;
   for (let k = 0; k < p.count; k++) p.setY(k, backdrop[k]);
   g.computeVertexNormals();
-  const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xdfe4f0, roughness: 1 }));
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+  if (lit) lit(mat, (shader) => snowFragment(shader), 'backdrop');
+  const mesh = new THREE.Mesh(g, mat);
   mesh.receiveShadow = false;
   scene.add(mesh);
   return mesh;

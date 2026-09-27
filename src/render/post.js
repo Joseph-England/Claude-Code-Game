@@ -77,7 +77,7 @@ export class Pipeline {
     this.size = new THREE.Vector2(1, 1);
     this.hdr = hdrTarget(1, 1, true);
     this.ldr = new THREE.WebGLRenderTarget(1, 1, { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter });
-    this.composite = makePass(COMPOSITE_FRAG, { tHDR: { value: null }, uExposure: { value: 1 } });
+    this.composite = makePass(COMPOSITE_FRAG, { tHDR: { value: null }, uExposure: { value: 0.62 } });
     this.fxaa = makePass(FXAAShader.fragmentShader, THREE.UniformsUtils.clone(FXAAShader.uniforms));
     this.fxaaOn = true;
   }

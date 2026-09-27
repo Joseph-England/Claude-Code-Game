@@ -186,6 +186,7 @@ function backToTitle() {
   titleEl.classList.remove('gone');
 }
 titleEl.addEventListener('click', startPlaying);
+addEventListener('pointerdown', () => { if (flow.mode !== 'title') audio.start(); }); // resumes a context created without a gesture (?spawn)
 creditsEl.addEventListener('click', (e) => { if (flow.mode === 'credits' && flow.t > 8 && e.target.tagName !== 'A') backToTitle(); });
 addEventListener('keydown', (e) => { if (flow.mode === 'title' && (e.code === 'Enter' || e.code === 'Space')) startPlaying(); });
 

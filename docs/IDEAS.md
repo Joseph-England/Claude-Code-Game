@@ -8,3 +8,6 @@ Not scheduled. Only implement when a phase says so.
 - Rebuild CSM + recompile lit materials at runtime so a quality change applies cascades immediately.
 - Persistent trails for a whole section: a second, coarse (1 m) trail layer that never scrolls.
 - Moon rising in the east during the ending, in the Belt of Venus.
+- Let a held key skip the ending's camera timeline on a second playthrough.
+- Control glyphs drawn into the snow at the trailhead (DESIGN §3 Teaching) instead of the controls strip.
+- Echo of your own footsteps in the Descent's hollow (a short delay line on the sheltered reverb).

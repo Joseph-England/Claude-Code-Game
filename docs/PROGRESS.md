@@ -1,6 +1,6 @@
 # Progress
 
-Current phase: **Phase 5 — Story, audio & flow** (Phases 1–4 complete)
+Current phase: **Phase 6 — Polish, performance & release** (Phases 1–5 complete)
 
 ## Phase 1: Foundation & design
 - [x] Create CLAUDE.md operating rules
@@ -212,3 +212,30 @@ work, README is complete.
   sets the sun under the horizon over 40 s after arrival) and turn the camera east toward Earth's
   shadow and the alpenglow on the far ranges. Keep the voice styles from #49 in the narrator.
 
+
+### Session 5 — Phase 5: Story, audio & flow (2026-09-27)
+- **Playtest notes (done first):** wall-kick, chimneys, snow bridge, ice-cave roof and summit flag
+  removed; "The Descent" replaces the collapse (down into a sheltered hollow, then the path up);
+  whiteout notes spread to 36 / 86 / 138 m and each stays up while you stand at its cairn; tighter
+  ground control (#60–63). New climber avatar with no idle motion and a stable cloth scarf (the old
+  one's follow-the-leader constraints pumped energy into it) (#64). Structured backdrop ranges; the
+  sunset glow no longer rises out of the valley fog (#65–66). The top is now clear: the ending takes
+  over, and the "R" reminder is rare and never on the summit (#67, #71).
+- **Completed:** every Phase 5 item. `src/story/story.js` (line triggers + conditions, Node-safe),
+  `narrator.js` (queue, per-voice fades, the Weight fading over the climb), `ending.js` (walk, sit,
+  camera reveal, timed lines, fade); `src/audio/audio.js` + `music.js` (reverbs, wind, footsteps,
+  slide, breath, bells, generative score); title/credits in `index.html`; flow in `game.js`. Final
+  lines locked in DESIGN §1 (30 lines, #68). Tools: `tools/flow.mjs` (scripted headless run with
+  screenshots); `npm run playthrough` now checks every line fires and replays the narrator's timing.
+- **Measured:** bot 2:16, first-time estimate ≈ 4:54 climb / ≈ 5:54 title to credits; all 22
+  non-scripted lines fire (plus 2 struggle-only); no line waits > 4.2 s behind another (answers
+  excepted); Medium at the summit push: 109 draw calls, 344k triangles (budget 150 / 400k); audio
+  ≈ −30 dBFS RMS pre-compressor while walking. `npm run check` and `npm run playthrough` pass.
+- **Broken / deferred:** nothing known broken. Not verifiable here: how the audio actually sounds
+  (levels were measured, but please listen, especially wind vs. music balance and the footstep
+  timbres), real-hardware frame rate, and first-time timing with a real player (the ~5:54 is a
+  model). Soft-lock sweep has 3 bot misses (limit 3), one new in a hollow off the Descent's left
+  shoulder; R and the reminder cover it. The ending timeline is fixed (52 s); skipping it is not
+  possible yet (Phase 6 pause menu could add it).
+- **Next step:** Phase 6, first item: bug bash — full playthroughs on each quality tier (start with
+  the title → credits loop twice in a row, to confirm the reset: stone, notes, sun, music level).

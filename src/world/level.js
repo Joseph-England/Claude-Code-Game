@@ -182,8 +182,8 @@ export const SECTIONS = [
       { at: 0, id: 29, voice: 'Y', text: 'The light stays on the peaks after the sun goes. I never noticed that.', when: 'ending' },
       { at: 0, id: 30, voice: 'Y', text: 'I\'m still here.', when: 'ending' },
     ],
-    summit: 12, // end trigger (local s): the ending takes over and walks you to the sit spot
-    sit: 18,
+    summit: 12, // end trigger (local s): the ending takes over and walks you to the viewpoint
+    view: 18,
     oob: { below: 10, side: 40 },
   },
 ];

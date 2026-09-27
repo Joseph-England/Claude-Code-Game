@@ -102,6 +102,7 @@ export class Avatar {
     this.fwd = 0;
     this.wake = 1; // 0 lying in the snow … 1 up (the opening sets 0 and animates it)
     this.reach = 0; // leaving a stone: 0 … 1 … 0 (driven by the game)
+    this.admire = 0; // the ending: 0 … 1 lifts the head a little to the view
     this.scarf = new Scarf(scene);
     this._neckW = new THREE.Vector3();
     this._chestW = new THREE.Vector3();
@@ -163,7 +164,7 @@ export class Avatar {
     this.prevYaw = yaw;
     if (!onFoot) yawRate = 0;
     const run = smooth(5.5, 9, hs), moveW = onFoot ? smooth(0.15, 1, hs) : 0;
-    const turnW = onFoot ? smooth(0.8, 2.5, Math.abs(yawRate)) * (1 - moveW) : 0;
+    const turnW = onFoot ? smooth(0.3, 1.2, Math.abs(yawRate)) * (1 - moveW) : 0;
     const powder = ctl.groundSurface === 1;
     const cadence = 1.9 + 0.32 * hs - (powder ? 0.2 : 0); // steps per second
     // Stance share of the cycle, chosen so a planted foot travels ±0.3–0.42 m about the hip: long
@@ -224,7 +225,7 @@ export class Avatar {
     const climb = clamp(uphill, -0.4, 0.9) * 0.32 * this.ikW * (0.4 + 0.6 * moveW);
     this.torso.rotation.x = -(P.torso + (0.02 + 0.12 * run) * this.gait + climb);
     this.torso.rotation.y = (Rl.sx - L.sx) * 0.18 * this.ikW;
-    this.head.rotation.x = -P.head * 0.6 + 0.06 * run + climb * 0.7;
+    this.head.rotation.x = -P.head * 0.6 + 0.06 * run + climb * 0.7 + 0.16 * this.admire;
     for (const arm of this.arms) {
       const opp = arm.side > 0 ? L : Rl;
       const swing = (opp.sx / 0.55) * (0.45 + 0.35 * run) * this.ikW;

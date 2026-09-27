@@ -157,6 +157,7 @@ function newRun() {
   stuckT = 0; lastProgress = 0;
   spawnAt(0, false);
   avatar.wake = 0;
+  avatar.admire = 0;
   flow.wake = null;
   flow.firstCheckpoint = true;
   if (stoneMesh) { scene.remove(stoneMesh); stoneMesh = null; }
@@ -397,7 +398,7 @@ createLoop({
     if (controlsEl.style.opacity === '1' && (flow.controlsT += frameDt) > 16) controlsEl.style.opacity = 0;
     if (flow.mode === 'ending') {
       const since = level.time - summitTime;
-      ending.update(since, player, atmosphere.sunDir);
+      ending.update(since, player, atmosphere.sunDir, avatar);
       if (since > ENDING_FADE && fade.style.opacity !== '1') { fade.style.transition = 'opacity 4s'; fade.style.opacity = 1; }
       if (since > ENDING_END) startCredits();
     }

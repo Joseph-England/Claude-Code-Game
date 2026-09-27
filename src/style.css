@@ -1,0 +1,23 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #1a1024;
+}
+#game {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+#title {
+  position: fixed;
+  left: 50%;
+  bottom: 12vh;
+  transform: translateX(-50%);
+  color: #fff4ec;
+  font: 300 clamp(20px, 4vw, 44px) / 1 Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.6em;
+  text-shadow: 0 0 24px rgba(255, 140, 120, 0.6);
+  pointer-events: none;
+  user-select: none;
+}

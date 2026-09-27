@@ -1,5 +1,14 @@
 // Regular-grid heightfield with per-sample surface ids and smooth vertex normals.
-// Collision is analytic: bilinear height + bilinearly blended vertex normals (DECISIONS #7).
+// Collision is analytic: bicubic height with its exact normal (DECISIONS #7, #30).
+
+const WX = new Float64Array(4), DX = new Float64Array(4), WZ = new Float64Array(4), DZ = new Float64Array(4);
+function catmull(t, w, d) {
+  const t2 = t * t, t3 = t2 * t;
+  w[0] = (-t3 + 2 * t2 - t) / 2; w[1] = (3 * t3 - 5 * t2 + 2) / 2;
+  w[2] = (-3 * t3 + 4 * t2 + t) / 2; w[3] = (t3 - t2) / 2;
+  d[0] = (-3 * t2 + 4 * t - 1) / 2; d[1] = (9 * t2 - 10 * t) / 2;
+  d[2] = (-9 * t2 + 8 * t + 1) / 2; d[3] = (3 * t2 - 2 * t) / 2;
+}
 
 export class Heightfield {
   /** size: world extent (m), cell: sample spacing (m); centred on the origin. */
@@ -44,35 +53,46 @@ export class Heightfield {
     }
   }
 
-  _cellCoords(x, z) {
-    const { n, cell, origin } = this;
-    let fx = (x - origin) / cell, fz = (z - origin) / cell;
-    fx = Math.min(Math.max(fx, 0), n - 1.000001);
-    fz = Math.min(Math.max(fz, 0), n - 1.000001);
+  /**
+   * Catmull-Rom bicubic height and its exact gradient, so collision height and normal describe
+   * the same smooth (C1) surface: moving along the normal's tangent plane never drifts off it,
+   * and crest launches depend only on real curvature. Returns height; writes the normal to `out`.
+   */
+  sample(x, z, out) {
+    const { n, cell, origin, heights: H } = this;
+    const fx = Math.min(Math.max((x - origin) / cell, 0), n - 1.000001);
+    const fz = Math.min(Math.max((z - origin) / cell, 0), n - 1.000001);
     const i = Math.floor(fx), j = Math.floor(fz);
-    return [i, j, fx - i, fz - j];
+    catmull(fx - i, WX, DX);
+    catmull(fz - j, WZ, DZ);
+    let h = 0, gx = 0, gz = 0;
+    for (let b = 0; b < 4; b++) {
+      const row = Math.min(Math.max(j + b - 1, 0), n - 1) * n;
+      let rh = 0, rd = 0;
+      for (let a = 0; a < 4; a++) {
+        const v = H[row + Math.min(Math.max(i + a - 1, 0), n - 1)];
+        rh += WX[a] * v;
+        rd += DX[a] * v;
+      }
+      h += WZ[b] * rh;
+      gx += WZ[b] * rd;
+      gz += DZ[b] * rh;
+    }
+    if (out) {
+      gx /= cell; gz /= cell;
+      const inv = 1 / Math.hypot(gx, 1, gz);
+      out.set(-gx * inv, inv, -gz * inv);
+    }
+    return h;
   }
 
   heightAt(x, z) {
-    const [i, j, u, v] = this._cellCoords(x, z);
-    const n = this.n, H = this.heights, k = j * n + i;
-    const a = H[k], b = H[k + 1], c = H[k + n], d = H[k + n + 1];
-    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+    return this.sample(x, z, null);
   }
 
-  /** Smooth normal (bilinear blend of vertex normals) written into `out` (a Vector3). */
   normalAt(x, z, out) {
-    const [i, j, u, v] = this._cellCoords(x, z);
-    const n = this.n, N = this.normals;
-    const w = [(1 - u) * (1 - v), u * (1 - v), (1 - u) * v, u * v];
-    const ks = [j * n + i, j * n + i + 1, (j + 1) * n + i, (j + 1) * n + i + 1];
-    let nx = 0, ny = 0, nz = 0;
-    for (let q = 0; q < 4; q++) {
-      const k = ks[q] * 3;
-      nx += N[k] * w[q]; ny += N[k + 1] * w[q]; nz += N[k + 2] * w[q];
-    }
-    const inv = 1 / Math.hypot(nx, ny, nz);
-    return out.set(nx * inv, ny * inv, nz * inv);
+    this.sample(x, z, out);
+    return out;
   }
 
   surfaceAt(x, z) {

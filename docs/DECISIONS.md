@@ -31,3 +31,5 @@ Numbered and append-only. A decision stands unless a later entry reverses it wit
 27. **Dev-only `lil-gui` tuning panel and stats overlay**, stripped from production builds via `import.meta.env.DEV`.
 28. **Claude owns all GitHub work (user request, Session 1).** Each session develops on its assigned branch, opens a PR to `main`, waits for the `build` check to go green, merges it (merge commit), and confirms the Pages deploy run on `main` succeeds. If the branch's previous PR is already merged, restart the branch from `origin/main` first. The user does not need to merge manually.
 29. **The workflow builds every PR to `main` (build job only; deploy runs only on pushes to `main`).** Gives a CI signal before merging.
+30. **Heightfield collision samples a Catmull-Rom bicubic surface and its exact gradient** (refines #7). Bilinear height with blended normals disagreed at edges, so bodies stuck to cliffs and lips never launched; with one C1 surface, crest launches follow real curvature (v²/R > g·cosθ).
+31. **Gravity is 15 m/s² (not 9.81).** Snappier jumps and faster slope acceleration for a 5-minute game; drag values are tuned against it.

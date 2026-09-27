@@ -21,7 +21,7 @@ Current phase: **Phase 2 — Movement & camera** (Phase 1 complete)
 - [x] Gray-box test course: procedural heightfield with flats, slopes (10°–50°), dips/rises, a half-pipe, a ramp, walls; surface zones for powder/packed/ice/rock
 - [x] Heightfield collision + surface lookup; `three-mesh-bvh` collision for box/wall meshes
 - [x] Controller states: ground run, slide, air, stumble, sit; momentum model (DESIGN §2)
-- [ ] Jump: variable height, coyote time, jump buffer; slide-jump; landing velocity projection
+- [x] Jump: variable height, coyote time, jump buffer; slide-jump; landing velocity projection
 - [ ] Wall-kick
 - [x] Surface physics table (friction/drag/control) wired to the controller
 - [ ] Third-person camera: orbit, auto-follow, terrain collision, speed FOV, carve roll

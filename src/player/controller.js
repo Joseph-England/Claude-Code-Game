@@ -87,6 +87,7 @@ export class Controller {
     if (wishMag > 1e-4) wish.divideScalar(wish.length());
 
     this._chooseState(dt, cmd, wishMag);
+    this._tryJump(cmd);
     const velBefore = _b.copy(v);
 
     if (this.grounded) this._groundForces(dt, cmd, wish, wishMag);
@@ -111,6 +112,31 @@ export class Controller {
       if (T.idle >= t.rest.delay) { this.state = 'sit'; this.vel.set(0, 0, 0); return; }
     } else T.idle = 0;
     this.state = 'run';
+  }
+
+  /** Ground jump (with coyote time and input buffer). Slide-jumps are lower and keep all speed. */
+  _tryJump(cmd) {
+    const t = this.t, T = this.timers, v = this.vel;
+    if (T.buffer <= 0) return;
+    const onGround = this.grounded && this.state !== 'stumble';
+    const coyote = !this.grounded && T.coyote > 0 && !this.jumping;
+    if (!onGround && !coyote) return;
+    const n = this.groundNormal;
+    const fromSlide = this.state === 'slide' || cmd.slideHeld;
+    const vn = v.dot(n);
+    if (vn < 0) v.addScaledVector(n, -vn);
+    if (coyote && v.y < 0) v.y = 0;
+    // Push is a blend of straight up and the surface normal, so jumps always leave the slope.
+    _a.copy(UP).lerp(n, t.jump.normalBlend).normalize();
+    v.addScaledVector(_a, fromSlide ? t.jump.slideSpeed : t.jump.speed);
+    this.state = 'air';
+    this.grounded = false;
+    this.jumping = true;
+    this.jumpFromSlide = fromSlide;
+    T.buffer = 0;
+    T.coyote = 0;
+    T.groundLock = t.jump.groundLock;
+    this.events.push({ type: 'jump', slide: fromSlide });
   }
 
   _nearCairn() {
@@ -236,8 +262,8 @@ export class Controller {
     }
 
     // Heightfield ground.
-    const h = hf.heightAt(this.pos.x, this.pos.z);
-    const nH = hf.normalAt(this.pos.x, this.pos.z, _n);
+    const nH = _n;
+    const h = hf.sample(this.pos.x, this.pos.z, nH);
     const gap = this.pos.y - h;
     let onHF = false;
     if (gap <= 0) onHF = true;
@@ -272,6 +298,7 @@ export class Controller {
       T.coyote = t.jump.coyote;
       this.lastKickNormal = null;
       this.jumping = false;
+      this.jumpFromSlide = false;
       if (!wasGrounded) {
         this.events.push({ type: 'land', impact });
         if (impact > t.landing.stumbleImpact) {

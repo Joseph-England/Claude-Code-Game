@@ -76,6 +76,8 @@ export class Pipeline {
     this.scale = 1;
     this.size = new THREE.Vector2(1, 1);
     this.hdr = hdrTarget(1, 1, true);
+    this.hdr2 = hdrTarget(1, 1, false);
+    this.fog = null; // FogPass
     this.ldr = new THREE.WebGLRenderTarget(1, 1, { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter });
     this.composite = makePass(COMPOSITE_FRAG, { tHDR: { value: null }, uExposure: { value: 0.62 } });
     this.fxaa = makePass(FXAAShader.fragmentShader, THREE.UniformsUtils.clone(FXAAShader.uniforms));
@@ -100,6 +102,7 @@ export class Pipeline {
     const h = Math.max(1, Math.round(this.cssH * this.pixelRatio * this.scale));
     this.size.set(w, h);
     this.hdr.setSize(w, h);
+    this.hdr2.setSize(w, h);
     this.ldr.setSize(w, h);
     this.fxaa.u.resolution.value.set(1 / w, 1 / h);
     this.onResize?.(w, h);
@@ -111,6 +114,7 @@ export class Pipeline {
     r.setRenderTarget(this.hdr);
     r.render(scene, camera);
     let src = this.hdr;
+    if (this.fog) { this.fog.render(r, this.hdr, this.hdr2, camera); src = this.hdr2; }
     if (this.beforeComposite) src = this.beforeComposite(src, camera) ?? src;
     this.composite.u.tHDR.value = src.texture;
     r.setRenderTarget(this.fxaaOn ? this.ldr : null);

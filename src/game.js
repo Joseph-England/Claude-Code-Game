@@ -19,6 +19,7 @@ import { Atmosphere } from './render/atmosphere.js';
 import { SunShadow } from './render/sunshadow.js';
 import { SNOW_DIRECT } from './render/snow.js';
 import { Trails } from './render/trails.js';
+import { FogPass } from './render/fog.js';
 import { SURFACE } from './world/surfaces.js';
 import { litMaterial, world as worldU } from './render/materials.js';
 import { sunElevation, SUN_AZIMUTH } from './render/arc.js';
@@ -33,8 +34,6 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
-const SKY = new THREE.Color(0xa9b8d6), WHITE = new THREE.Color(0xe8ebf0);
-scene.fog = new THREE.Fog(SKY.clone(), 250, 5200);
 const camera = new THREE.PerspectiveCamera(tuning.camera.fovMin, 1, 0.1, 9000);
 
 const loading = $('loading');
@@ -62,6 +61,9 @@ worldU.uTintLow = atmosphere.skyUniforms.uTintLow;
 worldU.tSunVis.value = sunShadow.texture;
 worldU.uSunVisOrigin.value.copy(sunShadow.origin);
 worldU.uSunVisSize.value = sunShadow.size;
+const fog = new FogPass(); // after the tint swap above: it copies the world uniform references
+pipeline.fog = fog;
+fog.u.uSunColor.value = atmosphere.sunColor;
 
 const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
@@ -149,7 +151,6 @@ resize();
 let cmd = null;
 let avatarSink = 0;
 const renderPos = new THREE.Vector3();
-const fogColor = new THREE.Color();
 let summitTime = null;
 let stuckT = 0, lastProgress = 0;
 
@@ -212,12 +213,10 @@ createLoop({
     avatar.wind.set(1.5 + level.wind.x * 0.6, 0, 0.8 + level.wind.z * 0.6);
     avatar.update(player, renderPos, alpha, frameDt);
     cam.update(frameDt, renderPos, player, crouch);
-    // Whiteout: fog closes in and drains to white.
+    // Whiteout: the fog pass closes in to ~16 m and drains to a lavender white lit by the sky.
     const wo = level.wind.whiteout;
-    fogColor.copy(SKY).lerp(WHITE, wo);
-    scene.fog.color.copy(fogColor);
-    scene.fog.near = THREE.MathUtils.lerp(250, 4, wo);
-    scene.fog.far = THREE.MathUtils.lerp(5200, 55, wo);
+    fog.u.uWhiteout.value = wo;
+    fog.u.uWhiteColor.value.copy(atmosphere.ambientSky).multiplyScalar(0.55).addScalar(0.25 * atmosphere.sunColor.g / 16 + 0.08);
     windEl.style.opacity = level.wind.warn || level.wind.gust > 0.2 ? 1 : 0;
     const sinceSummit = summitTime === null ? -1 : level.time - summitTime;
     atmosphere.setSun(sunElevation(level.progressFraction, sinceSummit), SUN_AZIMUTH, level.time);

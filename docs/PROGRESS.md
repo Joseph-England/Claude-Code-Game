@@ -54,7 +54,7 @@ mechanic works; respawns work everywhere; no soft-locks; 60 fps on Medium-equiva
 - [x] Sun light + cascaded shadow maps; sky ambient (+ ray-marched terrain shadows)
 - [x] Snow shader: wrap/SSS diffuse, violet shadows, glitter, triplanar detail, surface blending
 - [x] Deformable snow trails (ring-buffer RT)
-- [ ] Height fog + aerial perspective; whiteout fog
+- [x] Height fog + aerial perspective; whiteout fog
 - [ ] GPU particles: snowfall, spindrift, slide spray, breath, cairn embers
 - [x] Procedural avatar with gait/lean + verlet scarf
 - [ ] Bloom, per-section colour grade, vignette, grain, speed effects

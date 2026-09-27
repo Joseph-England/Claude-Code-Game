@@ -1,6 +1,7 @@
 // Phase 1 skeleton: a procedural snowy slope under a sunset gradient sky.
 // Replaced piece by piece in later phases (see docs/PROGRESS.md).
 import * as THREE from 'three';
+import { createLoop } from './core/loop.js';
 
 const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -110,12 +111,15 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-const clock = new THREE.Clock();
-renderer.setAnimationLoop(() => {
-  const t = clock.getElapsedTime() * 0.03;
+let time = 0;
+createLoop({
+  update(dt) { time += dt; },
+  render() {
+  const t = time * 0.03;
   const r = 260;
   const cx = Math.sin(t) * r, cz = Math.cos(t) * r + 120;
   camera.position.set(cx, height(cx, cz) + 40, cz);
   camera.lookAt(0, height(0, -250) + 20, -250);
   renderer.render(scene, camera);
-});
+  },
+}).start();

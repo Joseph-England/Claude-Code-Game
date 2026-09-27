@@ -226,7 +226,7 @@ function updateParticles(dt) {
   const wo = level.wind.whiteout, here = mountain.route.at(level.s);
   fx.wind.set(1.2 + level.wind.x * 0.9 - here.dx * 11 * wo, 0, 0.6 + level.wind.z * 0.9 - here.dz * 11 * wo);
   const gustDir = level.wind.gust > 0.02 ? level.wind : null;
-  fx.light.copy(atmosphere.ambientSky).multiplyScalar(0.9).add(new THREE.Color().copy(atmosphere.sunColor).multiplyScalar(0.12));
+  fx.light.copy(atmosphere.ambientSky).multiplyScalar(0.8).add(new THREE.Color().copy(atmosphere.sunColor).multiplyScalar(0.05));
   const k = level.section;
   particles.update({
     time: t, wind: gustDir ? fx.wind.clone().add(new THREE.Vector3(gustDir.x, 0, gustDir.z)) : fx.wind,

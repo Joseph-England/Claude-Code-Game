@@ -44,9 +44,17 @@ export const SNOW_PARS = /* glsl */`
 export const SNOW_COLOR = /* glsl */`
   {
     #ifdef SNOW_SPLAT
-      vec2 suv = (vWorldPos.xz - uSplatOrigin) / uSplatSize;
+      // Domain-warp the lookup by ±0.7 m so texel staircases turn into wobbly natural edges.
+      vec2 wp2 = vWorldPos.xz + vec2(vWorldPos.y * 0.37, -vWorldPos.y * 0.29);
+      vec2 warp = vec2(noised(wp2 * 0.55).x, noised(wp2 * 0.55 + 31.7).x) - 0.5;
+      vec2 suv = (vWorldPos.xz + warp * 1.4 - uSplatOrigin) / uSplatSize;
       gW = texture2D(uSplat, suv);
       gW /= max(dot(gW, vec4(1.0)), 1e-3);
+      // Break up the 1 m splat texels: push each weight through a noisy threshold so rock and ice
+      // edges are organic instead of bilinear staircases.
+      float en = noised(vWorldPos.xz * 0.9 + vWorldPos.y * 0.6).x + 0.5 * noised(vWorldPos.xz * 2.7 - vWorldPos.y).x - 0.75;
+      vec4 sharp = smoothstep(vec4(0.3), vec4(0.7), gW + en * 0.45);
+      gW = sharp / max(dot(sharp, vec4(1.0)), 1e-3);
     #else
       gW = vec4(0.0, 1.0, 0.0, 0.0);
     #endif

@@ -87,12 +87,12 @@ Playtest notes from Session 4's build (done first):
 
 - [x] Game state machine: title → playing → ending → credits → title
 - [x] Title screen (with brief content note) and loading progress
-- [ ] Narrator: text UI for three voices, queue, fade timing, bell cue
-- [ ] Place all line triggers (DESIGN §1 table) including conditional lines
+- [x] Narrator: text UI for three voices, queue, fade timing, bell cue
+- [x] Place all line triggers (DESIGN §1 table) including conditional lines
 - [ ] Cairn notes interaction + "add a stone" beat
-- [ ] Audio engine + procedural wind with gusts
-- [ ] Surface-aware footsteps, slide noise, breath, landings
-- [ ] Generative music by section + procedural reverb IRs (open air / cave)
+- [x] Audio engine + procedural wind with gusts
+- [x] Surface-aware footsteps, slide noise, breath, landings
+- [x] Generative music by section + procedural reverb IRs (open air / sheltered; the cave is gone, DECISIONS #69)
 - [ ] Ending sequence: camera reveal, sit, sunset, final lines, fade
 - [ ] Credits with support-resources line
 - [ ] Pacing pass: full playthroughs, adjust trigger timing and section lengths

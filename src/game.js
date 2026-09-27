@@ -89,7 +89,7 @@ const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
 const cam = new ThirdPersonCamera(camera, world, tuning);
 const avatar = new Avatar(scene, tuning);
-avatar.onFoot = (x, z) => { if (onSnow()) trails.foot(x, z); };
+avatar.onFoot = (x, z) => { if (onSnow()) trails.foot(x, z); audio.footstep(player.groundSurface, player.speed); };
 const onSnow = () => player.grounded && (player.groundSurface === SURFACE.POWDER || player.groundSurface === SURFACE.PACKED) && player.heightAboveGround < 0.1;
 // Every other standard material (props, backdrop, avatar) gets the world lighting.
 scene.traverse((o) => {
@@ -242,6 +242,27 @@ function titleCamera(t) {
   camera.updateProjectionMatrix();
 }
 
+// Audio state from the player, the level and the flow (DESIGN §5).
+const _right = new THREE.Vector3();
+function updateAudio(dt) {
+  const sec = mountain.route.sections[level.section], ls = level.s - sec.s0;
+  const hollow = sec.name === 'The Descent' ? smooth(ls, 40, 56) * (1 - smooth(ls, 86, 100)) : 0;
+  _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+  const g = level.wind, gl = Math.hypot(g.x, g.z) || 1;
+  const since = summitTime === null ? 0 : level.time - summitTime;
+  const title = flow.mode === 'title';
+  audio.update(dt, {
+    alt: THREE.MathUtils.clamp((player.pos.y + 10) / 140, 0, 1),
+    speed: player.speed, airSpeed: player.speed + 6 * g.gust,
+    sliding: player.state === 'slide', grounded: player.grounded, surface: player.groundSurface,
+    sprinting: player.speed > 6.5, powder: player.groundSurface === SURFACE.POWDER, sitting: player.state === 'sit',
+    gust: g.gust, gustSide: (g.x * _right.x + g.z * _right.z) / gl, whiteout: g.whiteout, shelter: hollow,
+    calm: flow.mode === 'ending' ? smooth(since, 4, 30) : 0,
+    mood: title ? 0 : sec.name === 'The Descent' && ls > 70 ? 9 : level.section,
+    musicDuck: title ? 0.7 : flow.mode === 'credits' ? 0.6 : 1,
+  });
+}
+
 // Grade, exposure, speed effects and the alpenglow, all from the route and the sun.
 const smooth = THREE.MathUtils.smoothstep;
 function updateLook(dt) {
@@ -297,7 +318,7 @@ function updateParticles(dt) {
 }
 
 // Dev/test handle (tools/smoke.mjs reads it).
-window.__game = { renderer, pipeline, level, player, trails, quality, gpuTimer, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
+window.__game = { renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
 
 createLoop({
   beginFrame(frameDt) {
@@ -347,6 +368,7 @@ createLoop({
       else if (e.type === 'checkpoint') {
         if (flow.firstCheckpoint) showToast('a cairn · if you fall, you come back here', 3.5);
         flow.firstCheckpoint = false;
+        audio.bell('O');
         for (let i = 0; i < 60; i++) particles.emit(e.cairn.x + rnd(0.5), e.cairn.y + 0.8 + rnd(0.5), e.cairn.z + rnd(0.5), rnd(1.5), 1 + Math.random() * 2, rnd(1.5), 2 + Math.random(), 0.03, 0, 0.05, 2);
       }
       else if (e.type === 'summit') { summitTime = e.time; startEnding(); }
@@ -363,10 +385,12 @@ createLoop({
     }
   },
   render(alpha, frameDt, steps) {
-    if (flow.mode === 'credits') return; // the credits are opaque
+    if (flow.mode === 'credits') { updateAudio(frameDt); return; } // the credits are opaque
     gpuTimer.begin();
     for (const e of player.events) {
+      if (e.type === 'jump') audio.breath(1, e.slide ? 0.25 : 0.4);
       if (e.type !== 'land') continue;
+      audio.land(player.groundSurface, e.impact);
       cam.impact(e.impact);
       if (e.impact > 4 && onSnow()) {
         for (let i = 0; i < 12 + e.impact * 2; i++) {
@@ -398,6 +422,7 @@ createLoop({
     const sinceSummit = summitTime === null ? -1 : level.time - summitTime;
     atmosphere.setSun(sunElevation(level.progressFraction, sinceSummit), SUN_AZIMUTH, level.time);
     updateParticles(frameDt);
+    updateAudio(frameDt);
     updateLook(frameDt);
     lights.update(atmosphere.sunDir, atmosphere.sunColor);
     sunShadow.update(atmosphere.sunDir);

@@ -27,12 +27,12 @@ the sun is going down, and something in your own head would prefer you stayed wh
 | Packed trails hidden in the powder | Coping strategies you have to re-find every time |
 | Ice chutes: speed you earn going *down* | Good days; momentum that carries even as it fades |
 | Wind on the ridge | Intrusive thoughts: loud, pushy, sounding like you |
-| Snow bridge collapse into the ice cave | Relapse. Falling back is not starting over |
+| The Descent: the only way on is down first | Setbacks and humility. Going down is not starting over |
 | Whiteout, cairns left by others | Isolation, then evidence you are not the only one |
 | Summit: more ranges beyond | There is no final victory — and you are still here |
 
 ### Emotional arc
-Numb → effortful → a flicker of joy → pressure → relapse → isolation → connection → resolve → quiet.
+Numb → effortful → a flicker of joy → pressure → setback (going down) → isolation → connection → resolve → quiet.
 Colour tracks this: flat and desaturated at the start, warming as you climb, drained in the whiteout,
 fully saturated alpenglow after the storm, then blue hour and first stars at the end.
 
@@ -43,46 +43,49 @@ the pink Belt of Venus above it; the last alpenglow clings to the far peaks. You
 speaks once more, very faintly. You answer. The line "I'm still here." holds, then fade to the title.
 Not a cure, not a defeat — a person who is still here, noticing light.
 
-### Inner-voice lines (first draft; W = Weight, Y = You, O = Other)
+### Inner-voice lines (final, locked in Phase 5; W = Weight, Y = You, O = Other)
+Revised once from the 34-line first draft to 30 (DECISIONS #68): cut lines that explained what the
+player could already see ("look how far there is to fall", "I'm not the first one lost up here",
+"downhill is always easy"), tightened the rest, and rewrote the relapse beat for the Descent. Data:
+`src/world/level.js` (`beats`); logic: `src/story/story.js`; display: `src/story/narrator.js`.
+
 | # | Section / trigger | Voice | Line |
 |---|---|---|---|
-| 1 | 0 Opening — before any input | W | stay down. it's easier. |
-| 2 | 0 — first input | Y | Get up. |
-| 3 | 0 — first steps | W | why bother. it's the same mountain every day. |
-| 4 | 1 Foot — first jump | Y | One thing. Then the next thing. |
-| 5 | 1 — first downhill slide | W | downhill is always easy. |
-| 6 | 2 Powder — enter deep powder | W | everything takes more than it should. |
-| 7 | 2 — first time on a packed trail | Y | There's a way through. I just have to find it again. Every time. |
-| 8 | 2 — mid-field, if slow | W | everyone else makes this look easy. |
-| 9 | 3 Chutes — first time > sprint speed | Y | Oh — I forgot what that felt like. |
-| 10 | 3 — first failed launch | W | don't get used to it. |
-| 11 | 3 — exit | Y | Speed doesn't last. But it carries. |
-| 12 | 4 Ridge — enter | W | look how far there is to fall. |
-| 13 | 4 — first strong gust | W | you're too much. you've always been too much. |
-| 14 | 4 — right after 13 | Y | That's the wind. It always sounds like me. |
-| 15 | 4 — ridge end, first deep sunset colour | Y | The light's changing. |
-| 16 | 5 Collapse — bridge breaks | W | there it is. you were doing so well. |
-| 17 | 5 — landing in the cave | W | back at the bottom. like always. |
-| 18 | 5 — sees light above | Y | I know this place. I've climbed out of it before. |
-| 19 | 5 — exit cave | Y | Falling isn't starting over. My legs remember the way. |
-| 20 | 6 Whiteout — storm hits | W | no one can see you in here. |
-| 21 | 6 — cairn A | O | I stopped here too. It passed. |
-| 22 | 6 — after cairn A | Y | I'm not the first one lost up here. |
-| 23 | 6 — cairn B | O | Keep the stones on your left. Rest if you need to. |
-| 24 | 6 — cairn C | O | You don't have to do this alone. I didn't. |
-| 25 | 6 — leaving cairn C (you add a stone) | Y | I'll leave one too. For whoever's next. |
-| 26 | 7 Summit push — storm clears | W | it'll be dark soon. |
-| 27 | 7 — right after 26 | Y | I know. |
-| 28 | 7 — halfway up the final face | W | you're so tired. |
-| 29 | 7 — right after 28 | Y | I'm tired. I'm still going. |
-| 30 | 8 Summit — arrive | Y | I thought there'd be something up here. |
-| 31 | 8 — camera reveals ranges | W | there's always another one. |
-| 32 | 8 — right after 31 | Y | Yeah. There is. |
-| 33 | 8 — sun sets, sitting | Y | The light stays on the peaks after the sun is gone. I never noticed that. |
-| 34 | 8 — final | Y | I'm still here. |
+| 1 | 0 Opening — lying in the snow, before any input | W | stay down. it's easier. |
+| 2 | 0 — first input (you get up) | Y | Get up. |
+| 3 | 0 — first steps | W | it's the same mountain every day. |
+| 4 | 1 Foot — first jump (or by the bank) | Y | One thing. Then the next. |
+| 5 | 2 Powder — into the deep powder | W | everything takes more than it should. |
+| 6 | 2 — first step on the packed trail (or by mid-field) | Y | There's a way through. I just have to find it again. |
+| 7 | 2 — only if still in the powder after 30 s | W | everyone else finds this easy. |
+| 8 | 3 Chutes — first time faster than a sprint | Y | Oh. I forgot what that felt like. |
+| 9 | 3 — only after a fall in the chutes | W | don't get used to it. |
+| 10 | 3 — exit | Y | It doesn't last. But it carries. |
+| 11 | 4 Ridge — first strong gust | W | you're too much. you've always been too much. |
+| 12 | 4 — straight after 11 | Y | That's the wind. It sounds like me. It isn't. |
+| 13 | 4 — ridge end, the light warming | Y | The light's changing. |
+| 15 | 5 Descent — the path turns down | W | down again. after all that. |
+| 16 | 5 — the bottom, the path up in view | Y | It's not starting over. It's the way through. |
+| 17 | 6 Whiteout — storm closes in | W | no one can see you in here. |
+| 18 | 6 — note in cairn A | O | I stopped here too. It passed. |
+| 19 | 6 — note in cairn B | O | Keep the stones on your left. Rest if you need to. |
+| 20 | 6 — note in cairn C | O | You don't have to do this alone. I didn't. |
+| 21 | 6 — you leave a stone on cairn C (E) | Y | I'll leave one too. For whoever's next. |
+| 22 | 7 Summit push — storm clears | W | it'll be dark soon. |
+| 23 | 7 — straight after 22 | Y | I know. |
+| 24 | 7 — halfway up the couloir | W | you're so tired. |
+| 25 | 7 — straight after 24 | Y | I'm tired. I'm still going. |
+| 26 | 8 Summit — walking onto the top | Y | I thought there'd be something up here. |
+| 27 | 8 — the camera lifts to the ranges | W | there's always another one. |
+| 28 | 8 — straight after 27 | Y | Yeah. There is. |
+| 29 | 8 — sitting, the sun gone, light still on the far peaks | Y | The light stays on the peaks after the sun goes. I never noticed that. |
+| 30 | 8 — final | Y | I'm still here. |
 
-Lines never block input. Each fades in over ~0.6 s, holds ~2.5 s + 60 ms/char, fades out. One line on
-screen at a time; queued lines wait. Optional lines (8, 10) only fire if their condition is met.
+(#14 is retired with the cut lines; ids are stable, not contiguous.) Lines never block input. One
+on screen at a time from a queue: fade in (W 1.4 s, Y 0.8 s, O 0.9 s), hold 2.2 s + 55 ms/char
+(min 2.6 s), fade out, then 1.2 s of quiet (0.3 s before a direct answer). A note stays up while you
+stand at its cairn. Each line has a soft bell under it (W low and dull, Y warm, O a small chime).
+The Weight shrinks and fades a little over the climb but never disappears.
 
 ### Credits
 Short, plain: title, "made with Three.js and Web Audio, everything generated in code", then:
@@ -91,8 +94,10 @@ confidential support in many countries."* Small, unobtrusive, not a pop-up.
 
 ### Care rules
 No death imagery, no self-harm, no "the Weight wins" ending. Falling off the mountain is a soft
-fade-and-return at the last cairn, never a death animation. The Weight's worst line (13) is always
-immediately answered (14).
+fade-and-return at the last cairn, never a death animation. The Weight's worst line (11) is always
+immediately answered (12). No line points at heights or falling as an escape (the draft's "look how
+far there is to fall" was cut for that reason). The Weight never gets the last word: every W line in
+the last two sections is answered.
 
 ## 2. Movement
 

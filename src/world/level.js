@@ -11,7 +11,8 @@
 //                 override it for local ranges [s0, s1, profile]
 //   surface       bed surface; `paint` overrides [s0, s1, surface, dMin?, dMax?] (d = signed lateral
 //                 offset, + = right of travel)
-//   cairns        checkpoints [localS, d]
+//   cairns        [localS, d] checkpoints; [localS, d, 'note'] = a story cairn that is not a checkpoint
+//   climb         { from, to, line: [[localS, d]…], w }: a rock line up a snow face (DECISIONS #48)
 //   beats         story trigger volumes (placeholder text; Phase 5 finishes): { at, id, text, voice }
 //   oob           out-of-bounds rule: fall below routeH - below, above routeH + above, |d| > side
 //   bot           hints for the automated playthrough: slide ranges, jumps, lateral line, kicks
@@ -43,7 +44,6 @@ export const SECTIONS = [
     profile: { type: 'trail', w: 8, shoulder: 22 },
     surface: PACKED,
     paint: [[128, 134, ROCK, 4.5, 99]], // rock grips to 55°: the walkers' way up the bank
-    cairns: [[77, -5]],
     props: [{ type: 'boulder', at: 122, d: 9, r: 2.6 }],
     beats: [
       { at: 16, id: 4, voice: 'Y', text: 'One thing. Then the next thing.', note: 'Phase 5: on first jump' },
@@ -58,8 +58,7 @@ export const SECTIONS = [
     profile: { type: 'basin', w: 26, shoulder: 26 },
     surface: POWDER,
     // A packed trail meanders up the basin (brighter; the fast line). trail(s) gives its offset.
-    trail: { amp: 7, wave: 60, w: 1.6 },
-    cairns: [[6, -6]],
+    trail: { amp: 9, wave: 60, w: 1.2 },
     beats: [
       { at: 8, id: 6, voice: 'W', text: 'everything takes more than it should.' },
       { at: 30, id: 7, voice: 'Y', text: 'There\'s a way through. I just have to find it again. Every time.', note: 'Phase 5: first time on packed trail' },
@@ -72,13 +71,13 @@ export const SECTIONS = [
     name: 'Ice Chutes', len: 260, turn: -6,
     // Chute 1 (safe: high walls, run-out rises), a packed rise, chute 2, kicker, 7 m crevasse,
     // downslope landing, and a rise the speed carries you up.
-    knots: [[0, 34], [12, 34], [90, 15], [104, 15], [122, 21], [132, 21], [188, 5], [194, 4.5, 1], [199.5, 5.8, 1], [206.5, 3, 1], [232, -4], [260, 8]],
-    gaps: [[199.5, 7, 14]],
+    knots: [[0, 34], [12, 34], [90, 15], [104, 15], [122, 21], [132, 21], [188, 5], [194, 4.5, 1], [199.5, 5.8, 1], [208, 3, 1], [232, -4], [260, 8]],
+    gaps: [[199.5, 8.5, 14]],
     profile: { type: 'pipe', w: 3, r: 7, depth: 6, shoulder: 16 },
     profiles: [[0, 12, { type: 'trail', w: 8, shoulder: 18 }], [186, 260, { type: 'trail', w: 11, shoulder: 18 }]],
     surface: ICE,
-    paint: [[0, 12, PACKED], [92, 132, PACKED], [186, 199.5, PACKED], [206, 260, PACKED]],
-    cairns: [[6, -6], [126, -2]],
+    paint: [[0, 12, PACKED], [92, 132, PACKED], [186, 199.5, PACKED], [207.5, 260, PACKED]],
+    cairns: [[6, -6]],
     beats: [
       { at: 40, id: 9, voice: 'Y', text: 'Oh — I forgot what that felt like.', note: 'Phase 5: first time above sprint speed' },
       { at: 212, id: 10, voice: 'W', text: 'don\'t get used to it.', note: 'Phase 5: only after a failed launch' },
@@ -89,14 +88,16 @@ export const SECTIONS = [
   },
   {
     name: 'Cornice Ridge', len: 140, turn: 80,
-    knots: [[0, 8], [12, 10], [120, 44], [130, 46, 1], [140, 46, 1]],
-    profile: { type: 'ridge', w: 3, drop: 48, shoulder: 40 },
+    // Steps of climbing crest with near-flat ice patches between them: rock before each patch is
+    // shelter (gusts × 0.35); ice has no grip, so cross it between gusts on momentum, or jump it.
+    knots: [[0, 8], [12, 10], [34, 20, 1], [46, 20, 1], [70, 30, 1], [82, 30, 1], [104, 40, 1], [116, 40, 1], [128, 46, 1], [140, 46, 1]],
+    profile: { type: 'ridge', w: 2.4, drop: 48, shoulder: 40 },
     profiles: [[0, 12, { type: 'trail', w: 9, shoulder: 18 }]],
     surface: PACKED,
-    paint: [[40, 50, ROCK], [80, 90, ROCK], [112, 120, ROCK]],
+    paint: [[26, 34, ROCK], [36, 45, ICE], [60, 70, ROCK], [72, 81, ICE], [94, 104, ROCK], [106, 115, ICE], [118, 124, ROCK]],
     cairns: [[8, -4]],
-    // Gusts push toward +d (right of travel). Rock halves them. Telegraphed 0.8 s ahead.
-    wind: { from: 22, to: 132, gust: 7, period: 5.5, dur: 1.3, warn: 0.8, rockScale: 0.35 },
+    // Gusts push toward +d (right of travel). Rock shelters (× 0.35). Telegraphed 0.8 s ahead.
+    wind: { from: 22, to: 132, gust: 8.5, period: 4.6, dur: 1.3, warn: 0.8, rockScale: 0.35 },
     beats: [
       { at: 14, id: 12, voice: 'W', text: 'look how far there is to fall.' },
       { at: 40, id: 13, voice: 'W', text: 'you\'re too much. you\'ve always been too much.', note: 'Phase 5: on first strong gust' },
@@ -104,6 +105,7 @@ export const SECTIONS = [
       { at: 126, id: 15, voice: 'Y', text: 'The light\'s changing.' },
     ],
     oob: { below: 5, side: 30 },
+    bot: { gustWait: true },
   },
   {
     name: 'The Collapse', len: 110, turn: 36,
@@ -115,7 +117,7 @@ export const SECTIONS = [
     profiles: [[80, 110, { type: 'trail', w: 5, shoulder: 16 }]],
     surface: PACKED,
     paint: [[0, 80, ICE, -99, -3.5], [0, 80, ICE, 3.5, 99]],
-    cairns: [[22, -3], [62, -3]],
+    cairns: [[22, -3]],
     bridge: { from: -2, to: 24, w: 3.2, top: 46, collapseAt: 8 },
     // Chimneys (the Phase 2-verified layout): a back panel 3.5 m before the step face, entered
     // through a doorway at one side; kick between panel and face, top out on the step.
@@ -140,7 +142,7 @@ export const SECTIONS = [
     profile: { type: 'plateau', w: 20, bank: 8, shoulder: 30 },
     surface: POWDER,
     trail: { amp: 3, wave: 70, w: 1.4 },
-    cairns: [[26, -4], [58, -4], [92, -4]], // A, B, C — "keep the stones on your left"
+    cairns: [[26, -4, 'note'], [58, -4, 'note'], [92, -4, 'note']], // A, B, C — "keep the stones on your left"
     wind: { from: 6, to: 106, head: 2.2 },
     whiteout: [8, 102],
     beats: [
@@ -155,31 +157,33 @@ export const SECTIONS = [
     bot: { line: 'trail' },
   },
   {
-    name: 'Summit Push', len: 140, turn: 45,
-    // Storm clears. Slide into a dip and ride its speed up a 45° bank, climb rock steps, one
-    // wall-kick slot, then the last snow slope.
-    knots: [[0, 62], [12, 62], [28, 55], [34, 55, 1], [38, 59.2, 1], [46, 59.2], [76, 83], [82, 83], [90, 83, 1], [90.3, 87.4, 1], [125, 100], [140, 101]],
+    name: 'Summit Push', len: 150, turn: 45,
+    // Storm clears. Slide into a dip and ride its speed up a 45° bank, then the couloir: a 46° snow
+    // face between ice walls, too steep to stand on, climbed by a zig-zag rock line (step off it
+    // and you slide back to the bottom). One wall-kick chimney, then the last snow slope.
+    knots: [[0, 62], [12, 62], [28, 55], [34, 55, 1], [38, 59.2, 1], [48, 59.2], [88, 100], [98, 100], [104, 100, 1], [104.3, 104.4, 1], [135, 116], [150, 117]],
     profile: { type: 'trail', w: 6, shoulder: 18 },
-    profiles: [[78, 94, { type: 'cave', w: 4.5, wall: 9, shoulder: 16 }]],
+    profiles: [[44, 110, { type: 'cave', w: 6, wall: 10, shoulder: 16 }]],
     surface: PACKED,
-    paint: [[42, 90.3, ROCK], [32, 42, ROCK, 3, 99]], // incl. a rock edge up the bank for walkers
-    cairns: [[6, -4], [78, -3]],
-    slots: [{ at: 90, gap: 3.5, wall: 7, door: 1, surface: ROCK }],
+    climb: { from: 44, to: 92, w: 1.7, line: [[44, 0], [54, 3.5], [62, -3], [70, 3], [78, -3.5], [86, 2], [92, 0]] },
+    paint: [[92, 110, ROCK], [32, 42, ROCK, 3, 99]], // incl. a rock edge up the bank for walkers
+    cairns: [[6, -4]],
+    slots: [{ at: 104, gap: 3.5, wall: 9, door: 1, surface: ROCK }],
     beats: [
       { at: 4, id: 26, voice: 'W', text: 'it\'ll be dark soon.' },
       { at: 8, id: 27, voice: 'Y', text: 'I know.' },
-      { at: 66, id: 28, voice: 'W', text: 'you\'re so tired.' },
+      { at: 64, id: 28, voice: 'W', text: 'you\'re so tired.' },
       { at: 72, id: 29, voice: 'Y', text: 'I\'m tired. I\'m still going.' },
     ],
     oob: { below: 12, side: 40 },
-    bot: { slide: [[12, 42]], kick: [90], edge: [26, 42, 4.5] },
+    bot: { slide: [[12, 42]], kick: [104], edge: [26, 42, 4.5] },
   },
   {
     name: 'Summit', len: 26, turn: 0,
-    knots: [[0, 101], [26, 102]],
+    knots: [[0, 117], [26, 118]],
     profile: { type: 'summit', w: 11, drop: 60, shoulder: 40 },
     surface: PACKED,
-    cairns: [[14, -3]],
+    cairns: [[14, -3, 'note']],
     beats: [
       { at: 8, id: 30, voice: 'Y', text: 'I thought there\'d be something up here.' },
       { at: 16, id: 31, voice: 'W', text: 'there\'s always another one.', note: 'Phase 5: camera reveals ranges' },

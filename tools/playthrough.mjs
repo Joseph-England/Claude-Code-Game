@@ -11,6 +11,7 @@ import { Controller } from '../src/player/controller.js';
 import { tuning } from '../src/tuning.js';
 import { FIXED_DT } from '../src/core/loop.js';
 import * as THREE from 'three';
+import { SURFACE } from '../src/world/surfaces.js';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? true]));
 const DT = FIXED_DT;
@@ -45,6 +46,14 @@ class Bot {
     const tgt = route.at(sT);
     let off = 0;
     if (bot.line === 'trail') off = route.trailOffset(sT) ?? 0;
+    // Rock line up a snow face: short look-ahead so the zig-zag isn't cut across the snow.
+    const climb = sec.climb && ls > sec.climb.from - 4 && ls < sec.climb.to;
+    if (climb) {
+      const sC = level.s + 2.2;
+      const q = route.at(sC), o = route.climbOffset(sC);
+      const cx = q.x + q.rx * o - p.pos.x, cz = q.z + q.rz * o - p.pos.z;
+      var climbYaw = Math.atan2(-cx, -cz);
+    }
     const tx = tgt.x + tgt.rx * off - p.pos.x, tz = tgt.z + tgt.rz * off - p.pos.z;
     let camYaw = Math.atan2(-tx, -tz);
     // Too slow for a momentum bank: take the rock edge instead.
@@ -52,7 +61,10 @@ class Bot {
       const e = route.at(Math.min(level.s + 4, sec.s0 + bot.edge[1] + 2));
       camYaw = Math.atan2(-(e.x + e.rx * bot.edge[2] - p.pos.x), -(e.z + e.rz * bot.edge[2] - p.pos.z));
     }
+    if (climb) camYaw = climbYaw;
     const c = { moveX: 0, moveY: 1, jumpPressed: false, jumpHeld: false, slideHeld: false, sprintHeld: true };
+    // Ridge: wait out gusts on rock (the shelter), as a player would after the first one.
+    if (bot.gustWait && p.grounded && p.groundSurface === SURFACE.ROCK && (level.wind.warn || level.wind.gust > 0.05)) c.moveY = 0;
     // Slide where the hint says so, but only while it is worth it (moving, or the bed drops ahead).
     const falling = route.heightAt(level.s + 6) < route.heightAt(level.s) - 0.4;
     for (const [a, b] of bot.slide ?? []) if (ls >= a && ls < b && (speed > 4 || falling)) c.slideHeld = true;
@@ -137,11 +149,11 @@ class Bot {
 function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
   const { level, player } = makeRun();
   const bot = new Bot(level, player);
-  const startCairn = props.cairns.findIndex((c) => c.section === from);
-  level.checkpoint = startCairn;
-  level.progress = props.cairns[startCairn].s;
-  const sp = level.spawnPoint(startCairn);
-  player.teleport(sp.pos, sp.yaw);
+  const startS = from ? route.sections[from].s0 + 2 : props.cairns[0].s;
+  level.checkpoint = Math.max(0, props.cairns.findLastIndex((c) => c.checkpoint && c.s <= startS + 20));
+  level.progress = startS;
+  if (from) { const p = route.at(startS); player.teleport([p.x, mountain.heightfield.heightAt(p.x, p.z), p.z], p.yaw); }
+  else { const sp = level.spawnPoint(0); player.teleport(sp.pos, sp.yaw); }
   const secs = route.sections.map(() => ({ enter: null, respawns: 0, reasons: [], maxSpeed: 0 }));
   let lastProgress = level.progress, stallT = 0, t = 0, summit = null;
   const beats = [];
@@ -187,7 +199,8 @@ function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
 const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 const from = Number(args.from ?? 0);
 const run = playthrough({ from, verbose: !!args.verbose });
-console.log(`\nterrain generated in ${(genMs / 1000).toFixed(1)} s; route ${route.length.toFixed(0)} m; ${props.cairns.length} cairns\n`);
+const checkpoints = props.cairns.filter((c) => c.checkpoint);
+console.log(`\nterrain generated in ${(genMs / 1000).toFixed(1)} s; route ${route.length.toFixed(0)} m; ${props.cairns.length} cairns (${checkpoints.length} checkpoints)\n`);
 console.log('| # | Section | Bot time | Respawns | Max speed |');
 console.log('|---|---|---|---|---|');
 run.secs.forEach((s, k) => {
@@ -201,11 +214,13 @@ if (!run.ok) failures.push(`playthrough failed: ${run.why}`);
 else {
   // First-time estimate: a new player is slower than the bot's lines (×1.35), hesitates at each
   // new mechanic (~6 s in sections 1–7) and retries each hard section about once (cairn → failure point).
-  const hard = [3, 4, 5, 7];
+  // Checkpoints are sparse (DECISIONS #48), so a retry replays most of its section: chutes and
+  // cave about half a retry, the ridge most of one, the couloir (slide-backs) more than one.
+  const retry = { 3: 0.6, 4: 0.8, 5: 0.5, 7: 1.2 };
   let est = run.t * 1.35 + 7 * 6;
-  for (const k of hard) est += Math.min(20, (run.secs[k].dur ?? 0) * 0.35);
+  for (const k in retry) est += (run.secs[k].dur ?? 0) * retry[k];
   console.log(`\nBot reached the summit in ${fmtT(run.t)} (${run.t.toFixed(1)} s).`);
-  console.log(`Estimated first-time playthrough: ${fmtT(est)} (target ≈ 5:00).`);
+  console.log(`Estimated first-time playthrough: ${fmtT(est)} (target ≈ 5–6 min).`);
   const allBeats = mountain.route.sections.flatMap((s) => (s.beats ?? []).map((b) => b.id));
   const missed = allBeats.filter((id) => !run.beats.includes(id));
   console.log(`Story trigger volumes entered: ${run.beats.length}/${allBeats.length}${missed.length ? ` (missed ${missed.join(', ')})` : ''}`);
@@ -217,6 +232,7 @@ else {
 if (!args.quick) {
   let bad = 0;
   props.cairns.forEach((c, i) => {
+    if (!c.checkpoint) return;
     const { level, player } = makeRun();
     level.progress = c.s; level.checkpoint = i;
     const sp = level.spawnPoint(i);
@@ -231,7 +247,7 @@ if (!args.quick) {
     const drift = Math.hypot(player.pos.x - sp.pos[0], player.pos.z - sp.pos[2]);
     if (oob || !player.grounded || drift > 1) { bad++; failures.push(`respawn at cairn ${i} (${c.name}) unstable: oob=${oob} grounded=${player.grounded} drift=${drift.toFixed(2)}`); }
   });
-  console.log(`\nCairn respawns checked: ${props.cairns.length - bad}/${props.cairns.length} stable.`);
+  console.log(`\nCairn respawns checked: ${checkpoints.length - bad}/${checkpoints.length} stable.`);
 }
 
 // Momentum gates: from a standstill, the recovery a player would find must work.
@@ -283,7 +299,7 @@ if (!args.quick) {
       if (colliders.collideCapsule(seg, 0.35, [])) continue; // inside a prop: not a reachable spot
       const { level, player } = makeRun();
       level.progress = s; level.s = s;
-      level.checkpoint = Math.max(0, props.cairns.findLastIndex((c) => c.s <= s));
+      level.checkpoint = Math.max(0, props.cairns.findLastIndex((c) => c.checkpoint && c.s <= s));
       player.teleport([x, mountain.heightfield.heightAt(x, z) + 0.05, z], p.yaw);
       const bot = new Bot(level, player);
       let ok = false, oob = false;

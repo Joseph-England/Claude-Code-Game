@@ -73,13 +73,20 @@ function spawnAt(index, announce = true) {
   cam.reset(player.pos, sp.yaw);
   if (announce) showToast(props.cairns[index].name);
 }
-// Dev teleport: ?spawn=N or keys 1–9 go to the first cairn of section N-1 (0 = trailhead).
+// Dev teleport: ?spawn=N or keys 1–9 go to the start of section N-1 (its checkpoint if it has one).
 function spawnSection(k) {
-  const i = props.cairns.findIndex((c) => c.section === k);
-  if (i < 0) return;
+  const sec = mountain.route.sections[k];
+  if (!sec) return;
+  const i = props.cairns.findIndex((c) => c.section === k && c.checkpoint);
   // Sections before the target count as done so gating (wall-kick) matches a real run.
-  level.progress = Math.max(level.progress, props.cairns[i].s);
-  spawnAt(i);
+  const s = i >= 0 ? props.cairns[i].s : sec.s0 + 2;
+  level.progress = Math.max(level.progress, s);
+  if (i >= 0) { spawnAt(i); return; }
+  level.checkpoint = Math.max(0, props.cairns.findLastIndex((c) => c.checkpoint && c.s <= s));
+  const p = mountain.route.at(s);
+  player.teleport([p.x, mountain.heightfield.heightAt(p.x, p.z), p.z], p.yaw);
+  cam.reset(player.pos, p.yaw);
+  showToast(sec.name);
 }
 const spawnParam = Number(new URLSearchParams(location.search).get('spawn'));
 if (spawnParam > 0) spawnSection(spawnParam); else spawnAt(0, false);

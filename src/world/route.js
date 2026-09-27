@@ -147,6 +147,18 @@ export class Route {
     return amp * Math.sin((2 * Math.PI * ls) / wave) * Math.min(1, ls / 20) * Math.min(1, (sec.len - ls) / 20);
   }
 
+  /** Lateral offset of a section's rock climbing line at arc length s, or null. */
+  climbOffset(s) {
+    const sec = this.section(s);
+    const c = sec.climb;
+    if (!c) return null;
+    const ls = Math.min(c.to, Math.max(c.from, s - sec.s0)), L = c.line;
+    for (let i = 1; i < L.length; i++) {
+      if (ls <= L[i][0]) return L[i - 1][1] + ((L[i][1] - L[i - 1][1]) * (ls - L[i - 1][0])) / (L[i][0] - L[i - 1][0]);
+    }
+    return L[L.length - 1][1];
+  }
+
   /** Bed surface at arc length s and signed lateral offset d. */
   surfaceAt(s, d) {
     const sec = this.section(s), ls = s - sec.s0;
@@ -154,6 +166,9 @@ export class Route {
     if (sec.trail) {
       const off = this.trailOffset(s);
       if (Math.abs(d - off) < sec.trail.w) surf = SURFACE.PACKED;
+    }
+    if (sec.climb && ls >= sec.climb.from && ls < sec.climb.to) {
+      surf = Math.abs(d - this.climbOffset(s)) < sec.climb.w ? SURFACE.ROCK : sec.surface;
     }
     for (const [a, b, sf, dMin = -Infinity, dMax = Infinity] of sec.paint ?? []) {
       if (ls >= a && ls < b && d >= dMin && d <= dMax) surf = sf;

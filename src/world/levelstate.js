@@ -74,6 +74,7 @@ export class LevelState {
     // Checkpoints: touching (within 4.5 m of) a cairn further along than the current one.
     for (let i = this.checkpoint + 1; i < this.cairns.length; i++) {
       const c = this.cairns[i];
+      if (!c.checkpoint) continue;
       if ((c.x - ctl.pos.x) ** 2 + (c.z - ctl.pos.z) ** 2 < 4.5 ** 2 && Math.abs(c.y - ctl.pos.y) < 4) {
         this.checkpoint = i;
         this.events.push({ type: 'checkpoint', index: i, cairn: c });

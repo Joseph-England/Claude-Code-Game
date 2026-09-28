@@ -2,7 +2,7 @@
 // colliders, a cairn marker, a sun with soft shadows that follow the player.
 import * as THREE from 'three';
 
-// Linear-space tints per surface id (packed, powder, ice, rock).
+// Linear-space tints per surface id (snow, powder, ice, rock).
 const SURFACE_TINTS = [
   [0.78, 0.8, 0.84], [0.97, 0.97, 1.0], [0.45, 0.68, 0.92], [0.42, 0.38, 0.36],
 ];

@@ -68,8 +68,8 @@ function runSurface(x, z) {
 
 // --- East slope lanes: rise eastward from x = 50 to a 16 m plateau.
 const LANES = [
-  { z: -30, a: 10, s: SURFACE.PACKED }, { z: -10, a: 20, s: SURFACE.PACKED },
-  { z: 10, a: 30, s: SURFACE.PACKED }, { z: 30, a: 40, s: SURFACE.PACKED },
+  { z: -30, a: 10, s: SURFACE.SNOW }, { z: -10, a: 20, s: SURFACE.SNOW },
+  { z: 10, a: 30, s: SURFACE.SNOW }, { z: 30, a: 40, s: SURFACE.SNOW },
   { z: 50, a: 30, s: SURFACE.ICE }, { z: 70, a: 45, s: SURFACE.ROCK }, { z: 90, a: 58, s: SURFACE.ROCK },
 ];
 export const LANE_X0 = 50;
@@ -85,14 +85,14 @@ function laneHeight(x, z) {
 }
 function laneSurface(x, z) {
   if (x <= LANE_X0 - 1) return -1;
-  for (const l of LANES) if (Math.abs(z - l.z) <= LANE_HALF + 0.5 && l.s !== SURFACE.PACKED) return l.s;
+  for (const l of LANES) if (Math.abs(z - l.z) <= LANE_HALF + 0.5 && l.s !== SURFACE.SNOW) return l.s;
   return -1;
 }
 
 // --- West surface pads: ramp up (24°) to an 8 m deck, 15° launch slope, then 106 m flat strips.
 const PAD_Z0 = -30, PAD_Z1 = 50, PAD_FLAT_X = -72;
 export const PAD_STRIPS = [
-  { z0: -30, z1: -10, s: SURFACE.POWDER }, { z0: -10, z1: 10, s: SURFACE.PACKED },
+  { z0: -30, z1: -10, s: SURFACE.POWDER }, { z0: -10, z1: 10, s: SURFACE.SNOW },
   { z0: 10, z1: 30, s: SURFACE.ICE }, { z0: 30, z1: 50, s: SURFACE.ROCK },
 ];
 function padHeight(x, z) {
@@ -138,7 +138,7 @@ export function courseSurface(x, z) {
     const s = f(x, z);
     if (s >= 0) return s;
   }
-  return SURFACE.PACKED;
+  return SURFACE.SNOW;
 }
 
 // Box colliders: center, size, surface (all axis-aligned, sitting on flat ground).
@@ -148,8 +148,8 @@ export const COURSE_BOXES = [
   box(-120, 100, 1, 12, 16, SURFACE.ICE),
   box(-112, 100, 8, 8, 16, SURFACE.ROCK),
   // Box steps 0.9 m apart in height.
-  box(-90, 130, 4, 0.9, 4, SURFACE.PACKED), box(-86, 130, 4, 1.8, 4, SURFACE.PACKED),
-  box(-82, 130, 4, 2.7, 4, SURFACE.PACKED), box(-78, 130, 4, 3.6, 4, SURFACE.PACKED),
+  box(-90, 130, 4, 0.9, 4, SURFACE.SNOW), box(-86, 130, 4, 1.8, 4, SURFACE.SNOW),
+  box(-82, 130, 4, 2.7, 4, SURFACE.SNOW), box(-78, 130, 4, 3.6, 4, SURFACE.SNOW),
   // Long rock wall for glancing kicks while running along it.
   box(-140, 150, 24, 10, 1, SURFACE.ROCK),
   // Tunnel (camera collision test).

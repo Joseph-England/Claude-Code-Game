@@ -266,7 +266,7 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
       const hl = heights[j * n + Math.max(i - 1, 0)], hr = heights[j * n + Math.min(i + 1, n - 1)];
       const hd = heights[Math.max(j - 1, 0) * n + i], hu = heights[Math.min(j + 1, n - 1) * n + i];
       const grad = Math.hypot(hr - hl, hu - hd) / (2 * cell);
-      let surf = grad > slopeRock ? SURFACE.ROCK : grad > slopeCrust ? SURFACE.PACKED : SURFACE.POWDER;
+      let surf = grad > slopeRock ? SURFACE.ROCK : grad > slopeCrust ? SURFACE.SNOW : SURFACE.POWDER;
       const s = routeS[idx];
       if (s >= 0) {
         const p = route.profileAt(s), d = Math.abs(routeD[idx]);

@@ -15,7 +15,7 @@
 //   climb         { from, to, line: [[localS, d]…], w }: a rock line up a snow face (DECISIONS #48)
 //   beats         inner-voice lines (final, DESIGN §1): { at, id, voice, text, when?, until?, after?, cairn? }
 //                 fire on entering [at, at + 20] unless `when` names a condition, which is then
-//                 armed from `at` to `until` (default: section end): input, jump, trail, slow, fast,
+//                 armed from `at` to `until` (default: section end): input, jump, slow, fast,
 //                 retry, gust, cairn (reading note `cairn` of the section), stone, ending (scripted).
 //                 `after: id` queues the line straight after that one; `fallback` fires a conditional
 //                 line at the end of its stretch if its condition never came.
@@ -24,7 +24,7 @@
 //   bot           hints for the automated playthrough: slide ranges, jumps, lateral line, rock edges
 import { SURFACE } from './surfaces.js';
 
-const { PACKED, POWDER, ICE, ROCK } = SURFACE;
+const { SNOW, POWDER, ICE, ROCK } = SURFACE;
 
 export const START = { x: -265, z: 235, yaw: 0 }; // yaw 0 = heading -z (north)
 
@@ -33,7 +33,7 @@ export const SECTIONS = [
     name: 'Opening', len: 40, turn: 0,
     knots: [[0, 0], [40, 0]],
     profile: { type: 'trail', w: 7, shoulder: 18 },
-    surface: PACKED,
+    surface: SNOW,
     cairns: [[10, -4]],
     beats: [
       { at: 0, id: 1, voice: 'W', text: 'stay down. it\'s easier.' },
@@ -48,7 +48,7 @@ export const SECTIONS = [
     // bank too steep to walk (40°) that you crest with the slide's speed → climb.
     knots: [[0, 0], [20, 2.5], [40, 0.8], [60, 6], [75, 11], [118, 1.5], [130, 1.5, 1], [132.4, 3.1, 1], [160, 12]],
     profile: { type: 'trail', w: 8, shoulder: 22 },
-    surface: PACKED,
+    surface: SNOW,
     paint: [[128, 134, ROCK, 4.5, 99]], // rock grips to 55°: the walkers' way up the bank
     props: [{ type: 'boulder', at: 122, d: 9, r: 2.6 }],
     beats: [
@@ -62,15 +62,13 @@ export const SECTIONS = [
     knots: [[0, 12], [120, 34]],
     profile: { type: 'basin', w: 26, shoulder: 26 },
     surface: POWDER,
-    // A packed trail meanders up the basin (brighter; the fast line). trail(s) gives its offset.
-    trail: { amp: 9, wave: 60, w: 1.2 },
+    // Deep snow the whole way across (no packed trail any more, DECISIONS #80): slower going.
     beats: [
       { at: 2, id: 5, voice: 'W', text: 'everything takes more than it should.' },
-      { at: 22, id: 6, voice: 'Y', text: 'There\'s a way through. I just have to find it again.', when: 'trail', until: 90, fallback: true },
+      { at: 40, id: 6, voice: 'Y', text: 'There\'s a way through. I just have to find it again.' },
       { at: 60, id: 7, voice: 'W', text: 'everyone else finds this easy.', when: 'slow', until: 115 },
     ],
     oob: { below: 12, side: 70 },
-    bot: { line: 'trail' },
   },
   {
     name: 'Ice Chutes', len: 260, turn: -6,
@@ -81,7 +79,7 @@ export const SECTIONS = [
     profile: { type: 'pipe', w: 3, r: 7, depth: 6, shoulder: 16 },
     profiles: [[0, 12, { type: 'trail', w: 8, shoulder: 18 }], [186, 260, { type: 'trail', w: 11, shoulder: 18 }]],
     surface: ICE,
-    paint: [[0, 12, PACKED], [92, 132, PACKED], [186, 199.5, PACKED], [207.5, 260, PACKED]],
+    paint: [[0, 12, SNOW], [92, 132, SNOW], [186, 199.5, SNOW], [207.5, 260, SNOW]],
     cairns: [[6, -6]],
     beats: [
       { at: 12, id: 8, voice: 'Y', text: 'Oh. I forgot what that felt like.', when: 'fast', until: 200 },
@@ -93,13 +91,14 @@ export const SECTIONS = [
   },
   {
     name: 'Cornice Ridge', len: 140, turn: 80,
-    // Steps of climbing crest with near-flat ice patches between them: rock before each patch is
-    // shelter (gusts × 0.35); ice has no grip, so cross it between gusts on momentum, or jump it.
+    // Steps of climbing crest along a narrow snow catwalk, with rock outcrops before each step as
+    // shelter (gusts × 0.35). No ice any more (user playtest, DECISIONS #81): the skill is timing —
+    // stand still (or on rock) while a gust blows, walk on between them.
     knots: [[0, 8], [12, 10], [34, 20, 1], [46, 20, 1], [70, 30, 1], [82, 30, 1], [104, 40, 1], [116, 40, 1], [128, 46, 1], [140, 46, 1]],
     profile: { type: 'ridge', w: 2.4, drop: 48, shoulder: 40 },
     profiles: [[0, 12, { type: 'trail', w: 9, shoulder: 18 }]],
-    surface: PACKED,
-    paint: [[26, 34, ROCK], [36, 45, ICE], [60, 70, ROCK], [72, 81, ICE], [94, 104, ROCK], [106, 115, ICE], [118, 124, ROCK]],
+    surface: SNOW,
+    paint: [[26, 34, ROCK], [60, 70, ROCK], [94, 104, ROCK], [118, 124, ROCK]],
     cairns: [[8, -4]],
     // Gusts push toward +d (right of travel). Rock shelters (× 0.35). Telegraphed 0.8 s ahead.
     wind: { from: 22, to: 132, gust: 8.5, period: 4.6, dur: 1.3, warn: 0.8, rockScale: 0.35 },
@@ -120,7 +119,7 @@ export const SECTIONS = [
     knots: [[0, 46], [10, 46], [52, 24], [66, 22], [78, 23], [130, 49]],
     profile: { type: 'trail', w: 5, shoulder: 20 },
     profiles: [[52, 82, { type: 'basin', w: 12, shoulder: 22 }]],
-    surface: PACKED,
+    surface: SNOW,
     paint: [[56, 78, POWDER, -99, -5], [56, 78, POWDER, 5, 99]],
     cairns: [[70, -5]],
     beats: [
@@ -139,7 +138,6 @@ export const SECTIONS = [
     profile: { type: 'col', w: 14 },
     horns: { height: 62, from: -30, to: 200 }, // terrain-gen raises the flanks into horns
     surface: POWDER,
-    trail: { amp: 3, wave: 70, w: 1.4 },
     cairns: [[36, -4, 'note'], [86, -4, 'note'], [138, -4, 'note']], // A, B, C (spread out: user playtest) — "keep the stones on your left"
     storm: true,
     beats: [
@@ -150,7 +148,6 @@ export const SECTIONS = [
       { at: 0, id: 21, voice: 'Y', text: 'I\'ll leave one too. For whoever\'s next.', when: 'stone' },
     ],
     oob: { below: 10, side: 34 },
-    bot: { line: 'trail' },
   },
   {
     name: 'Summit Push', len: 150, turn: 45,
@@ -161,7 +158,7 @@ export const SECTIONS = [
     knots: [[0, 62], [18, 64], [55, 78], [95, 97], [125, 110], [143, 116], [150, 117]],
     profile: { type: 'trail', w: 8, shoulder: 20 },
     profiles: [[52, 150, { type: 'ridge', w: 4, drop: 34, shoulder: 34 }]],
-    surface: PACKED,
+    surface: SNOW,
     paint: [[60, 148, ROCK, 4.2, 99], [60, 148, ROCK, -99, -4.2]], // rock breaks through at the ridge's edges
     cairns: [[6, -4]],
     beats: [
@@ -176,7 +173,7 @@ export const SECTIONS = [
     name: 'Summit', len: 26, turn: 0,
     knots: [[0, 117], [26, 118]],
     profile: { type: 'summit', w: 11, drop: 60, shoulder: 40 },
-    surface: PACKED,
+    surface: SNOW,
     cairns: [[14, -3, 'note']],
     beats: [
       { at: 0, id: 26, voice: 'Y', text: 'I thought there\'d be something up here.', when: 'ending' },

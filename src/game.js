@@ -96,18 +96,18 @@ const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
 const cam = new ThirdPersonCamera(camera, world, tuning);
 const avatar = new Avatar(scene, tuning);
-// Each heel strike: a footprint, a step sound (panned to that foot; soft for shuffling turns) and,
-// in powder, a little kick of snow off the boot.
+// Each heel strike: a footprint, a step sound (panned to that foot; soft for shuffling turns) and
+// a little kick of snow off the boot (more in deep powder).
 avatar.onFoot = (x, z, ctl, side, shuffle) => {
   const snow = onSnow();
   if (snow) trails.foot(x, z);
   audio.footstep(player.groundSurface, shuffle ? 1.5 : player.speed, side);
-  if (snow && player.groundSurface === SURFACE.POWDER && !shuffle) {
+  if (snow && !shuffle) {
     const y = mountain.heightfield.heightAt(x, z) - 0.1, v = player.vel;
-    for (let i = 0; i < 5; i++) particles.emit(x + rnd(0.12), y, z + rnd(0.12), v.x * 0.25 + rnd(0.5), 0.8 + Math.random() * 1.1, v.z * 0.25 + rnd(0.5), 0.35 + Math.random() * 0.3, 0.03, 0.8, 0.7, 0);
+    for (let i = 0, kick = player.groundSurface === SURFACE.POWDER ? 5 : 2; i < kick; i++) particles.emit(x + rnd(0.12), y, z + rnd(0.12), v.x * 0.25 + rnd(0.5), 0.8 + Math.random() * 1.1, v.z * 0.25 + rnd(0.5), 0.35 + Math.random() * 0.3, 0.03, 0.8, 0.7, 0);
   }
 };
-const onSnow = () => player.grounded && (player.groundSurface === SURFACE.POWDER || player.groundSurface === SURFACE.PACKED) && player.heightAboveGround < 0.1;
+const onSnow = () => player.grounded && (player.groundSurface === SURFACE.POWDER || player.groundSurface === SURFACE.SNOW) && player.heightAboveGround < 0.1;
 // Every other standard material (props, backdrop, avatar) gets the world lighting.
 scene.traverse((o) => {
   if (!o.isMesh || !o.material?.isMeshStandardMaterial) return;
@@ -469,7 +469,7 @@ createLoop({
     // Deformable snow: the path (a groove; deeper when sliding) and footprints from the gait.
     const snow = onSnow(), sliding = player.state === 'slide';
     trails.update(renderPos, snow ? (sliding ? { radius: 0.45, depth: 1 } : { radius: 0.24, depth: 0.6 }) : null);
-    const sink = snow && player.groundSurface === SURFACE.POWDER ? (sliding ? 0.3 : 0.18) : snow ? (sliding ? 0.06 : 0.035) : 0;
+    const sink = snow && player.groundSurface === SURFACE.POWDER ? (sliding ? 0.3 : 0.18) : snow ? (sliding ? 0.1 : 0.07) : 0;
     avatarSink += (sink - avatarSink) * Math.min(1, frameDt * 8);
     renderPos.y -= avatarSink;
     const crouch = THREE.MathUtils.lerp(player.prevCrouch, player.crouch, alpha);

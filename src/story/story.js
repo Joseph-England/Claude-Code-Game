@@ -1,8 +1,6 @@
 // Story triggers (pure logic, no DOM; the Node playthrough runs it too). Every inner-voice line in
 // level.js is armed over a stretch of the route and fires once, either on entering its stretch or
 // when its condition is met there (DESIGN §1). Fired lines go to `out`; the narrator shows them.
-import { SURFACE } from '../world/surfaces.js';
-
 export class Story {
   constructor(route, cairns) {
     this.route = route;
@@ -67,7 +65,6 @@ export class Story {
         case undefined: ok = true; break;
         case 'input': ok = this.signals.has('input'); break;
         case 'jump': ok = this.signals.has('jump'); break;
-        case 'trail': ok = ctl.grounded && ctl.groundSurface === SURFACE.PACKED && level.section === l.section; break;
         // Slow through the powder: still in it well after an easy pace would have left.
         case 'slow': ok = level.section === l.section && this.sectionT > 30; break;
         case 'fast': ok = ctl.speed > 10.5; break;

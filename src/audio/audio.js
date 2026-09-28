@@ -142,9 +142,9 @@ export class Audio {
   }
 
   /**
-   * One step. No two alike: a different variation than last time, and on every play a little
-   * change of rate (pitch and length), level, pan (toward the foot) and a random presence dip or
-   * lift, so a walk never sounds like a loop (user playtest: powder was too repetitive).
+   * One step. Never the same variation twice in a row, and a small change of rate and level on
+   * every play, panned a little toward the foot. Quiet: steps sit under the wind and the score
+   * (user playtest, Session 7: about 6 dB down from Session 6).
    */
   footstep(surface, speed, side = 0) {
     if (!this.ctx) return;
@@ -153,17 +153,16 @@ export class Audio {
     if (k === this.lastStep[surface]) k = (k + 1 + Math.floor(Math.random() * (v.length - 1))) % v.length;
     this.lastStep[surface] = k;
     const sprint = clamp((speed - 5) / 4);
-    const gain = (0.38 + 0.018 * Math.min(speed, 9)) * Math.pow(10, (Math.random() - 0.5) * 0.15);
-    this.shaped(v[k], gain, 0.94 + Math.random() * 0.12 + 0.04 * sprint, side * 0.07 + (Math.random() - 0.5) * 0.06);
+    const gain = (0.19 + 0.01 * Math.min(speed, 9)) * Math.pow(10, (Math.random() - 0.5) * 0.1);
+    this.shaped(v[k], gain, 0.96 + Math.random() * 0.08 + 0.03 * sprint, side * 0.07 + (Math.random() - 0.5) * 0.04);
   }
 
-  /** Play a one-shot through a random peaking filter (±3 dB at 0.5–2.5 kHz) and a panner. */
+  /** Play a one-shot through a panner. */
   shaped(buffer, gain, rate, pan) {
-    const ctx = this.ctx, s = ctx.createBufferSource(), eq = ctx.createBiquadFilter(), g = ctx.createGain(), p = ctx.createStereoPanner();
+    const ctx = this.ctx, s = ctx.createBufferSource(), g = ctx.createGain(), p = ctx.createStereoPanner();
     s.buffer = buffer; s.playbackRate.value = rate;
-    eq.type = 'peaking'; eq.frequency.value = 500 * Math.pow(5, Math.random()); eq.Q.value = 1; eq.gain.value = (Math.random() - 0.5) * 6;
     g.gain.value = gain; p.pan.value = pan;
-    s.connect(eq); eq.connect(g); g.connect(p); p.connect(this.sfx);
+    s.connect(g); g.connect(p); p.connect(this.sfx);
     s.start();
   }
 
@@ -171,7 +170,7 @@ export class Audio {
     if (!this.ctx || impact < 1.5) return;
     const k = clamp(impact / 12);
     const v = this.lands[surface] ?? this.lands[0];
-    this.shaped(v[Math.floor(Math.random() * v.length)], 0.3 + 0.5 * k, 0.92 + Math.random() * 0.08 - 0.08 * k, 0);
+    this.shaped(v[Math.floor(Math.random() * v.length)], 0.2 + 0.35 * k, 0.92 + Math.random() * 0.08 - 0.08 * k, 0);
     if (impact > 7) this.breath(1, 0.7);
   }
 

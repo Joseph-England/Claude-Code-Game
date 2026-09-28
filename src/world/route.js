@@ -138,15 +138,6 @@ export class Route {
     return sec.profile;
   }
 
-  /** Lateral offset of a section's packed trail (basin/plateau) at arc length s, or null. */
-  trailOffset(s) {
-    const sec = this.section(s);
-    if (!sec.trail) return null;
-    const ls = s - sec.s0, { amp, wave } = sec.trail;
-    // Fades in from the section start so it joins the centreline.
-    return amp * Math.sin((2 * Math.PI * ls) / wave) * Math.min(1, ls / 20) * Math.min(1, (sec.len - ls) / 20);
-  }
-
   /** Lateral offset of a section's rock climbing line at arc length s, or null. */
   climbOffset(s) {
     const sec = this.section(s);
@@ -163,10 +154,6 @@ export class Route {
   surfaceAt(s, d) {
     const sec = this.section(s), ls = s - sec.s0;
     let surf = sec.surface;
-    if (sec.trail) {
-      const off = this.trailOffset(s);
-      if (Math.abs(d - off) < sec.trail.w) surf = SURFACE.PACKED;
-    }
     if (sec.climb && ls >= sec.climb.from && ls < sec.climb.to) {
       surf = Math.abs(d - this.climbOffset(s)) < sec.climb.w ? SURFACE.ROCK : sec.surface;
     }

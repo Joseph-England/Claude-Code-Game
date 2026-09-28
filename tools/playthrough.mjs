@@ -33,7 +33,7 @@ function makeRun() {
   return { level, player, story };
 }
 
-/** The bot: steer at a look-ahead point on the route (or the section's packed trail). */
+/** The bot: steer at a look-ahead point on the route. */
 class Bot {
   constructor(level, player) {
     this.level = level; this.p = player;
@@ -48,7 +48,6 @@ class Bot {
     const sT = Math.min(route.length, level.s + ahead);
     const tgt = route.at(sT);
     let off = 0;
-    if (bot.line === 'trail') off = route.trailOffset(sT) ?? 0;
     // Story cairns: walk past close enough to read the note (a player keeps the stones on the left).
     const note = props.cairns.find((c) => !c.checkpoint && c.section === level.section && sT > c.s - 10 && sT < c.s + 3);
     if (note) off = -2.5;

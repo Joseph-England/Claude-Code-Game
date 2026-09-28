@@ -38,6 +38,8 @@ export const SECTIONS = [
     beats: [
       { at: 0, id: 1, voice: 'W', text: 'stay down. it\'s easier.' },
       { at: 0, id: 2, voice: 'Y', text: 'Get up.', when: 'input' },
+      // Point out the first cairn so it can't be missed (user playtest, Session 12; DECISIONS #97).
+      { at: 0, id: 31, voice: 'Y', text: 'A cairn. Someone marked the way.', after: 2 },
     ],
     oob: { below: 12, side: 60 },
   },
@@ -62,6 +64,8 @@ export const SECTIONS = [
     // Deep snow the whole way across (no packed trail any more, DECISIONS #80): slower going.
     beats: [
       { at: 2, id: 5, voice: 'W', text: 'everything takes more than it should.' },
+      // …and the sled, as the chutes come into view (before you reach it, never while riding).
+      { at: 104, id: 32, voice: 'Y', text: 'Someone left a sled by that cairn.' },
     ],
     oob: { below: 12, side: 70 },
   },

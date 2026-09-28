@@ -1,5 +1,5 @@
 // The game: loads the mountain in a worker, builds props and colliders, and runs the flow
-// (title → playing → ending → credits → title), the controller, camera, level state, story,
+// (title → playing → ending → end card; a refresh starts again), the controller, camera, level state, story,
 // narrator, audio and the Phase 4 renderer.
 import * as THREE from 'three';
 import { createLoop } from './core/loop.js';
@@ -204,7 +204,8 @@ function spawnSection(k) {
 }
 
 // --- Flow: title → playing (the opening: lying in the snow until the first input) → ending →
-// credits → title. The title sits over the live scene; the run resets when it comes back round.
+// end card ("Mountain", "Thanks for playing.", "refresh page to begin again"; DECISIONS #97).
+// The title sits over the live scene.
 const flow = { mode: 'title', t: 0, wake: null, controlsT: 0, stuckShown: -99 };
 let stoneMesh = null, reachT = -1;
 function newRun() {
@@ -247,19 +248,8 @@ function startCredits() {
   narrator.clear();
   creditsEl.classList.add('show');
 }
-function backToTitle() {
-  creditsEl.classList.remove('show');
-  fade.style.transition = 'opacity 2.5s';
-  fade.style.opacity = 0;
-  if (audio.music) audio.music.level = 1;
-  newRun();
-  flow.mode = 'title';
-  flow.t = 0;
-  titleEl.classList.remove('gone');
-}
 titleEl.addEventListener('click', startPlaying);
 addEventListener('pointerdown', () => { if (flow.mode !== 'title') audio.start(); }); // resumes a context created without a gesture (?spawn)
-creditsEl.addEventListener('click', (e) => { if (flow.mode === 'credits' && flow.t > 8 && e.target.tagName !== 'A') backToTitle(); });
 addEventListener('keydown', (e) => { if (flow.mode === 'title' && (e.code === 'Enter' || e.code === 'Space')) startPlaying(); });
 
 let summitTime = null;
@@ -520,6 +510,7 @@ function updateParticles(dt) {
     snowDensity: Math.max(snowDensity(mountain.route, level.s), wo, 0.45 * near), streak: Math.max(wo, 0.35 * near), fall: 1.1 + 2.2 * Math.max(wo, 0.5 * near),
     driftStrength: k >= 7 && level.s > mountain.route.sections[7].s0 + 40 ? (flow.mode === 'ending' ? 0.6 : 0.8) : 0,
     light: fx.light,
+    cam: camera.position, follow: 0.75 * (1 - smooth(player.speed, 7, 14)), // (the sled still rushes through it)
   });
 }
 
@@ -565,7 +556,6 @@ createLoop({
       if (since > ENDING_FADE && fade.style.opacity !== '1') { fade.style.transition = 'opacity 4s'; fade.style.opacity = 1; }
       if (since > ENDING_END) startCredits();
     }
-    if (flow.mode === 'credits' && flow.t > 45) backToTitle();
   },
   update(dt, step) {
     if (flow.mode === 'title' || flow.mode === 'credits') return;
@@ -591,7 +581,6 @@ createLoop({
       else if (e.type === 'checkpoint') {
         if (flow.firstCheckpoint) showToast('a cairn · if you fall, you come back here', 3.5);
         flow.firstCheckpoint = false;
-        if (e.cairn.section === level.sledSection && !level.sled.done) hint('sled', 'someone left a sled by the cairn', 5);
         audio.bell('O');
         for (let i = 0; i < 60; i++) particles.emit(e.cairn.x + rnd(0.5), e.cairn.y + 0.8 + rnd(0.5), e.cairn.z + rnd(0.5), rnd(1.5), 1 + Math.random() * 2, rnd(1.5), 2 + Math.random(), 0.03, 0, 0.05, 2);
       }

@@ -368,3 +368,12 @@ work, README is complete.
   (DECISIONS #96). Checks and build pass.
 - **Broken / deferred:** nothing known.
 - **Next step:** Phase 6, first item: bug bash (title → credits twice in a row on each tier).
+
+### Session 12 — playtest notes round 5 (2026-09-28)
+- **Completed:** snow no longer speeds up when you walk (carried with the camera at walking pace);
+  lines point out the first cairn and the sled; content note removed; renamed Mountain; the end is
+  a three-line card with "refresh page to begin again" (DECISIONS #97). Playthrough: 13/13 climb
+  lines, ≈ 5:25 title to credits; checks and build pass.
+- **Broken / deferred:** nothing known. (The title → credits → title loop no longer exists, so the
+  bug-bash item about replaying twice in a row now means two refreshes.)
+- **Next step:** Phase 6, first item: bug bash on each quality tier.

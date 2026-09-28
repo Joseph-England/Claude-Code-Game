@@ -8,7 +8,7 @@ import { ATMO_GLSL, SKYVIEW_MAP_GLSL, ATMO } from './atmosphere.js';
 export const world = {
   tSky: { value: null }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uViewH: { value: ATMO.Rg + ATMO.viewAltitude },
   uIllum: { value: ATMO.sunIlluminance }, uTintHigh: { value: new THREE.Vector3(1, 1, 1) }, uTintLow: { value: new THREE.Vector3(1, 1, 1) },
-  tSunVis: { value: null }, uSunVisOrigin: { value: new THREE.Vector2() }, uSunVisSize: { value: 1024 },
+  tSunVis: { value: null }, tSunVisPrev: { value: null }, uSunVisMix: { value: 1 }, uSunVisOrigin: { value: new THREE.Vector2() }, uSunVisSize: { value: 1024 },
   uAmbient: { value: 1 }, uBounce: { value: new THREE.Color() }, uTime: { value: 0 },
   // Alpenglow: after sunset the high peaks keep a red-violet light (DESIGN §1, title).
   uGlow: { value: new THREE.Color() }, uGlowDir: { value: new THREE.Vector3(1, 0, 0) }, uGlowH: { value: 0 },
@@ -17,9 +17,9 @@ export const world = {
 };
 
 export const WORLD_PARS = /* glsl */`
-  uniform sampler2D tSky, tSunVis;
+  uniform sampler2D tSky, tSunVis, tSunVisPrev;
   uniform vec3 uSunDir, uTintHigh, uTintLow, uBounce, uGlow, uGlowDir, uLampPos, uLampColor;
-  uniform float uViewH, uIllum, uSunVisSize, uAmbient, uTime, uGlowH;
+  uniform float uViewH, uIllum, uSunVisSize, uSunVisMix, uAmbient, uTime, uGlowH;
   uniform vec2 uSunVisOrigin;
   varying vec3 vWorldPos;
   float gSunVis;
@@ -50,7 +50,7 @@ export const WORLD_PARS = /* glsl */`
   float sunVisAt(vec3 p) {
     vec2 uv = (p.xz - uSunVisOrigin) / uSunVisSize;
     if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 1.0; // backdrop: unshadowed
-    return texture2D(tSunVis, uv).r;
+    return mix(texture2D(tSunVisPrev, uv).r, texture2D(tSunVis, uv).r, uSunVisMix);
   }
 `;
 

@@ -16,7 +16,7 @@
 //   beats         inner-voice lines (final, DESIGN §1): { at, id, voice, text, when?, until?, after?, cairn? }
 //                 fire on entering [at, at + 20] unless `when` names a condition, which is then
 //                 armed from `at` to `until` (default: section end): input, jump, slow, fast,
-//                 retry, cairn (reading note `cairn` of the section), stone, ending (scripted).
+//                 afoot (off the sled), cairn (reading note `cairn` of the section), stone, ending (scripted).
 //                 `after: id` queues the line straight after that one; `fallback` fires a conditional
 //                 line at the end of its stretch if its condition never came.
 //   storm, horns  the gap's storm (storm.js) and the horns either side of it (terrain-gen.js)
@@ -38,7 +38,6 @@ export const SECTIONS = [
     beats: [
       { at: 0, id: 1, voice: 'W', text: 'stay down. it\'s easier.' },
       { at: 0, id: 2, voice: 'Y', text: 'Get up.', when: 'input' },
-      { at: 20, id: 3, voice: 'W', text: 'it\'s the same mountain every day.' },
     ],
     oob: { below: 12, side: 60 },
   },
@@ -63,8 +62,6 @@ export const SECTIONS = [
     // Deep snow the whole way across (no packed trail any more, DECISIONS #80): slower going.
     beats: [
       { at: 2, id: 5, voice: 'W', text: 'everything takes more than it should.' },
-      { at: 40, id: 6, voice: 'Y', text: 'There\'s a way through. I just have to find it again.' },
-      { at: 60, id: 7, voice: 'W', text: 'everyone else finds this easy.', when: 'slow', until: 115 },
     ],
     oob: { below: 12, side: 70 },
   },
@@ -85,9 +82,8 @@ export const SECTIONS = [
     launch: { at: 198.8, speed: 12.5, pitch: 0.26 }, // kicker lip: min speed (m/s) and pitch (rad)
     sledEnd: 232, // past here, the rider steps off once the sled has slowed
     beats: [
-      { at: 12, id: 8, voice: 'Y', text: 'Oh. I forgot what that felt like.', when: 'fast', until: 200 },
-      { at: 190, id: 9, voice: 'W', text: 'don\'t get used to it.', when: 'retry', until: 215 },
-      { at: 238, id: 10, voice: 'Y', text: 'It doesn\'t last. But it carries.' },
+      // No words while you ride (user playtest, Session 8): the one line waits until you're off it.
+      { at: 232, id: 8, voice: 'Y', text: 'Oh. I forgot what that felt like.', when: 'afoot', until: 300 },
     ],
     oob: { below: 7, side: 16 },
     bot: { sled: true },
@@ -107,7 +103,6 @@ export const SECTIONS = [
     beats: [
       { at: 40, id: 11, voice: 'W', text: 'you\'re too much. you\'ve always been too much.' },
       { at: 22, id: 12, voice: 'Y', text: 'That\'s the wind. It sounds like me. It isn\'t.', after: 11 },
-      { at: 124, id: 13, voice: 'Y', text: 'The light\'s changing.' },
     ],
     oob: { below: 5, side: 30 },
   },
@@ -124,8 +119,6 @@ export const SECTIONS = [
     paint: [[56, 78, POWDER, -99, -5], [56, 78, POWDER, 5, 99]],
     cairns: [[70, -5]],
     beats: [
-      { at: 8, id: 15, voice: 'W', text: 'down again. after all that.' },
-      { at: 74, id: 16, voice: 'Y', text: 'It\'s not starting over. It\'s the way through.' },
     ],
     oob: { below: 12, side: 40 },
   },
@@ -142,7 +135,6 @@ export const SECTIONS = [
     cairns: [[36, -4, 'note'], [86, -4, 'note'], [138, -4, 'note']], // A, B, C (spread out: user playtest) — "keep the stones on your left"
     storm: true,
     beats: [
-      { at: 4, id: 17, voice: 'W', text: 'no one can see you in here.' },
       { at: 0, id: 18, voice: 'O', text: 'I stopped here too. It passed.', when: 'cairn', cairn: 0 },
       { at: 0, id: 19, voice: 'O', text: 'Keep the stones on your left. Rest if you need to.', when: 'cairn', cairn: 1 },
       { at: 0, id: 20, voice: 'O', text: 'You don\'t have to do this alone. I didn\'t.', when: 'cairn', cairn: 2 },
@@ -163,8 +155,6 @@ export const SECTIONS = [
     paint: [[60, 148, ROCK, 4.2, 99], [60, 148, ROCK, -99, -4.2]], // rock breaks through at the ridge's edges
     cairns: [[6, -4]],
     beats: [
-      { at: 10, id: 22, voice: 'W', text: 'it\'ll be dark soon.' },
-      { at: 10, id: 23, voice: 'Y', text: 'I know.', after: 22 },
       { at: 66, id: 24, voice: 'W', text: 'you\'re so tired.' },
       { at: 66, id: 25, voice: 'Y', text: 'I\'m tired. I\'m still going.', after: 24 },
     ],

@@ -15,3 +15,6 @@ Not scheduled. Only implement when a phase says so.
 - Per-part shine on the skinned climber (goggle lens, ice axe, pole shafts) via a roughness/metalness vertex attribute.
 - Cornice overhangs along the ridge as meshes (the heightfield can't overhang).
 - Tree shadows for the far forest (chunked instanced meshes so cascades can cull them).
+- Mountains, further (Session 8: "much better" but "still not great"): glacier ice and seracs in the
+  high bowls; snow that drapes (thicker in hollows, blown off crests); a second, softer rock tone for
+  lower cliffs; more aerial perspective layering between range and range.

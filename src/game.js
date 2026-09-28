@@ -70,7 +70,7 @@ worldU.tSky.value = atmosphere.skyRT.texture;
 worldU.uSunDir.value = atmosphere.sunDir;
 worldU.uTintHigh = atmosphere.skyUniforms.uTintHigh;
 worldU.uTintLow = atmosphere.skyUniforms.uTintLow;
-worldU.tSunVis.value = sunShadow.texture;
+worldU.tSunVis.value = sunShadow.texture; worldU.tSunVisPrev.value = sunShadow.prevTexture;
 worldU.uSunVisOrigin.value.copy(sunShadow.origin);
 worldU.uSunVisSize.value = sunShadow.size;
 const fog = new FogPass(); // after the tint swap above: it copies the world uniform references
@@ -88,16 +88,32 @@ const PLUME_DIR = new THREE.Vector3(-0.5, 0.05, -0.866).normalize();
 const plumeTop = mountain.route.at(mountain.route.sections.at(-1).s0 + 13);
 fog.setPlume(new THREE.Vector3(plumeTop.x, mountain.heightfield.heightAt(plumeTop.x, plumeTop.z), plumeTop.z), PLUME_DIR, 320, 0.13);
 
-// Spindrift emitters along the ridge crest, the summit ridge and the summit, and off the crest's
-// edges up there (user playtest: more blowing snow at the top; DECISIONS #86).
+// Spindrift where real wind would move snow (user playtest, Session 8: less of it, placed like the
+// real thing; DECISIONS #93). Only up where the wind blows — the summit ridge and the summit, the
+// wind streaming the way the plume does. Across the ridge at each station, find the lee edge (the
+// ground falls away downwind): a plume streams off it; a few metres upwind of it, on the exposed
+// snow, grains skitter along the surface toward it. Nothing in the hollows or on the sheltered side.
 const crest = [];
-for (const [k, from, step] of [[4, 10, 3], [7, 50, 2.5], [8, 0, 2]]) {
-  const sec = mountain.route.sections[k];
-  for (let ls = from; ls < sec.len - 2; ls += step) {
-    const p = mountain.route.at(sec.s0 + ls);
-    for (const d of k === 4 ? [0] : [0, -5, 5]) {
-      const x = p.x + p.rx * d, z = p.z + p.rz * d;
-      crest.push([x, mountain.heightfield.heightAt(x, z) + 0.3, z]);
+{
+  const hf = mountain.heightfield, wx = PLUME_DIR.x, wz = Math.hypot(PLUME_DIR.x, PLUME_DIR.z);
+  const ux = wx / wz, uz = PLUME_DIR.z / wz; // downwind, horizontal
+  const at = (x, z) => hf.heightAt(x, z);
+  for (const [k, from, step] of [[7, 50, 4], [8, 0, 3]]) {
+    const sec = mountain.route.sections[k];
+    for (let ls = from; ls < sec.len - 2; ls += step) {
+      const p = mountain.route.at(sec.s0 + ls);
+      // Walk across the ridge from upwind to downwind (sign of the route's right vs the wind).
+      const sgn = p.rx * ux + p.rz * uz >= 0 ? 1 : -1;
+      for (let d = -16; d <= 16; d += 1.5) {
+        const x = p.x + p.rx * d * sgn, z = p.z + p.rz * d * sgn, h = at(x, z);
+        const drop = h - at(x + ux * 4, z + uz * 4), rise = at(x - ux * 4, z - uz * 4) - h;
+        if (drop > 1.4 && rise < 1.2) {
+          crest.push({ p: [x, h + 0.25, z], kind: 1 });
+          const sx = x - ux * 5, sz = z - uz * 5; // the exposed snow upwind of the edge
+          crest.push({ p: [sx, at(sx, sz) + 0.25, sz], kind: 0 });
+          break;
+        }
+      }
     }
   }
 }
@@ -117,7 +133,7 @@ function groundTexture(hf) {
   tex.needsUpdate = true;
   return { texture: tex, origin: [hf.origin - step / 2, hf.origin - step / 2], size: n * step };
 }
-const particles = new Particles(scene, { crest, snow: 30000, ground: groundTexture(mountain.heightfield) });
+const particles = new Particles(scene, { crest, driftWind: PLUME_DIR.clone().setY(0).multiplyScalar(6), snow: 30000, ground: groundTexture(mountain.heightfield) });
 const fx = { sprayAcc: 0, breathT: 1, emberAcc: 0, wind: new THREE.Vector3(), light: new THREE.Color() };
 const rnd = (a = 1) => (Math.random() - 0.5) * 2 * a;
 
@@ -508,14 +524,13 @@ function updateParticles(dt) {
   particles.update({
     time: t, wind: gustDir ? fx.wind.clone().add(new THREE.Vector3(gustDir.x, 0, gustDir.z)) : fx.wind,
     snowDensity: Math.max(snowDensity(mountain.route, level.s), wo, 0.45 * near), streak: Math.max(wo, 0.35 * near), fall: 1.1 + 2.2 * Math.max(wo, 0.5 * near),
-    driftStrength: k === 4 ? (flow.mode === 'playing' ? 0.35 + 0.65 * level.wind.gust : 0)
-      : k >= 7 && level.s > mountain.route.sections[7].s0 + 40 ? (flow.mode === 'ending' ? 0.55 : 0.75 + 0.25 * Math.sin(level.time * 0.7)) : 0,
+    driftStrength: k >= 7 && level.s > mountain.route.sections[7].s0 + 40 ? (flow.mode === 'ending' ? 0.6 : 0.8) : 0,
     light: fx.light,
   });
 }
 
 // Dev/test handle (tools/smoke.mjs reads it).
-window.__game = { cam, avatar, tuning, sled, particles, trees,
+window.__game = { cam, avatar, tuning, sled, particles, trees, crest,
   // Dev: stand at route arc length s (facing along the route, or back down it).
   tp: (s, back = false) => { const p = mountain.route.at(s), yaw = p.yaw + (back ? Math.PI : 0); player.teleport([p.x, mountain.heightfield.heightAt(p.x, p.z), p.z], yaw); cam.reset(player.pos, yaw); return s; },
   // Dev: turn the camera toward a world point (default: the summit), with a pitch.
@@ -588,7 +603,6 @@ createLoop({
       }
       else if (e.type === 'summit') { summitTime = e.time; startEnding(); }
       else if (e.type === 'mount') hint('steer', () => `${key('A', 'stick')} ${key('D')} steer`, 7);
-      else if (e.type === 'launch') audio.breath(1, 0.5);
     }
     level.events.length = 0;
     if (flow.mode === 'playing') {
@@ -610,7 +624,6 @@ createLoop({
     if (flow.mode === 'credits') { updateAudio(frameDt); return; } // the credits are opaque
     gpuTimer.begin();
     for (const e of player.events) {
-      if (e.type === 'jump') audio.breath(1, e.slide ? 0.25 : 0.4);
       if (e.type !== 'land') continue;
       audio.land(player.groundSurface, e.impact);
       cam.impact(e.impact);
@@ -651,7 +664,8 @@ createLoop({
     updateAudio(frameDt);
     updateLook(frameDt);
     lights.update(atmosphere.sunDir, atmosphere.sunColor);
-    sunShadow.update(atmosphere.sunDir);
+    sunShadow.update(atmosphere.sunDir, false, frameDt);
+    worldU.tSunVis.value = sunShadow.texture; worldU.tSunVisPrev.value = sunShadow.prevTexture; worldU.uSunVisMix.value = sunShadow.mix;
     worldU.uBounce.value.copy(atmosphere.ambientGround);
     terrain.update(camera);
     pipeline.render(scene, camera);

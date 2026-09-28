@@ -68,7 +68,7 @@ export class Story {
         // Slow through the powder: still in it well after an easy pace would have left.
         case 'slow': ok = level.section === l.section && this.sectionT > 30; break;
         case 'fast': ok = ctl.speed > 10.5; break;
-        case 'retry': ok = this.retried.has(l.section); break;
+        case 'afoot': ok = !level.sled?.riding; break;
         case 'cairn': ok = here === l; break;
       }
       // A few conditional lines belong to everyone's run: they fire at the end of their stretch anyway.

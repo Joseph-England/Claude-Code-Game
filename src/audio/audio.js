@@ -2,7 +2,7 @@
 // noise and oscillators at startup: a master chain, two convolution reverbs with generated impulse
 // responses (open air, and a close "sheltered" space for the hollow and the whiteout), bells under
 // the inner-voice lines, wind that follows altitude, speed and gusts, surface-aware footsteps,
-// landings, a slide hiss, breath, and the generative score (music.js).
+// landings, a slide hiss and the generative score (music.js). No breathing (DECISIONS #93).
 import { Music } from './music.js';
 import { footstep } from './steps.js';
 
@@ -41,16 +41,6 @@ function noise(ctx, seconds, kind, seed = 7) {
   return buf;
 }
 
-/** Render a short one-shot into a buffer: fn(t, rand) → sample. */
-function oneShot(ctx, seconds, fn, seed) {
-  const n = Math.floor(ctx.sampleRate * seconds), buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
-  let r = seed;
-  const rand = () => ((r = (r * 16807) % 2147483647) / 2147483647) * 2 - 1;
-  const state = {};
-  for (let i = 0; i < n; i++) d[i] = fn(i / ctx.sampleRate, rand, state);
-  return buf;
-}
-
 /** AudioBuffer from a Float32Array. */
 function toBuffer(ctx, data) {
   const buf = ctx.createBuffer(1, data.length, ctx.sampleRate);
@@ -84,11 +74,6 @@ export class Audio {
     this.steps = [0, 1, 2, 3].map((srf) => Array.from({ length: 8 }, (_, v) => toBuffer(ctx, footstep(srf, v + 1, ctx.sampleRate))));
     this.lands = [0, 1, 2, 3].map((srf) => Array.from({ length: 3 }, (_, v) => toBuffer(ctx, footstep(srf, v + 21, ctx.sampleRate, 2.5))));
     this.lastStep = [-1, -1, -1, -1];
-    this.breathBuf = [0, 1].map((k) => oneShot(ctx, 1.1, (t, rand, s) => {
-      s.b = (s.b ?? 0) + (rand() - (s.b ?? 0)) * 0.12;
-      const e = k === 0 ? Math.sin(Math.PI * Math.min(1, t / 0.9)) ** 2 * (t < 0.9 ? 1 : 0) : Math.min(1, t / 0.06) * Math.exp(-t / 0.28);
-      return s.b * e * 1.4;
-    }, 23 + k));
     this.initWind();
     this.initSlide();
     this.music = new Music(ctx, this.musicBus);
@@ -171,17 +156,6 @@ export class Audio {
     const k = clamp(impact / 12);
     const v = this.lands[surface] ?? this.lands[0];
     this.shaped(v[Math.floor(Math.random() * v.length)], 0.2 + 0.35 * k, 0.92 + Math.random() * 0.08 - 0.08 * k, 0);
-    if (impact > 7) this.breath(1, 0.7);
-  }
-
-  breath(kind = 0, gain = 0.5) {
-    if (!this.ctx) return;
-    const ctx = this.ctx, s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-    s.buffer = this.breathBuf[kind]; s.playbackRate.value = 0.9 + Math.random() * 0.15;
-    f.type = 'bandpass'; f.frequency.value = kind ? 1300 : 900; f.Q.value = 0.8;
-    g.gain.value = gain * 0.35;
-    s.connect(f); f.connect(g); g.connect(this.sfx);
-    s.start();
   }
 
   /** A few pebbles knocking: leaving a stone on the cairn. */
@@ -257,14 +231,6 @@ export class Audio {
     set(sl.gain.gain, on ? clamp(s.speed / 18) * (s.surface === 1 ? 0.35 : 0.22) : 0, on ? 0.05 : 0.12);
     set(sl.flt.frequency, f * (0.7 + 0.03 * Math.min(s.speed, 25)), 0.1);
     sl.flt.Q.value = q;
-    // Breathing: effort in powder, sprinting and on steep climbs; slow breaths while sitting.
-    this.breathT = (this.breathT ?? 2) - dt;
-    if (this.breathT <= 0) {
-      const effort = s.grounded && !s.sliding && (s.powder || s.sprinting || s.climbing) && s.speed > 2;
-      if (effort) { this.breath(this.breathK = 1 - (this.breathK ?? 0), 0.45); this.breathT = 0.9 + Math.random() * 0.3; }
-      else if (s.sitting) { this.breath(this.breathK = 1 - (this.breathK ?? 0), 0.25); this.breathT = 2.2 + Math.random() * 0.6; }
-      else this.breathT = 0.5;
-    }
     set(this.nearOut.gain, 0.5 * Math.max(s.shelter, s.whiteout * 0.7), 1);
     this.music.update(dt, s);
   }

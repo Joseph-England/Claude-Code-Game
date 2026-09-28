@@ -90,9 +90,6 @@ export const tuning = {
     fovSpeedMin: 8,
     fovSpeedMax: 30,
     fovRate: 3,
-    rollMax: 0.1, // rad
-    rollPerTurn: 0.01, // rad per (m/s²) of lateral accel
-    rollRate: 4,
     clearance: 0.45, // m kept between camera and terrain/colliders
     minDistance: 1.1,
     liftRate: 10, // 1/s rise when terrain behind the player needs a higher boom

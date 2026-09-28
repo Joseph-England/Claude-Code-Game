@@ -110,6 +110,22 @@ Playtest notes from Session 5's build (done first, Session 6):
 - [x] Whiteout motivated: a wind gap between two horns; the storm is a place you see, enter and leave (DECISIONS #77)
 - [x] Final ascent is a walk up the summit ridge, no platforming (DECISIONS #78)
 
+Playtest notes from Session 6's build (done first, Session 7):
+- [x] Title screen centred (the heading overflowed its 560 px column to the right) (DECISIONS #79)
+- [x] No camera roll: the horizon stays level when turning (DECISIONS #79)
+- [ ] Packed snow removed (look, sound, trail); new soft snow steps; quieter footsteps
+- [ ] Ridge ice removed; gusts are waited out standing still or on rock
+- [ ] Scarf replaced by a knitted neck gaiter (no cloth simulation)
+- [ ] Better climber model and walk (feet that roll heel to toe, hip sway, pelvis turn, hood, gaiters)
+- [ ] Sled at the chutes cairn replaces the boot-slide; the kicker launches cleanly over the crevasse
+- [ ] Contextual hints (what to do, when it matters)
+- [ ] Note cairns draw you in (lanterns and prayer flags); notes never collide with earlier lines; the stone beat can't be missed
+- [ ] Blizzard snow travels along the slope and falls; more blowing snow at the top
+- [ ] New sun
+- [ ] Backdrop ranges that read as real mountains
+- [ ] A summit that looks majestic from everywhere (pyramid, arêtes, rock faces, snow plume)
+- [ ] Environment craft: rocks that belong, outcrops, trees low down
+
 - [ ] Bug bash: full playthroughs on each quality tier; fix all blockers
 - [ ] Performance pass: profile, hit budgets, reduce draw calls/overdraw
 - [ ] Settings menu: quality, mouse sensitivity, invert Y, volume sliders, reduce motion

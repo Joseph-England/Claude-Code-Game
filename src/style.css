@@ -97,15 +97,18 @@ html, body {
 #title { background: #140d1d; cursor: default; }
 #title.ready { background: linear-gradient(180deg, rgba(14, 9, 22, 0.1) 0%, rgba(14, 9, 22, 0.25) 45%, rgba(14, 9, 22, 0.8) 100%); cursor: pointer; }
 #title.gone, #credits:not(.show) { opacity: 0; pointer-events: none; }
-#title .inner { max-width: 560px; padding: 24px; margin-top: 18vh; }
+/* Centred on both axes. The heading is wider than the note (its letter-spacing is large), so the
+   column is sized by the viewport and the note keeps its own measure; text-indent balances the
+   trailing letter-spacing so the word's ink is centred, not its box. */
+#title .inner { width: min(92vw, 900px); padding: 24px; box-sizing: border-box; }
 #title h1 {
-  font-weight: normal; font-size: clamp(40px, 8vw, 76px); letter-spacing: 0.32em; margin: 0 0 6px; text-indent: 0.32em;
+  font-weight: normal; font-size: clamp(30px, 7vw, 72px); letter-spacing: 0.32em; margin: 0 0 6px; text-indent: 0.32em; white-space: nowrap;
   text-transform: uppercase; color: #fff3f0; text-shadow: 0 0 30px rgba(255, 150, 170, 0.35), 0 2px 10px rgba(0, 0, 0, 0.6);
 }
 #title .sub { font-style: italic; font-size: 18px; margin: 0 0 34px; color: #f2d9df; text-shadow: 0 1px 6px #000; }
 #title .note {
   font: 14px/1.6 system-ui, sans-serif; color: #e3dbe8; background: rgba(12, 8, 20, 0.55); padding: 12px 18px;
-  border-radius: 10px; margin: 0 auto 26px;
+  border-radius: 10px; margin: 0 auto 26px; max-width: 520px;
 }
 #status { font: 14px/1.4 system-ui, sans-serif; letter-spacing: 0.12em; color: #d8cfe0; text-transform: lowercase; }
 #title.ready #status { animation: breathe 3.2s ease-in-out infinite; }

@@ -1,6 +1,7 @@
 // Third-person orbit camera (DESIGN §2 Camera, DECISIONS #19): mouse/stick orbit, soft auto-follow
 // behind velocity at speed, critically damped vertical follow (no bumps), terrain + collider
-// collision, speed FOV and a slight roll into carves. Runs once per rendered frame.
+// collision and speed FOV. The horizon always stays level (no roll: user playtest, DECISIONS #79).
+// Runs once per rendered frame.
 import * as THREE from 'three';
 
 const _dir = new THREE.Vector3();
@@ -21,7 +22,6 @@ export class ThirdPersonCamera {
     this.dist = this.t.distance;
     this.lookIdle = 0;
     this.fov = this.t.fovMin;
-    this.roll = 0;
     this.y = 0; // smoothed target height
     this.yVel = 0;
     this.lift = 0; // extra pitch to clear terrain behind the player
@@ -35,7 +35,6 @@ export class ThirdPersonCamera {
     this.y = pos.y + this.t.height;
     this.yVel = 0;
     this.vyS = 0;
-    this.roll = 0;
   }
 
   /** Apply look input (radians) at the start of a frame. */
@@ -132,7 +131,7 @@ export class ThirdPersonCamera {
     const floor = hf.heightAt(cam.position.x, cam.position.z) + t.clearance;
     if (cam.position.y < floor) cam.position.y = floor;
 
-    // Speed FOV and carve roll.
+    // Speed FOV.
     const speed = v.length();
     const fovWant = THREE.MathUtils.lerp(t.fovMin, t.fovMax, smooth(t.fovSpeedMin, t.fovSpeedMax, speed));
     this.fov += (fovWant - this.fov) * damp(t.fovRate, dt);
@@ -140,11 +139,7 @@ export class ThirdPersonCamera {
       cam.fov = this.fov;
       cam.updateProjectionMatrix();
     }
-    const rollWant = ctl.grounded && hSpeed > 4
-      ? Math.max(-t.rollMax, Math.min(t.rollMax, -ctl.lean.y * t.rollPerTurn)) : 0;
-    this.roll += (rollWant - this.roll) * damp(t.rollRate, dt);
 
     cam.lookAt(_target);
-    cam.rotateZ(this.roll);
   }
 }

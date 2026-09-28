@@ -327,3 +327,11 @@ work, README is complete.
 - **Next step:** Phase 6, first item: bug bash — full playthroughs on each quality tier (start with
   the title → credits loop twice in a row, to confirm the reset: sled back at the cairn, stone,
   notes, hints, sun, music level, the standing ending's `admire`).
+
+### Session 7b — follow-up playtest notes (2026-09-28)
+- **Completed:** gusts removed from the ridge (the only difficulty change); sled brake removed; zebra
+  stripes gone from the ranges, the slopes beside the route and the summit; the summit is a snowy
+  peak that matches the ranges (DECISIONS #92). Bot 2:25, first-time ≈ 4:25 climb / ≈ 5:25 title to
+  credits; all 22 lines fire; checks and build pass.
+- **Broken / deferred:** nothing known. The triangle budget note from Session 7 still stands.
+- **Next step:** Phase 6, first item: bug bash (title → credits twice in a row on each tier).

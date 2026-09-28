@@ -119,7 +119,6 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
   // --- 1. Macro shape on a coarse grid.
   const CC = 4, cn = Math.round(size / CC) + 1;
   const coarse = new Float32Array(cn * cn);
-  const coarseRoute = new Float32Array(cn * cn); // distance to the route (m), for the rock pass
   const pts = [];
   for (let s = 0; s <= route.length; s += 8) { const p = route.at(s); pts.push([p.x, p.z, route.heightAt(s, true)]); }
   const summit = pts[pts.length - 1];
@@ -132,17 +131,13 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
   // back down the route; slope = rise per metre.
   const back = route.at(route.length - 70), azR = Math.atan2(back.x - summit[0], -(back.z - summit[1]));
   const peakH = summit[2] - 1.5; // just under the route's top, so the path stays on the crest
-  // Detail for steep rock faces: couloirs and rock ribs running down the fall line (noise
-  // stretched along it; u across the face, v down it), and rock bands — gently dipping strata that
-  // step a face into snowy ledges and steep risers. w: how much (0 near a summit point).
-  const rockFace = (h, u, v, x, z, w) => {
-    h += (noise.ridged(u / 15 + 7.7, v / 60 - 3.1, 3) - 0.5) * 14 * w;
-    const band = 10, q = (h + 0.04 * x - 0.03 * z) / band, fr = q - Math.floor(q);
-    return lerp(h, (Math.floor(q) + smooth(0.3, 0.7, fr)) * band - 0.04 * x + 0.03 * z, 0.45 * w);
-  };
+  // Detail for the peak's faces (DECISIONS #92): broad, gentle undulation so the planes don't read
+  // as flat slabs — no strata or fine ribs (they rendered as stripes from a distance).
+  const rockFace = (h, u, v, x, z, w) => h + (noise.fbm(x / 70 + 7.7, z / 70 - 3.1, 3) * 9 + (noise.ridged(u / 45, v / 90, 2) - 0.5) * 6) * w;
+
   const pushS0 = route.sections.find((sec) => sec.name === 'Summit Push').s0;
   const face = ([da, sl]) => [Math.sin(azR + da), -Math.cos(azR + da), sl];
-  const BACK = [[2.45, 1.45], [-2.45, 1.45]].map(face), FLANK = [[1.35, 1.3], [-1.35, 1.3]].map(face);
+  const BACK = [[2.45, 1.2], [-2.45, 1.2]].map(face), FLANK = [[1.35, 1.12], [-1.35, 1.12]].map(face); // ~50°: snow holds, rock where it steepens
   const peak = (x, z, sN, dN) => {
     const dx = x - summit[0], dz = z - summit[1], r = Math.hypot(dx, dz);
     // The plane in charge here, and its fall line (u across it, v down it).
@@ -166,7 +161,7 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
     const a0 = R() * Math.PI * 2;
     return {
       x: p.x + p.rx * d, z: p.z + p.rz * d, h: Math.min(summit[2] - 25, route.heightAt(hornSec.s0 + ls) + rise),
-      faces: [0, 1, 2].map((f) => { const a = a0 + f * 2.1 + (R() - 0.5) * 0.6; return [Math.sin(a), -Math.cos(a), 1.05 + 0.3 * R()]; }),
+      faces: [0, 1, 2].map((f) => { const a = a0 + f * 2.1 + (R() - 0.5) * 0.6; return [Math.sin(a), -Math.cos(a), 0.95 + 0.25 * R()]; }),
     };
   });
   const hornAt = (x, z) => {
@@ -194,7 +189,6 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
         wsum += w; hs += w * p[2]; rs += w * p[3];
       }
       const dRoute = Math.sqrt(dmin);
-      coarseRoute[j * cn + i] = dRoute;
       // Nearest point on the route polyline (for the summit's arête): project onto the segments
       // either side of the nearest sample; past the end, the distance is radial.
       let sN = imin * 8, dN = dRoute;
@@ -235,31 +229,9 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
 
   // --- 2. Erosion.
   if (opts.erosion !== false) {
-    // The summit pyramid keeps its steep faces: no thermal slumping near the top.
-    const thermalMask = new Uint8Array(cn * cn);
-    for (let j = 0; j < cn; j++) for (let i = 0; i < cn; i++) thermalMask[j * cn + i] = Math.hypot(origin + i * CC - summit[0], origin + j * CC - summit[1]) > 150 ? 1 : 0;
-    erode(coarse, cn, CC, { seed, droplets: 70000, thermalMask, onProgress: (f) => onProgress(0.2 + 0.3 * f, 'eroding') });
+    erode(coarse, cn, CC, { seed, droplets: 70000, onProgress: (f) => onProgress(0.2 + 0.3 * f, 'eroding') });
   }
   t = mark('erosion', t);
-
-  // --- 2b. Rock bands on the steep ground away from the route (DECISIONS #90): gently dipping
-  // strata step the eroded faces into ledges and risers, so the big slopes beside the route read
-  // as rock and snow instead of smooth grey curtains. Couloirs come from the erosion itself.
-  {
-    const src = coarse.slice();
-    for (let j = 1; j < cn - 1; j++) {
-      for (let i = 1; i < cn - 1; i++) {
-        const k = j * cn + i, x = origin + i * CC, z = origin + j * CC;
-        const gx = (src[k + 1] - src[k - 1]) / (2 * CC), gz = (src[k + cn] - src[k - cn]) / (2 * CC);
-        const w = smooth(0.6, 1.1, Math.hypot(gx, gz)) * smooth(40, 70, coarseRoute[k]) * smooth(150, 190, Math.hypot(x - summit[0], z - summit[1]));
-        if (w <= 0) continue;
-        // Band height and strength wander, so the steps never line up into stripes.
-        const band = 11 + 5 * noise.value(x / 90, z / 90), q = (src[k] + 0.05 * x + 0.02 * z + 6 * noise.value(x / 60 + 9, z / 60)) / band, fr = q - Math.floor(q);
-        const amt = 0.35 * w * smooth(-0.2, 0.5, noise.value(x / 70 - 4, z / 70 + 2));
-        coarse[k] = lerp(src[k], (Math.floor(q) + smooth(0.3, 0.7, fr)) * band - 0.05 * x - 0.02 * z - 6 * noise.value(x / 60 + 9, z / 60), amt);
-      }
-    }
-  }
 
   // --- 3. Upsample to the play grid + fine detail.
   const heights = new Float32Array(n * n);
@@ -353,18 +325,14 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
 
   // --- 6. Splat map.
   const surfaces = new Uint8Array(n * n);
-  const slopeRock = TAN(56), slopeCrust = TAN(36), slopeRockPeak = TAN(46);
-  const summitXZ = [route.at(route.length).x, route.at(route.length).z];
+  const slopeRock = TAN(56), slopeCrust = TAN(36);
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
       const idx = j * n + i;
       const hl = heights[j * n + Math.max(i - 1, 0)], hr = heights[j * n + Math.min(i + 1, n - 1)];
       const hd = heights[Math.max(j - 1, 0) * n + i], hu = heights[Math.min(j + 1, n - 1) * n + i];
       const grad = Math.hypot(hr - hl, hu - hd) / (2 * cell);
-      // Rock shows sooner on the summit pyramid's faces (steep snow slides off them).
-      const rs = Math.hypot(origin + i * cell - summitXZ[0], origin + j * cell - summitXZ[1]);
-      const rockAt = rs < 260 ? lerp(slopeRockPeak, slopeRock, smooth(120, 260, rs)) : slopeRock;
-      let surf = grad > rockAt ? SURFACE.ROCK : grad > slopeCrust ? SURFACE.SNOW : SURFACE.POWDER;
+      let surf = grad > slopeRock ? SURFACE.ROCK : grad > slopeCrust ? SURFACE.SNOW : SURFACE.POWDER;
       const s = routeS[idx];
       if (s >= 0) {
         const p = route.profileAt(s), d = Math.abs(routeD[idx]);

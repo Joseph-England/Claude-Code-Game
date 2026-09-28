@@ -587,12 +587,11 @@ createLoop({
         for (let i = 0; i < 60; i++) particles.emit(e.cairn.x + rnd(0.5), e.cairn.y + 0.8 + rnd(0.5), e.cairn.z + rnd(0.5), rnd(1.5), 1 + Math.random() * 2, rnd(1.5), 2 + Math.random(), 0.03, 0, 0.05, 2);
       }
       else if (e.type === 'summit') { summitTime = e.time; startEnding(); }
-      else if (e.type === 'mount') hint('steer', () => `${key('A', 'stick')} ${key('D')} steer &nbsp;·&nbsp; ${key('S', 'stick down')} brake`, 7);
+      else if (e.type === 'mount') hint('steer', () => `${key('A', 'stick')} ${key('D')} steer`, 7);
       else if (e.type === 'launch') audio.breath(1, 0.5);
     }
     level.events.length = 0;
     if (flow.mode === 'playing') {
-      if (level.wind.warn) hint('gust', 'the wind is rising · stand still until the gust passes · rock gives shelter', 7);
       // Walked on down the chutes without the sled.
       const b = level.sled;
       if (b && !b.done && !player.sled && level.section === level.sledSection && (b.x - player.pos.x) ** 2 + (b.z - player.pos.z) ** 2 > 18 ** 2 && level.s > b.s + 10) hint('sled-back', 'the ice is too fast on foot · the sled is back by the cairn', 6);

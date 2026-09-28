@@ -27,7 +27,7 @@ node tools/check-gait.mjs    # foot slip and sole contact of the walk
 
 Click the title to start (sound on; headphones help). **WASD / arrows** move (walk) · **Shift**
 sprint · **mouse** look · **Space** jump (hold for height) · **E** sit on the sled (at the top of
-the ice chutes) and leave a stone (at the last note cairn) · on the sled **A/D** steer, **S** brake,
+the ice chutes) and leave a stone (at the last note cairn) · on the sled **A/D** steer,
 **W** push off · **R** back to the last cairn · **F2** cycle quality (low/medium/high) · **1–9** jump
 to a section (dev) · **F3** debug overlay · **F4** live tuning panel. Gamepad: left stick move (and
 steer the sled), right stick look, A jump, X sit on the sled / leave a stone, L3/LB/LT/RT sprint.

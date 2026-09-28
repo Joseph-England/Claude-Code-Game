@@ -123,7 +123,7 @@ Playtest notes from Session 6's build (done first, Session 7):
 - [x] Blizzard snow travels along the slope and falls; more blowing snow at the top (DECISIONS #86)
 - [x] New sun (DECISIONS #87)
 - [x] Backdrop ranges that read as real mountains (DECISIONS #88)
-- [ ] A summit that looks majestic from everywhere (pyramid, arêtes, rock faces, snow plume)
+- [x] A summit that looks majestic from everywhere (pyramid, arêtes, rock faces, snow plume) (DECISIONS #89)
 - [ ] Environment craft: rocks that belong, outcrops, trees low down
 
 - [ ] Bug bash: full playthroughs on each quality tier; fix all blockers

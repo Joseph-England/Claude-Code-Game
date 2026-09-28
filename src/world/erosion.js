@@ -57,16 +57,17 @@ export function erode(H, n, cell, opts = {}) {
     }
     if (onProgress && (p & 4095) === 0) onProgress(p / droplets);
   }
-  thermal(H, n, cell, opts.talus ?? 42, opts.thermalIters ?? 6);
+  thermal(H, n, cell, opts.talus ?? 42, opts.thermalIters ?? 6, opts.thermalMask);
 }
 
-/** Move material down any slope steeper than the talus angle (deg). */
-export function thermal(H, n, cell, talusDeg, iters) {
+/** Move material down any slope steeper than the talus angle (deg); mask[k] = 0 leaves cell k be. */
+export function thermal(H, n, cell, talusDeg, iters, mask = null) {
   const maxDiff = Math.tan((talusDeg * Math.PI) / 180) * cell;
   for (let it = 0; it < iters; it++) {
     for (let j = 1; j < n - 1; j++) {
       for (let i = 1; i < n - 1; i++) {
         const k = j * n + i;
+        if (mask && !mask[k]) continue;
         const nb = [k - 1, k + 1, k - n, k + n];
         let lowest = -1, most = maxDiff;
         for (const m of nb) { const d = H[k] - H[m]; if (d > most) { most = d; lowest = m; } }

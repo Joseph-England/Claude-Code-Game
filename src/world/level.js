@@ -138,7 +138,8 @@ export const SECTIONS = [
     // of the hollow, walked into, and still blowing behind you when you come out (storm.js).
     knots: [[0, 49], [165, 66]],
     profile: { type: 'col', w: 14 },
-    horns: { height: 62, from: -30, to: 200 }, // terrain-gen raises the flanks into horns
+    // Rock peaks either side of the col: [localS, d, rise above the path] (terrain-gen, #89).
+    horns: { peaks: [[45, -72, 36], [118, -62, 32], [178, -78, 24], [8, 76, 26], [80, 82, 40], [150, 70, 28]] },
     surface: POWDER,
     cairns: [[36, -4, 'note'], [86, -4, 'note'], [138, -4, 'note']], // A, B, C (spread out: user playtest) — "keep the stones on your left"
     storm: true,
@@ -157,9 +158,9 @@ export const SECTIONS = [
     // broad snow shoulder, which narrows into the summit ridge — a steady 20–25° pull with the sky
     // opening on both sides and the low sun ahead. No tricks at the end: just walking, slower as
     // it steepens, harder breathing, the view growing, the top coming into sight.
-    knots: [[0, 62], [18, 64], [55, 78], [95, 97], [125, 110], [143, 116], [150, 117]],
+    knots: [[0, 62], [18, 64], [55, 78], [95, 97], [125, 109.5], [143, 114.5], [150, 116.5]],
     profile: { type: 'trail', w: 8, shoulder: 20 },
-    profiles: [[52, 150, { type: 'ridge', w: 4, drop: 34, shoulder: 34 }]],
+    profiles: [[52, 150, { type: 'ridge', w: 4, drop: 34, shoulder: 34, natural: true }]],
     surface: SNOW,
     paint: [[60, 148, ROCK, 4.2, 99], [60, 148, ROCK, -99, -4.2]], // rock breaks through at the ridge's edges
     cairns: [[6, -4]],
@@ -173,10 +174,10 @@ export const SECTIONS = [
   },
   {
     name: 'Summit', len: 26, turn: 0,
-    knots: [[0, 117], [26, 118]],
-    profile: { type: 'summit', w: 11, drop: 60, shoulder: 40 },
+    knots: [[0, 116.5], [13, 121.5], [26, 118]], // a pointed top at 13 m
+    profile: { type: 'summit', w: 3.5, drop: 60, shoulder: 40 }, // a narrow top on the pyramid (DECISIONS #89)
     surface: SNOW,
-    cairns: [[14, -3, 'note']],
+    cairns: [[16, -1.8, 'note']],
     beats: [
       { at: 0, id: 26, voice: 'Y', text: 'I thought there\'d be something up here.', when: 'ending' },
       { at: 0, id: 27, voice: 'W', text: 'there\'s always another one.', when: 'ending' },
@@ -184,8 +185,8 @@ export const SECTIONS = [
       { at: 0, id: 29, voice: 'Y', text: 'The light stays on the peaks after the sun goes. I never noticed that.', when: 'ending' },
       { at: 0, id: 30, voice: 'Y', text: 'I\'m still here.', when: 'ending' },
     ],
-    summit: 12, // end trigger (local s): the ending takes over and walks you to the viewpoint
-    view: 18,
+    summit: 10, // end trigger (local s): the ending takes over and walks you to the viewpoint
+    view: 13, // the very top
     oob: { below: 10, side: 40 },
   },
 ];

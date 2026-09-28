@@ -8,7 +8,7 @@
 //   5. carve the route cross-sections into the terrain (spline SDF)
 //   6. splat map: surface ids by section, route, slope
 //   7. the distant ranges (render only), grown by stream-power erosion (ranges.js)
-import { Noise } from './noise.js';
+import { Noise, rng } from './noise.js';
 import { erode } from './erosion.js';
 import { Route } from './route.js';
 import { generateRanges } from './ranges.js';
@@ -65,6 +65,14 @@ export function profileHeight(p, H, N, d) {
       // Flat crest, a 3 m parabolic fillet, then a 52° fall of `drop` metres; then natural.
       const e = Math.max(0, d - (p.w - 1.5));
       const fall = e < 3 ? (T52 * e * e) / 6 : T52 * (e - 1.5);
+      // On the summit pyramid (`natural`): the fall simply runs into the mountain's own faces — no
+      // smoothing shoulder, which rounded the top into a dome (DECISIONS #89). Beside the bed the
+      // face may also rise (a ledge cut across a face), at most at 52° from the bed's edge.
+      if (p.natural || p.type === 'summit') {
+        if (d <= p.w) return H;
+        const nat = Math.min(N, H + (d - p.w) * T52);
+        return lerp(Math.max(H - fall, nat), nat, smooth(p.w + 2, p.w + 14, d));
+      }
       if (fall <= p.drop) return H - fall;
       const dSide = p.w - 1.5 + p.drop / T52 + 1.5;
       return shoulder(H - p.drop, N, dSide, p.shoulder, d);
@@ -115,9 +123,63 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
   for (let s = 0; s <= route.length; s += 8) { const p = route.at(s); pts.push([p.x, p.z, route.heightAt(s, true)]); }
   const summit = pts[pts.length - 1];
   for (const p of pts) p.push(Math.hypot(p[0] - summit[0], p[1] - summit[1]));
-  const warp = [0, 0];
+  // The summit peak (user playtest: the top looked like "a big snowball"; DECISIONS #89). The
+  // mountain near the top is the intersection of planes: the route's last arête is a crest that
+  // follows the path up (its height, falling ~52° to both sides), two steep faces make the back of
+  // the peak and the arêtes where they meet, and two flank faces take over away from the route.
+  // Ribs and couloirs roughen the faces. Face azimuths are relative to the direction from the top
+  // back down the route; slope = rise per metre.
+  const back = route.at(route.length - 70), azR = Math.atan2(back.x - summit[0], -(back.z - summit[1]));
+  const peakH = summit[2] - 1.5; // just under the route's top, so the path stays on the crest
+  // Detail for steep rock faces: couloirs and rock ribs running down the fall line (noise
+  // stretched along it; u across the face, v down it), and rock bands — gently dipping strata that
+  // step a face into snowy ledges and steep risers. w: how much (0 near a summit point).
+  const rockFace = (h, u, v, x, z, w) => {
+    h += (noise.ridged(u / 15 + 7.7, v / 60 - 3.1, 3) - 0.5) * 14 * w;
+    const band = 10, q = (h + 0.04 * x - 0.03 * z) / band, fr = q - Math.floor(q);
+    return lerp(h, (Math.floor(q) + smooth(0.3, 0.7, fr)) * band - 0.04 * x + 0.03 * z, 0.45 * w);
+  };
+  const pushS0 = route.sections.find((sec) => sec.name === 'Summit Push').s0;
+  const face = ([da, sl]) => [Math.sin(azR + da), -Math.cos(azR + da), sl];
+  const BACK = [[2.45, 1.45], [-2.45, 1.45]].map(face), FLANK = [[1.35, 1.3], [-1.35, 1.3]].map(face);
+  const peak = (x, z, sN, dN) => {
+    const dx = x - summit[0], dz = z - summit[1], r = Math.hypot(dx, dz);
+    // The plane in charge here, and its fall line (u across it, v down it).
+    let b = 0, bn = BACK[0], f = 0, fn = FLANK[0];
+    for (const F of BACK) { const v = F[2] * (dx * F[0] + dz * F[1]); if (v > b) { b = v; bn = F; } }
+    for (const F of FLANK) { const v = F[2] * (dx * F[0] + dz * F[1]); if (v > f) { f = v; fn = F; } }
+    const onArete = sN >= pushS0 - 10;
+    const front = onArete ? route.heightAt(sN) - 1.5 - 1.28 * dN : peakH - f;
+    let h, u, v;
+    if (peakH - b < front) { h = peakH - b; u = dx * -bn[1] + dz * bn[0]; v = dx * bn[0] + dz * bn[1]; }
+    else if (onArete) { h = front; u = sN; v = dN; }
+    else { h = front; u = dx * -fn[1] + dz * fn[0]; v = dx * fn[0] + dz * fn[1]; }
+    return rockFace(h, u, v, x, z, smooth(6, 40, r));
+  };
+  // Horns either side of the col (DECISIONS #77, reshaped by #89): separate rock peaks, pointed,
+  // below the summit, each the intersection of three planes with the same couloirs and strata, so
+  // the gap is walled by towers rather than flat-topped curtains.
   const hornSec = route.sections.find((sec) => sec.horns);
-  const horn = hornSec && { s0: hornSec.s0, ...hornSec.horns };
+  const hornPeaks = (hornSec?.horns.peaks ?? []).map(([ls, d, rise], q) => {
+    const p = route.at(hornSec.s0 + ls), R = rng(seed * 7 + q * 13);
+    const a0 = R() * Math.PI * 2;
+    return {
+      x: p.x + p.rx * d, z: p.z + p.rz * d, h: Math.min(summit[2] - 25, route.heightAt(hornSec.s0 + ls) + rise),
+      faces: [0, 1, 2].map((f) => { const a = a0 + f * 2.1 + (R() - 0.5) * 0.6; return [Math.sin(a), -Math.cos(a), 1.05 + 0.3 * R()]; }),
+    };
+  });
+  const hornAt = (x, z) => {
+    let best = -Infinity;
+    for (const hp of hornPeaks) {
+      const dx = x - hp.x, dz = z - hp.z, r = Math.hypot(dx, dz);
+      if (r > 190) continue;
+      let desc = 0, fn = hp.faces[0];
+      for (const F of hp.faces) { const v = F[2] * (dx * F[0] + dz * F[1]); if (v > desc) { desc = v; fn = F; } }
+      best = Math.max(best, rockFace(hp.h - desc, dx * -fn[1] + dz * fn[0], dx * fn[0] + dz * fn[1], x, z, smooth(4, 30, r)));
+    }
+    return best;
+  };
+  const warp = [0, 0];
   for (let j = 0; j < cn; j++) {
     const z = origin + j * CC;
     for (let i = 0; i < cn; i++) {
@@ -131,6 +193,16 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
         wsum += w; hs += w * p[2]; rs += w * p[3];
       }
       const dRoute = Math.sqrt(dmin);
+      // Nearest point on the route polyline (for the summit's arête): project onto the segments
+      // either side of the nearest sample; past the end, the distance is radial.
+      let sN = imin * 8, dN = dRoute;
+      for (const q of [imin - 1, imin]) {
+        if (q < 0 || q >= pts.length - 1) continue;
+        const a = pts[q], b = pts[q + 1], ex = b[0] - a[0], ez = b[1] - a[1], L2 = ex * ex + ez * ez;
+        const u = Math.min(1, Math.max(0, ((x - a[0]) * ex + (z - a[1]) * ez) / L2));
+        const dd = Math.hypot(x - a[0] - ex * u, z - a[1] - ez * u);
+        if (dd < dN) { dN = dd; sN = Math.min(route.length, (q + u) * 8); }
+      }
       const r = Math.hypot(x - summit[0], z - summit[1]);
       let h = hs / wsum + 0.5 * (rs / wsum - r);
       // Rugged relief grows away from the route so the corridor stays readable.
@@ -139,22 +211,17 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
       const amp = 8 + 42 * smooth(20, 160, dRoute);
       h += (ridged - 0.45) * amp * 1.5;
       // Nothing may rise above a cone hung from the summit, so the top reads as the top and the
-      // summit view is open (soft minimum, k = 12 m).
+      // summit view is open (soft minimum, k = 12 m) — except the summit pyramid itself, which
+      // takes over close to the top.
       const cap = summit[2] - 18 - 0.22 * r, k = 12;
       const hh = Math.max(k - Math.abs(h - cap), 0) / k;
       h = Math.min(h, cap) - hh * hh * k * 0.25;
-      // Horns either side of the col (DECISIONS #77): the flanks rise from the path's edge to rock
-      // crests 50–100 m out, tallest mid-gap, so the gap reads as a gap and its wind has a reason.
-      // They stand above the cone (it would flatten them) but stay below the summit.
-      if (horn) {
-        const ls = imin * 8 - horn.s0, wall = smooth(16, 52, dRoute) * (1 - smooth(100, 190, dRoute));
-        const along = smooth(horn.from, horn.from + 60, ls) * (1 - smooth(horn.to - 80, horn.to, ls));
-        if (wall * along > 0) {
-          const top = Math.min(summit[2] - 10, pts[imin][2] + horn.height * (0.75 + 0.5 * ridged) * wall * along);
-          const kk = 8, d = top - h; // soft maximum
-          h = d > kk ? top : d > -kk ? h + (d + kk) ** 2 / (4 * kk) : h;
-        }
-      }
+      // The faces fall until they meet a steep base cone around the peak, which blends into the
+      // surrounding terrain further out (a col toward the gap, long falls to the valley elsewhere).
+      if (r < 400) h = lerp(Math.max(peak(x, z, sN, dN), summit[2] - 40 - 0.8 * r), h, smooth(110, 400, r));
+      // The horns stand above the cone (it would flatten them): soft maximum.
+      const top = hornAt(x, z);
+      if (top > -1e9) { const kk = 8, d = top - h; h = d > kk ? top : d > -kk ? h + (d + kk) ** 2 / (4 * kk) : h; }
       // Fall away to the valley floor at the map edge.
       const edge = Math.min(x - origin, origin + size - x, z - origin, origin + size - z);
       h = lerp(WORLD.valley, h, smooth(0, 140, edge));
@@ -166,7 +233,10 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
 
   // --- 2. Erosion.
   if (opts.erosion !== false) {
-    erode(coarse, cn, CC, { seed, droplets: 70000, onProgress: (f) => onProgress(0.2 + 0.3 * f, 'eroding') });
+    // The summit pyramid keeps its steep faces: no thermal slumping near the top.
+    const thermalMask = new Uint8Array(cn * cn);
+    for (let j = 0; j < cn; j++) for (let i = 0; i < cn; i++) thermalMask[j * cn + i] = Math.hypot(origin + i * CC - summit[0], origin + j * CC - summit[1]) > 150 ? 1 : 0;
+    erode(coarse, cn, CC, { seed, droplets: 70000, thermalMask, onProgress: (f) => onProgress(0.2 + 0.3 * f, 'eroding') });
   }
   t = mark('erosion', t);
 
@@ -238,6 +308,8 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
     const H = route.heightAt(s);
     const k = spanAt(s), sp = spans[k];
     let h = profileHeight(sp.p, H, N, d);
+    // Past the route's end the offset is radial: keep a small round top, then the peak's own faces.
+    if (sp.p.type === 'summit' && s >= route.length - 0.05 && d > sp.p.w) h = Math.max(N, H - 2.5 * T52 * (d - sp.p.w));
     const into = s - sp.s0;
     // Far from the centreline the blend stretches, so profile changes never leave radial cliffs.
     // A sharp change (the ridge's end above the cave) stays sharp only near the centreline.
@@ -260,14 +332,18 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
 
   // --- 6. Splat map.
   const surfaces = new Uint8Array(n * n);
-  const slopeRock = TAN(56), slopeCrust = TAN(36);
+  const slopeRock = TAN(56), slopeCrust = TAN(36), slopeRockPeak = TAN(46);
+  const summitXZ = [route.at(route.length).x, route.at(route.length).z];
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
       const idx = j * n + i;
       const hl = heights[j * n + Math.max(i - 1, 0)], hr = heights[j * n + Math.min(i + 1, n - 1)];
       const hd = heights[Math.max(j - 1, 0) * n + i], hu = heights[Math.min(j + 1, n - 1) * n + i];
       const grad = Math.hypot(hr - hl, hu - hd) / (2 * cell);
-      let surf = grad > slopeRock ? SURFACE.ROCK : grad > slopeCrust ? SURFACE.SNOW : SURFACE.POWDER;
+      // Rock shows sooner on the summit pyramid's faces (steep snow slides off them).
+      const rs = Math.hypot(origin + i * cell - summitXZ[0], origin + j * cell - summitXZ[1]);
+      const rockAt = rs < 260 ? lerp(slopeRockPeak, slopeRock, smooth(120, 260, rs)) : slopeRock;
+      let surf = grad > rockAt ? SURFACE.ROCK : grad > slopeCrust ? SURFACE.SNOW : SURFACE.POWDER;
       const s = routeS[idx];
       if (s >= 0) {
         const p = route.profileAt(s), d = Math.abs(routeD[idx]);

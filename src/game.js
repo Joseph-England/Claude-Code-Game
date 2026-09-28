@@ -81,6 +81,13 @@ fog.u.uSunColor.value = atmosphere.sunColor;
   fog.setStorm(level.storm, STORM_R, STORM_TOP, 1 / (16 * STORM_NORM), new THREE.Vector3(-mid.dx, 0, -mid.dz).multiplyScalar(12));
 }
 
+// The summit's snow plume streams off the top to the north-east, away from the route (fog.js).
+const PLUME_DIR = new THREE.Vector3(0.72, 0.05, -0.69).normalize();
+{
+  const top = mountain.route.at(mountain.route.sections.at(-1).s0 + 13);
+  fog.setPlume(new THREE.Vector3(top.x, mountain.heightfield.heightAt(top.x, top.z), top.z), PLUME_DIR, 320, 0.16);
+}
+
 // Spindrift emitters along the ridge crest, the summit ridge and the summit, and off the crest's
 // edges up there (user playtest: more blowing snow at the top; DECISIONS #86).
 const crest = [];
@@ -491,6 +498,9 @@ function updateParticles(dt) {
   const wo = level.wind.whiteout, near = level.wind.stormNear, here = mountain.route.at(level.s);
   const blow = 11 * wo + 4 * near * (1 - wo), bx = -here.dx * 0.85 + here.rx * 0.52, bz = -here.dz * 0.85 + here.rz * 0.52;
   fx.wind.set(1.2 + level.wind.x * 0.9 + bx * blow, 0, 0.6 + level.wind.z * 0.9 + bz * blow);
+  // Up on the summit ridge the wind blows the way the plume streams.
+  const topW = smooth(mountain.route.sections[7].s0 + 30, mountain.route.sections[7].s0 + 90, level.s);
+  if (topW > 0) fx.wind.lerp(new THREE.Vector3(PLUME_DIR.x * 6, 0, PLUME_DIR.z * 6), topW);
   const gustDir = level.wind.gust > 0.02 ? level.wind : null;
   fx.light.copy(atmosphere.ambientSky).multiplyScalar(0.8).add(new THREE.Color().copy(atmosphere.sunColor).multiplyScalar(0.05));
   const k = level.section;
@@ -507,6 +517,8 @@ function updateParticles(dt) {
 window.__game = { cam, avatar, tuning, sled, particles,
   // Dev: stand at route arc length s (facing along the route, or back down it).
   tp: (s, back = false) => { const p = mountain.route.at(s), yaw = p.yaw + (back ? Math.PI : 0); player.teleport([p.x, mountain.heightfield.heightAt(p.x, p.z), p.z], yaw); cam.reset(player.pos, yaw); return s; },
+  // Dev: turn the camera toward a world point (default: the summit), with a pitch.
+  look: (x = mountain.route.at(mountain.route.length).x, z = mountain.route.at(mountain.route.length).z, pitch = 0.05) => { cam.yaw = Math.atan2(-(x - player.pos.x), -(z - player.pos.z)); cam.pitch = pitch; cam.lookIdle = 0; return cam.yaw; },
   skipEnding: (sec) => { summitTime -= sec; }, renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, story, props, mountain, input, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
 
 createLoop({

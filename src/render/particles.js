@@ -9,7 +9,7 @@
 //     skittering low along exposed snow and thin plumes streaming off the lee edges, both in gusts
 //     that sweep downwind (DECISIONS #93); also procedural (age from time and seed).
 //   - Pool: CPU-emitted, GPU-integrated one-shots in a ring buffer: slide spray, landing puffs,
-//     breath, and warm embers rising from cairns (HDR bright, so they bloom).
+//     and warm embers rising from cairns (HDR bright, so they bloom; no breath puffs: DECISIONS #94).
 // All alpha-tested/dithered with depth write, so the fog pass treats them like geometry.
 import * as THREE from 'three';
 

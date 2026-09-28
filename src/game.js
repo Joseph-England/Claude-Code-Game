@@ -134,7 +134,7 @@ function groundTexture(hf) {
   return { texture: tex, origin: [hf.origin - step / 2, hf.origin - step / 2], size: n * step };
 }
 const particles = new Particles(scene, { crest, driftWind: PLUME_DIR.clone().setY(0).multiplyScalar(6), snow: 30000, ground: groundTexture(mountain.heightfield) });
-const fx = { sprayAcc: 0, breathT: 1, emberAcc: 0, wind: new THREE.Vector3(), light: new THREE.Color() };
+const fx = { sprayAcc: 0, emberAcc: 0, wind: new THREE.Vector3(), light: new THREE.Color() };
 const rnd = (a = 1) => (Math.random() - 0.5) * 2 * a;
 
 const input = new Input(canvas, tuning.input);
@@ -473,6 +473,7 @@ function updateLook(dt) {
   g.uSat.value = sat; g.uTemp.value = temp; g.uContrast.value = contrast;
   const sunY = atmosphere.sunDir.y;
   g.uExposure.value = 0.62 * (1 + 5 * smooth(-sunY, -0.03, 0.055)); // blue hour stays readable
+  g.uNoGreen.value = 1 - smooth(sunY, 0.03, 0.2); // from the late climb on (DECISIONS #94)
   g.uSpeed.value += (smooth(player.speed, 14, 30) - g.uSpeed.value) * Math.min(1, dt * 4);
   g.uTime.value = level.time;
   const glow = smooth(-sunY, -0.035, 0.01) * (1 - smooth(-sunY, 0.05, 0.12));
@@ -489,13 +490,6 @@ function updateParticles(dt) {
     for (; fx.sprayAcc >= 1; fx.sprayAcc--) {
       particles.emit(renderPos.x + rnd(0.3), renderPos.y + 0.05, renderPos.z + rnd(0.3), -v.x * 0.15 + rnd(2), 1.2 + Math.random() * 2.2, -v.z * 0.15 + rnd(2), 0.5 + Math.random() * 0.5, 0.05, 1, 0.6, 0);
     }
-  }
-  // Breath: faster when sprinting.
-  if ((fx.breathT -= dt) <= 0) {
-    fx.breathT = player.speed > 6 ? 0.9 : 2.4;
-    avatar.head.getWorldPosition(fx.wind);
-    const f = [-Math.sin(player.facing), -Math.cos(player.facing)];
-    for (let i = 0; i < 4; i++) particles.emit(fx.wind.x + f[0] * 0.15, fx.wind.y + 0.1, fx.wind.z + f[1] * 0.15, v.x * 0.8 + f[0] * 0.4 + rnd(0.1), 0.15, v.z * 0.8 + f[1] * 0.4 + rnd(0.1), 1.4, 0.035, 0.35, -0.01, 1);
   }
   // Cairn embers.
   fx.emberAcc += dt * 5;

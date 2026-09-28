@@ -346,3 +346,12 @@ work, README is complete.
   this round (no specific ask); candidates are in IDEAS if it comes up again. Triangle budget note
   from Session 7 still stands.
 - **Next step:** Phase 6, first item: bug bash (title → credits twice in a row on each tier).
+
+### Session 9 — playtest notes round 4 (2026-09-28)
+- **Completed:** the sun no longer turns black as it sets (the disc is added and fades with the
+  light; a wider, softer sunset of the light); no green in the sunset (hue pull in the composite);
+  lines 11/12 cut (16 lines); breath puffs removed; the ending is one continuous camera move with
+  a long hand-over and an eased turn (DECISIONS #94). Bot 2:25, first-time ≈ 5:25 title to credits;
+  11/11 climb lines; checks and build pass.
+- **Broken / deferred:** nothing known.
+- **Next step:** Phase 6, first item: bug bash (title → credits twice in a row on each tier).

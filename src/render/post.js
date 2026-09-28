@@ -142,6 +142,16 @@ const COMPOSITE_FRAG = /* glsl */`
       float to = hue < 125.0 ? 45.0 : 208.0;
       h.x = mix(hue, to, band * 0.8) / 360.0;
       h.y *= 1.0 - band * (0.35 + 0.6 * mid);
+      // Dull yellows read as olive/khaki (user screenshot, Session 11: the sky above the gold band).
+      // A real sunset goes gold → amber → salmon → rose there, so muddy yellow-oranges turn toward
+      // peach, and the dullest toward rose-mauve; rich golds (saturated), greys and the sun's own glare are left alone.
+      hue = h.x * 360.0;
+      float yb = smoothstep(18.0, 32.0, hue) * (1.0 - smoothstep(64.0, 84.0, hue));
+      float mud = (1.0 - smoothstep(0.5, 0.85, h.y)) * smoothstep(0.04, 0.14, h.y);
+      float wy = yb * mud * uNoGreen * (1.0 - smoothstep(0.86, 0.97, h.z)); // (not the sun and its glare)
+      float tgt = -20.0 + 42.0 * smoothstep(0.15, 0.6, h.y);
+      h.x = fract((hue + (tgt - hue) * wy * 0.85) / 360.0 + 1.0);
+      h.y = min(1.0, h.y * (1.0 + 0.35 * wy));
       s = hsv2rgb(h);
     }
     // Vignette and grain (display space).

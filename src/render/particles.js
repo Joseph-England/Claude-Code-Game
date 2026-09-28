@@ -5,8 +5,9 @@
 //     the ground falls slowly and wraps, so wind-blown snow travels along the slope and settles
 //     onto it instead of flying out of it (user playtest, Session 7; DECISIONS #86). No CPU work
 //     per flake; density (drawn count) follows the story (light early, blizzard, then clear).
-//   - Spindrift: snow blown off the ridge crest and summit, emitted from points sampled along the
-//     crest, carried by the gusts; also procedural (age from time and seed).
+//   - Spindrift: snow blown about near the summit, placed where the wind would move it: grains
+//     skittering low along exposed snow and thin plumes streaming off the lee edges, both in gusts
+//     that sweep downwind (DECISIONS #93); also procedural (age from time and seed).
 //   - Pool: CPU-emitted, GPU-integrated one-shots in a ring buffer: slide spray, landing puffs,
 //     breath, and warm embers rising from cairns (HDR bright, so they bloom).
 // All alpha-tested/dithered with depth write, so the fog pass treats them like geometry.
@@ -83,21 +84,41 @@ const SNOW_VERT = /* glsl */`
 const DRIFT_VERT = /* glsl */`
   ${COMMON}
   attribute vec4 seed;    // emitter xyz, phase
+  attribute float kind;   // 0: grains skittering along the surface; 1: a plume off a lee edge
   uniform float uStrength;
+  uniform vec3 uDir;      // the summit wind (m/s)
   varying vec3 vTint;
+  // Real blowing snow comes in gusts that sweep downwind, not a steady stream: a travelling pulse,
+  // sampled at the moment a grain is lifted so it lives out its flight once airborne.
+  float gustAt(vec2 xz, float t) {
+    vec2 w = normalize(uDir.xz);
+    float g = 0.5 + 0.5 * sin(t * 0.8 - dot(xz, w) * 0.11 + 1.7 * sin(t * 0.23 + dot(xz, vec2(-w.y, w.x)) * 0.05));
+    return smoothstep(0.3, 0.85, g);
+  }
   void main() {
-    float life = 1.6 + seed.w * 1.4;
+    float h = fract(seed.w * 91.7), h2 = fract(seed.w * 37.3);
+    float plume = kind;
+    float life = mix(0.9 + 0.6 * h2, 2.2 + 1.3 * h2, plume);
     float age = fract(uTime / life + seed.w * 7.31);
-    float h = fract(seed.w * 91.7);
-    vec3 dir = normalize(uWind + vec3(0.0, 0.001, 0.0));
-    float speed = 3.0 + 6.0 * h;
-    vec3 p = seed.xyz + dir * speed * age * (0.6 + 0.8 * uStrength) + vec3(0.0, 1.8 * age - 0.9 * age * age + h * 0.3, 0.0);
-    p += 0.4 * vec3(sin(age * 9.0 + h * 30.0), 0.0, cos(age * 7.0 + h * 20.0));
-    vAlpha = uStrength * smoothstep(0.0, 0.15, age) * smoothstep(1.0, 0.5, age) * 0.75 * smoothstep(2.0, 6.0, length(p - cameraPosition)); // never across the lens
+    float t = age * life;
+    float g = gustAt(seed.xz, uTime - t);
+    vec3 dir = normalize(vec3(uDir.x, 0.0, uDir.z));
+    vec3 side = vec3(-dir.z, 0.0, dir.x);
+    float speed = length(uDir) * mix(0.55 + 0.25 * h, 0.8 + 0.4 * h, plume) * (0.6 + 0.6 * g);
+    vec3 p = seed.xyz + dir * speed * t;
+    // Saltation: grains hop a hand's height along the snow. Off an edge: the eddy lifts the
+    // stream a little, then it sinks and spreads as it goes, widening downwind.
+    float hop = 0.12 * abs(sin(t * (7.0 + 5.0 * h) + h * 20.0)) * (1.0 - age);
+    float lift = 0.7 * t - 0.3 * t * t;
+    p.y += mix(hop - 0.15, lift, plume);
+    float spread = mix(0.12, 0.2 + 0.7 * age, plume);
+    p += spread * (side * sin(t * 2.3 + h * 30.0) + vec3(0.0, 0.4 * plume, 0.0) * cos(t * 1.9 + h * 17.0));
+    vAlpha = uStrength * g * smoothstep(0.0, 0.12, age) * smoothstep(1.0, 0.45, age) * mix(0.55, 0.7, plume)
+           * smoothstep(2.0, 6.0, length(p - cameraPosition)); // never across the lens
     vCorner = corner;
     vTint = vec3(1.0);
-    // Fine grains in thin streaks along the wind, not big puffs (dithered discs read as blobs).
-    gl_Position = projectionMatrix * viewMatrix * vec4(billboard(p, 0.022 + 0.035 * age, dir * (0.1 + 0.25 * h)), 1.0);
+    float size = mix(0.02 + 0.014 * h, 0.03 + 0.07 * age, plume);
+    gl_Position = projectionMatrix * viewMatrix * vec4(billboard(p, size, dir * (0.08 + 0.2 * h) * (0.5 + 0.5 * g)), 1.0);
   }
 `;
 
@@ -130,10 +151,10 @@ function material(vertexShader, uniforms, dither) {
 
 export class Particles {
   /**
-   * crest: [[x, y, z], …] spindrift emitters. counts: { snow }. ground: { texture, origin: [x, z],
+   * crest: [{ p: [x, y, z], kind }] spindrift emitters (kind 0 surface, 1 lee edge); driftWind (m/s). counts: { snow }. ground: { texture, origin: [x, z],
    * size } smoothed terrain heights for the snowfall.
    */
-  constructor(scene, { crest = [], snow = 12000, pool = 2048, ground = null } = {}) {
+  constructor(scene, { crest = [], driftWind = new THREE.Vector3(6, 0, 0), snow = 12000, pool = 2048, ground = null } = {}) {
     this.time = { value: 0 };
     this.wind = { value: new THREE.Vector3() };
     const shared = { uTime: this.time, uWind: this.wind };
@@ -148,17 +169,19 @@ export class Particles {
     this.snow.frustumCulled = false;
     this.snow.renderOrder = 10;
 
-    // Spindrift.
-    const per = 20, n = crest.length * per;
-    const ds = new Float32Array(Math.max(1, n) * 4);
-    crest.forEach((c, k) => {
-      for (let j = 0; j < per; j++) {
-        const o = (k * per + j) * 4;
-        ds[o] = c[0] + (Math.random() - 0.5) * 3; ds[o + 1] = c[1] + 0.2; ds[o + 2] = c[2] + (Math.random() - 0.5) * 3; ds[o + 3] = Math.random();
+    // Spindrift (see DRIFT_VERT): emitters { p: [x, y, z], kind } from game.js.
+    const per = (c) => (c.kind ? 56 : 40), n = crest.reduce((a, c) => a + per(c), 0);
+    const ds = new Float32Array(Math.max(1, n) * 4), kd = new Float32Array(Math.max(1, n));
+    let i = 0;
+    for (const c of crest) {
+      for (let j = 0; j < per(c); j++, i++) {
+        const jit = c.kind ? 1.2 : 2.5;
+        ds[i * 4] = c.p[0] + (Math.random() - 0.5) * jit; ds[i * 4 + 1] = c.p[1]; ds[i * 4 + 2] = c.p[2] + (Math.random() - 0.5) * jit; ds[i * 4 + 3] = Math.random();
+        kd[i] = c.kind;
       }
-    });
-    this.driftMat = material(DRIFT_VERT, { ...shared, uStrength: { value: 0 } }, 1);
-    this.drift = new THREE.Mesh(quadGeometry(Math.max(1, n), [['seed', 4, ds]]), this.driftMat);
+    }
+    this.driftMat = material(DRIFT_VERT, { ...shared, uStrength: { value: 0 }, uDir: { value: driftWind.clone() } }, 1);
+    this.drift = new THREE.Mesh(quadGeometry(Math.max(1, n), [['seed', 4, ds], ['kind', 1, kd]]), this.driftMat);
     this.drift.frustumCulled = false;
     this.driftCount = n;
 

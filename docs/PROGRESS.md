@@ -335,3 +335,14 @@ work, README is complete.
   credits; all 22 lines fire; checks and build pass.
 - **Broken / deferred:** nothing known. The triangle budget note from Session 7 still stands.
 - **Next step:** Phase 6, first item: bug bash (title → credits twice in a row on each tier).
+
+### Session 8 — playtest notes round 3 (2026-09-28)
+- **Completed:** breathing sound removed; the ending's light changes smoothly (sun-shadow cross-fade);
+  dialogue cut to 18 lines (13 on the climb + the ending's 5), none during the sled (line 8 plays
+  on stepping off); less blowing snow at the top, placed like real spindrift — plumes off lee
+  edges and grains along exposed snow, in gusts (DECISIONS #93). Bot 2:25, first-time ≈ 4:25 climb
+  / ≈ 5:25 title to credits; 13/13 climb lines fire; checks and build pass.
+- **Broken / deferred:** the user finds the mountains "much better" but still not great — no change
+  this round (no specific ask); candidates are in IDEAS if it comes up again. Triangle budget note
+  from Session 7 still stands.
+- **Next step:** Phase 6, first item: bug bash (title → credits twice in a row on each tier).

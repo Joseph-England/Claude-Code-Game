@@ -37,13 +37,12 @@ export const tuning = {
 
   // The sled (Ice Chutes, DECISIONS #83): Coulomb μ per surface (snow, powder, ice, rock) — a
   // sled glides on snow and ice and bogs down in deep powder; steering turns the velocity about
-  // the ground normal (A/D), S drags the heels (extra μ), W paddles off from rest.
+  // the ground normal (A/D), W paddles off from rest.
   sled: {
     friction: [0.04, 0.3, 0.012, 0.6],
     drag: 0.0022,
     turnAccel: 16, // turn rate = turnAccel·steer / speed, capped
     maxTurnRate: 1.6,
-    brake: 0.45,
     push: 3, // m/s² paddling with the hands …
     pushMax: 3.5, // … up to this speed
   },

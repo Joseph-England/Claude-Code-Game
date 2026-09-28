@@ -114,7 +114,7 @@ Movement feel is the heart of the game. The character is a **kinematic body** wi
   involuntary slip on ground too steep to stand on.
 - **Sled** (Session 7, DECISIONS #83) — a wooden sled waits by the Ice Chutes cairn. `E` / X sits on
   it; gravity does the work; A/D steer (the velocity turns about the ground normal), S drags the heels,
-  W paddles off from rest. The kicker's lip throws a rider on a fixed arc over the crevasse; the
+  W paddles off from rest (no brake since Session 7b, DECISIONS #92). The kicker's lip throws a rider on a fixed arc over the crevasse; the
   run-out climbs into deep powder where the sled stops and you step off.
 - **Landing** — velocity is projected onto the landing surface. Landing on a downslope that matches
   your arc keeps (even gains) speed; landing flat bleeds the normal component; a very hard flat landing

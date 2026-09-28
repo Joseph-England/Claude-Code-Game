@@ -16,7 +16,7 @@
 //   beats         inner-voice lines (final, DESIGN §1): { at, id, voice, text, when?, until?, after?, cairn? }
 //                 fire on entering [at, at + 20] unless `when` names a condition, which is then
 //                 armed from `at` to `until` (default: section end): input, jump, slow, fast,
-//                 retry, gust, cairn (reading note `cairn` of the section), stone, ending (scripted).
+//                 retry, cairn (reading note `cairn` of the section), stone, ending (scripted).
 //                 `after: id` queues the line straight after that one; `fallback` fires a conditional
 //                 line at the end of its stretch if its condition never came.
 //   storm, horns  the gap's storm (storm.js) and the horns either side of it (terrain-gen.js)
@@ -95,8 +95,8 @@ export const SECTIONS = [
   {
     name: 'Cornice Ridge', len: 140, turn: 80,
     // Steps of climbing crest along a narrow snow catwalk, with rock outcrops before each step as
-    // shelter (gusts × 0.35). No ice any more (user playtest, DECISIONS #81): the skill is timing —
-    // stand still (or on rock) while a gust blows, walk on between them.
+    // outcrops. No ice (DECISIONS #81) and no gusts any more (user playtest, DECISIONS #92): a walk
+    // along a narrow crest with the drop on both sides.
     knots: [[0, 8], [12, 10], [34, 20, 1], [46, 20, 1], [70, 30, 1], [82, 30, 1], [104, 40, 1], [116, 40, 1], [128, 46, 1], [140, 46, 1]],
     profile: { type: 'ridge', w: 2.4, drop: 48, shoulder: 40 },
     profiles: [[0, 12, { type: 'trail', w: 9, shoulder: 18 }]],
@@ -104,14 +104,12 @@ export const SECTIONS = [
     paint: [[26, 34, ROCK], [60, 70, ROCK], [94, 104, ROCK], [118, 124, ROCK]],
     cairns: [[8, -4]],
     // Gusts push toward +d (right of travel). Rock shelters (× 0.35). Telegraphed 0.8 s ahead.
-    wind: { from: 22, to: 132, gust: 8.5, period: 4.6, dur: 1.3, warn: 0.8, rockScale: 0.35 },
     beats: [
-      { at: 22, id: 11, voice: 'W', text: 'you\'re too much. you\'ve always been too much.', when: 'gust', until: 132 },
+      { at: 40, id: 11, voice: 'W', text: 'you\'re too much. you\'ve always been too much.' },
       { at: 22, id: 12, voice: 'Y', text: 'That\'s the wind. It sounds like me. It isn\'t.', after: 11 },
       { at: 124, id: 13, voice: 'Y', text: 'The light\'s changing.' },
     ],
     oob: { below: 5, side: 30 },
-    bot: { gustWait: true },
   },
   {
     name: 'The Descent', len: 130, turn: 36,

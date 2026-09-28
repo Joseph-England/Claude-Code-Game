@@ -80,8 +80,6 @@ class Bot {
       this.prevLs = ls;
       return { c, camYaw };
     }
-    // Ridge: wait out gusts on rock (the shelter), as a player would after the first one.
-    if (bot.gustWait && p.grounded && p.groundSurface === SURFACE.ROCK && (level.wind.warn || level.wind.gust > 0.05)) c.moveY = 0;
     // Slide where the hint says so, but only while it is worth it (moving, or the bed drops ahead).
     const falling = route.heightAt(level.s + 6) < route.heightAt(level.s) - 0.4;
     for (const [a, b] of bot.slide ?? []) if (ls >= a && ls < b && (speed > 4 || falling)) c.slideHeld = true;
@@ -195,7 +193,7 @@ else {
   // Checkpoints are sparse (DECISIONS #48), so a retry replays most of its section: the chutes
   // rarely (the sled's launch always clears the crevasse; walking past the sled costs one), the
   // ridge most of one (gusts). Plus ~5 s standing at each of the three whiteout notes to read them.
-  const retry = { 3: 0.25, 4: 0.8 };
+  const retry = { 3: 0.25, 4: 0.3 };
   let est = run.t * 1.35 + 7 * 6 + 3 * 5;
   for (const k in retry) est += (run.secs[k].dur ?? 0) * retry[k];
   console.log(`\nBot reached the summit in ${fmtT(run.t)} (${run.t.toFixed(1)} s).`);

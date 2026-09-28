@@ -208,7 +208,7 @@ export class Controller {
   }
 
   /**
-   * The sled: gravity along the slope, runner friction by surface (+ heels dragging on S), drag;
+   * The sled: gravity along the slope, runner friction by surface, drag;
    * A/D turn the velocity about the ground normal; W paddles off when nearly still.
    */
   _sledForces(dt, cmd) {
@@ -226,7 +226,7 @@ export class Controller {
       _push.addScaledVector(n, -_push.dot(n)).normalize();
       v.addScaledVector(_push, sl.push * dt);
     }
-    const mu = (sl.friction[this.groundSurface] ?? 0.05) + (cmd.moveY < -0.3 ? sl.brake : 0);
+    const mu = sl.friction[this.groundSurface] ?? 0.05;
     reduceSpeed(v, mu * G * n.y * dt);
     const s = v.length();
     if (s > 0) reduceSpeed(v, sl.drag * s * s * dt);

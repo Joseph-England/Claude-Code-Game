@@ -355,3 +355,10 @@ work, README is complete.
   11/11 climb lines; checks and build pass.
 - **Broken / deferred:** nothing known.
 - **Next step:** Phase 6, first item: bug bash (title → credits twice in a row on each tier).
+
+### Session 10 — final ridge rocks (2026-09-28)
+- **Completed:** the rocks along the summit ridge and on the top are gone (shards, edge rock paint,
+  flank blocks): a clean snow arête to a snowy peak (DECISIONS #95). Checks, playthrough (11/11
+  lines, ≈ 5:25 title to credits) and build pass.
+- **Broken / deferred:** nothing known.
+- **Next step:** Phase 6, first item: bug bash (title → credits twice in a row on each tier).

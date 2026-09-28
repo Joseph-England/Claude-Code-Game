@@ -145,7 +145,8 @@ export function buildProps(mountain) {
       addRock(cx + Math.cos(a) * rr, cz + Math.sin(a) * rr, big * (k ? 0.4 + 0.4 * rand() : 1), 0.45 + 0.35 * rand(), 0.45);
     }
   }
-  for (let s = 10; s < route.length - 10; s += 7) {
+  const ridgeFrom = route.sections.find((x) => x.name === 'Summit Push').s0 + 45;
+  for (let s = 10; s < ridgeFrom; s += 7) { // (none on the summit ridge's flanks: DECISIONS #95)
     const p = route.at(s), prof = route.profileAt(s);
     for (const side of [-1, 1]) {
       const d = side * (prof.w + 14 + rand() * 40), x = p.x + p.rx * d, z = p.z + p.rz * d;
@@ -155,15 +156,8 @@ export function buildProps(mountain) {
       addRock(x, z, r, 0.55 + 0.4 * rand(), 0.5, Math.abs(d) < 30);
     }
   }
-  // --- The summit's rocks: jagged blocks either side of the top and gendarmes along the upper
-  // crest, so the peak ends in rock, not a snow hump (DECISIONS #89). Off the path (|d| ≥ 4.6).
-  const top = route.sections.length - 1, push = route.sections.findIndex((x) => x.name === 'Summit Push');
-  // Leaning shards, mostly on the north side where the face drops, one tower just past the top.
-  for (const [k, ls, d, w, hgt] of [[top, 5, -6.2, 1.1, 2.6], [top, 10, -7.4, 1.6, 4.6], [top, 16, 5.6, 0.9, 1.8], [top, 21, -5.4, 1.8, 5.6], [top, 24, -3.0, 1.2, 3.2],
-    [push, 110, -6.6, 0.9, 2.0], [push, 128, -6.2, 1.2, 3.0], [push, 136, 6.4, 0.8, 1.6]]) {
-    const p = route.place(k, ls, d);
-    addRock(p.x, p.z, 1, 1, 0.3, true, [w, hgt, w * (0.8 + 0.5 * rand())], 0.12 + 0.15 * rand());
-  }
+  // (No rock shards along the summit ridge or on the top: they stood awkwardly on a snow arête —
+  // user playtest, Session 10; DECISIONS #95. The ridge and the peak are clean snow.)
 
   // --- Route marker poles (orange tips) every 18 m, alternating sides; the direction aid.
   const poleGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.8, 5);

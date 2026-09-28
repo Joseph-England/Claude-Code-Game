@@ -148,7 +148,6 @@ export const SECTIONS = [
     profile: { type: 'trail', w: 8, shoulder: 20 },
     profiles: [[52, 150, { type: 'ridge', w: 4, drop: 34, shoulder: 34, natural: true }]],
     surface: SNOW,
-    paint: [[60, 148, ROCK, 4.2, 99], [60, 148, ROCK, -99, -4.2]], // rock breaks through at the ridge's edges
     cairns: [[6, -4]],
     beats: [
       { at: 66, id: 24, voice: 'W', text: 'you\'re so tired.' },

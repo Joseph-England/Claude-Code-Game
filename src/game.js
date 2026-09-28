@@ -81,16 +81,36 @@ fog.u.uSunColor.value = atmosphere.sunColor;
   fog.setStorm(level.storm, STORM_R, STORM_TOP, 1 / (16 * STORM_NORM), new THREE.Vector3(-mid.dx, 0, -mid.dz).multiplyScalar(12));
 }
 
-// Spindrift emitters along the ridge crest and the summit.
+// Spindrift emitters along the ridge crest, the summit ridge and the summit, and off the crest's
+// edges up there (user playtest: more blowing snow at the top; DECISIONS #86).
 const crest = [];
-for (const k of [4, 8]) {
+for (const [k, from, step] of [[4, 10, 3], [7, 50, 2.5], [8, 0, 2]]) {
   const sec = mountain.route.sections[k];
-  for (let ls = 10; ls < sec.len - 4; ls += 3) {
+  for (let ls = from; ls < sec.len - 2; ls += step) {
     const p = mountain.route.at(sec.s0 + ls);
-    crest.push([p.x, mountain.heightfield.heightAt(p.x, p.z) + 0.3, p.z]);
+    for (const d of k === 4 ? [0] : [0, -5, 5]) {
+      const x = p.x + p.rx * d, z = p.z + p.rz * d;
+      crest.push([x, mountain.heightfield.heightAt(x, z) + 0.3, z]);
+    }
   }
 }
-const particles = new Particles(scene, { crest, snow: 30000 });
+// A smoothed copy of the ground (8 m cells, box-filtered over 24 m) for the snowfall to follow.
+function groundTexture(hf) {
+  const step = 8, n = Math.floor((hf.n - 1) / step) + 1, data = new Uint16Array(n * n);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    let sum = 0, c = 0;
+    for (let b = -12; b <= 12; b += 3) for (let a = -12; a <= 12; a += 3) {
+      const x = Math.min(hf.n - 1, Math.max(0, i * step + a)), z = Math.min(hf.n - 1, Math.max(0, j * step + b));
+      sum += hf.heights[z * hf.n + x]; c++;
+    }
+    data[j * n + i] = THREE.DataUtils.toHalfFloat(sum / c);
+  }
+  const tex = new THREE.DataTexture(data, n, n, THREE.RedFormat, THREE.HalfFloatType);
+  tex.magFilter = tex.minFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return { texture: tex, origin: [hf.origin - step / 2, hf.origin - step / 2], size: n * step };
+}
+const particles = new Particles(scene, { crest, snow: 30000, ground: groundTexture(mountain.heightfield) });
 const fx = { sprayAcc: 0, breathT: 1, emberAcc: 0, wind: new THREE.Vector3(), light: new THREE.Color() };
 const rnd = (a = 1) => (Math.random() - 0.5) * 2 * a;
 
@@ -464,22 +484,27 @@ function updateParticles(dt) {
     }
   }
   // Weather: breeze + gusts + the whiteout's blizzard along the route.
-  // The gap's wind reaches down the approach before the storm does: snow thickens and streams.
+  // The gap's wind reaches down the approach before the storm does: snow thickens and streams. It
+  // blows down the gap and across the path (from the front left), and in the storm the snow falls
+  // fast, so flakes come out of the sky and settle along the slope instead of streaming straight
+  // at you out of the mountain ahead (user playtest, Session 7; DECISIONS #86).
   const wo = level.wind.whiteout, near = level.wind.stormNear, here = mountain.route.at(level.s);
-  const blow = 11 * wo + 4 * near * (1 - wo);
-  fx.wind.set(1.2 + level.wind.x * 0.9 - here.dx * blow, 0, 0.6 + level.wind.z * 0.9 - here.dz * blow);
+  const blow = 11 * wo + 4 * near * (1 - wo), bx = -here.dx * 0.85 + here.rx * 0.52, bz = -here.dz * 0.85 + here.rz * 0.52;
+  fx.wind.set(1.2 + level.wind.x * 0.9 + bx * blow, 0, 0.6 + level.wind.z * 0.9 + bz * blow);
   const gustDir = level.wind.gust > 0.02 ? level.wind : null;
   fx.light.copy(atmosphere.ambientSky).multiplyScalar(0.8).add(new THREE.Color().copy(atmosphere.sunColor).multiplyScalar(0.05));
   const k = level.section;
   particles.update({
     time: t, wind: gustDir ? fx.wind.clone().add(new THREE.Vector3(gustDir.x, 0, gustDir.z)) : fx.wind,
-    snowDensity: Math.max(snowDensity(mountain.route, level.s), wo, 0.45 * near), streak: Math.max(wo, 0.35 * near),
-    driftStrength: (k === 4 || k === 8) && flow.mode === 'playing' ? 0.35 + 0.65 * level.wind.gust : 0, light: fx.light,
+    snowDensity: Math.max(snowDensity(mountain.route, level.s), wo, 0.45 * near), streak: Math.max(wo, 0.35 * near), fall: 1.1 + 2.2 * Math.max(wo, 0.5 * near),
+    driftStrength: k === 4 ? (flow.mode === 'playing' ? 0.35 + 0.65 * level.wind.gust : 0)
+      : k >= 7 && level.s > mountain.route.sections[7].s0 + 40 ? (flow.mode === 'ending' ? 0.55 : 0.75 + 0.25 * Math.sin(level.time * 0.7)) : 0,
+    light: fx.light,
   });
 }
 
 // Dev/test handle (tools/smoke.mjs reads it).
-window.__game = { cam, avatar, tuning, sled,
+window.__game = { cam, avatar, tuning, sled, particles,
   // Dev: stand at route arc length s (facing along the route, or back down it).
   tp: (s, back = false) => { const p = mountain.route.at(s), yaw = p.yaw + (back ? Math.PI : 0); player.teleport([p.x, mountain.heightfield.heightAt(p.x, p.z), p.z], yaw); cam.reset(player.pos, yaw); return s; },
   skipEnding: (sec) => { summitTime -= sec; }, renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, story, props, mountain, input, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };

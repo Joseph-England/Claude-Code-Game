@@ -167,13 +167,28 @@ const SKY_FRAG = /* glsl */`
     vec3 c = skyRadiance(d);
     // Artistic push: violet overhead, warmer low (DECISIONS #21).
     c *= mix(uTintLow, uTintHigh, smoothstep(0.0, 0.5, d.y));
-    // Sun disc with limb darkening, dimmed by the atmosphere along the view ray.
+    // The sun (user playtest, Session 7: the old one was a small hard white dot; DECISIONS #87):
+    // a larger disc that keeps its colour — gold high up, deep orange as it sets — with limb
+    // darkening that reddens toward the edge, squashed a little by refraction near the horizon,
+    // inside a soft warm aureole (forward scattering in the haze) that grows as it gets low.
     float cosA = dot(d, uSunDir);
-    float r = acos(clamp(cosA, -1.0, 1.0)) / 0.0065;
-    if (r < 1.0 && d.y > -0.02) {
-      float limb = 1.0 - 0.6 * (1.0 - sqrt(max(0.0, 1.0 - r * r)));
-      c += uSunColor * 60.0 * limb * smoothstep(1.0, 0.9, r);
+    vec3 sunHue = uSunColor / max(max(uSunColor.r, uSunColor.g), 1e-4) * vec3(1.0, 0.9, 0.72); // a little golden
+    float low = 1.0 - smoothstep(0.0, 0.12, uSunDir.y);
+    {
+      // Offset from the sun's centre in a frame with "up" toward the zenith, for the squash.
+      vec3 e1 = normalize(cross(uSunDir, vec3(0.0, 1.0, 0.0)) + 1e-5), e2 = cross(e1, uSunDir);
+      vec2 o = vec2(dot(d, e1), dot(d, e2) * (1.0 + 0.22 * low * low)) / 0.0105;
+      float r = length(o);
+      if (r < 1.25 && cosA > 0.0 && d.y > -0.03) {
+        float mu = sqrt(max(0.0, 1.0 - min(r * r, 1.0)));
+        vec3 limb = mix(vec3(0.62, 0.38, 0.25), vec3(1.0), pow(mu, 0.55)); // redder and darker at the rim
+        float edge = smoothstep(1.0, 0.94, r);
+        float bright = mix(22.0, 7.0, low); // bright enough to bloom, not so bright it goes white
+        c = mix(c, sunHue * bright * limb, edge);
+      }
     }
+    float ca = max(cosA, 0.0);
+    c += sunHue * uIllum * (0.35 * pow(ca, 6000.0) + (0.05 + 0.12 * low) * pow(ca, 700.0) + (0.012 + 0.03 * low) * pow(ca, 40.0)) * smoothstep(-0.08, 0.02, uSunDir.y);
     // Stars: a hashed grid on the sphere, twinkling, only where the sky is dark enough.
     if (uStars > 0.0 && d.y > 0.0) {
       vec3 q = d * 260.0, cell = floor(q);

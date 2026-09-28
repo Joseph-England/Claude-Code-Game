@@ -1,6 +1,9 @@
 // GPU particles (DESIGN §4 "Particles", showcase #5). Three instanced draw calls:
 //   - Snowfall: fully procedural in the vertex shader — each flake is a seed in a box that wraps
-//     around the camera and drifts with the wind field (gusts, headwind, turbulence). No CPU work
+//     around the camera horizontally and drifts with the wind field (gusts, headwind, turbulence).
+//     Vertically it lives in terrain-following coordinates: its height above a smoothed copy of
+//     the ground falls slowly and wraps, so wind-blown snow travels along the slope and settles
+//     onto it instead of flying out of it (user playtest, Session 7; DECISIONS #86). No CPU work
 //     per flake; density (drawn count) follows the story (light early, blizzard, then clear).
 //   - Spindrift: snow blown off the ridge crest and summit, emitted from points sampled along the
 //     crest, carried by the gusts; also procedural (age from time and seed).
@@ -50,19 +53,26 @@ const FRAG = /* glsl */`
 const SNOW_VERT = /* glsl */`
   ${COMMON}
   attribute vec4 seed;
-  uniform float uBox, uSize, uStreak;
+  uniform float uBox, uSize, uStreak, uLayer, uGroundSize, uFall;
+  uniform sampler2D tGround; // smoothed terrain height (8 m cells)
+  uniform vec2 uGroundOrigin;
   varying vec3 vTint;
+  float groundAt(vec2 xz) { return texture2D(tGround, (xz - uGroundOrigin) / uGroundSize).r; }
   void main() {
-    vec3 p = seed.xyz * uBox;
-    float t = uTime * (0.7 + 0.6 * seed.w);
-    vec3 drift = vec3(uWind.x, -1.1 - 0.8 * seed.w, uWind.z) * t;
-    drift += 0.35 * vec3(sin(t * 1.3 + seed.x * 40.0), 0.0, cos(t * 1.1 + seed.z * 40.0));
-    p += drift;
+    float t = uTime * (0.7 + 0.6 * seed.w), fall = uFall * (1.0 + 0.7 * seed.w);
+    vec2 xz = seed.xz * uBox + uWind.xz * t + 0.35 * vec2(sin(t * 1.3 + seed.x * 40.0), cos(t * 1.1 + seed.z * 40.0));
     vec3 cam = cameraPosition;
-    p = mod(p - cam + uBox * 0.5, uBox) - uBox * 0.5 + cam;
-    float edge = length(p - cam) / (uBox * 0.5);
-    vAlpha = smoothstep(1.0, 0.7, edge) * smoothstep(2.0, 5.0, edge * uBox * 0.5); // no giant flakes at the lens
-    vec3 vel = vec3(uWind.x, -1.5, uWind.z);
+    xz = mod(xz - cam.xz + uBox * 0.5, uBox) - uBox * 0.5 + cam.xz;
+    // Height above the (smoothed) ground: falls at its own rate and wraps in a layer uLayer deep
+    // that starts a little under the surface, so flakes settle into the snow.
+    float rel = mod(seed.y * uLayer - fall * t, uLayer) - 1.5;
+    float g = groundAt(xz);
+    vec3 p = vec3(xz.x, g + rel, xz.y);
+    float edge = length(p.xz - cam.xz) / (uBox * 0.5);
+    vAlpha = smoothstep(1.0, 0.7, edge) * smoothstep(2.0, 5.0, length(p - cam)) * smoothstep(uLayer - 1.5, uLayer - 6.0, rel); // no giant flakes at the lens
+    // Streaks follow the flake's real motion: the wind, up or down with the slope under it, falling.
+    vec2 gr = vec2(groundAt(xz + vec2(4.0, 0.0)) - groundAt(xz - vec2(4.0, 0.0)), groundAt(xz + vec2(0.0, 4.0)) - groundAt(xz - vec2(0.0, 4.0))) / 8.0;
+    vec3 vel = vec3(uWind.x, dot(gr, uWind.xz) - fall, uWind.z);
     vec3 world = billboard(p, uSize * (0.7 + 0.6 * seed.w), vel * uStreak * 0.03);
     vCorner = corner;
     vTint = vec3(1.0);
@@ -83,10 +93,11 @@ const DRIFT_VERT = /* glsl */`
     float speed = 3.0 + 6.0 * h;
     vec3 p = seed.xyz + dir * speed * age * (0.6 + 0.8 * uStrength) + vec3(0.0, 1.8 * age - 0.9 * age * age + h * 0.3, 0.0);
     p += 0.4 * vec3(sin(age * 9.0 + h * 30.0), 0.0, cos(age * 7.0 + h * 20.0));
-    vAlpha = uStrength * smoothstep(0.0, 0.15, age) * smoothstep(1.0, 0.5, age) * 0.9;
+    vAlpha = uStrength * smoothstep(0.0, 0.15, age) * smoothstep(1.0, 0.5, age) * 0.75 * smoothstep(2.0, 6.0, length(p - cameraPosition)); // never across the lens
     vCorner = corner;
     vTint = vec3(1.0);
-    gl_Position = projectionMatrix * viewMatrix * vec4(billboard(p, 0.05 + 0.25 * age, vec3(0.0)), 1.0);
+    // Fine grains in thin streaks along the wind, not big puffs (dithered discs read as blobs).
+    gl_Position = projectionMatrix * viewMatrix * vec4(billboard(p, 0.022 + 0.035 * age, dir * (0.1 + 0.25 * h)), 1.0);
   }
 `;
 
@@ -118,8 +129,11 @@ function material(vertexShader, uniforms, dither) {
 }
 
 export class Particles {
-  /** crest: [[x, y, z], …] spindrift emitters. counts: { snow }. */
-  constructor(scene, { crest = [], snow = 12000, pool = 2048 } = {}) {
+  /**
+   * crest: [[x, y, z], …] spindrift emitters. counts: { snow }. ground: { texture, origin: [x, z],
+   * size } smoothed terrain heights for the snowfall.
+   */
+  constructor(scene, { crest = [], snow = 12000, pool = 2048, ground = null } = {}) {
     this.time = { value: 0 };
     this.wind = { value: new THREE.Vector3() };
     const shared = { uTime: this.time, uWind: this.wind };
@@ -128,13 +142,14 @@ export class Particles {
     this.snowMax = snow;
     const seeds = new Float32Array(snow * 4);
     for (let i = 0; i < seeds.length; i++) seeds[i] = Math.random();
-    this.snowMat = material(SNOW_VERT, { ...shared, uBox: { value: 44 }, uSize: { value: 0.035 }, uStreak: { value: 0 } }, 0);
+    this.ground = { tGround: { value: ground?.texture ?? null }, uGroundOrigin: { value: new THREE.Vector2(...(ground?.origin ?? [0, 0])) }, uGroundSize: { value: ground?.size ?? 1 } };
+    this.snowMat = material(SNOW_VERT, { ...shared, ...this.ground, uBox: { value: 44 }, uSize: { value: 0.035 }, uStreak: { value: 0 }, uLayer: { value: 28 }, uFall: { value: 1.1 } }, 0);
     this.snow = new THREE.Mesh(quadGeometry(snow, [['seed', 4, seeds]]), this.snowMat);
     this.snow.frustumCulled = false;
     this.snow.renderOrder = 10;
 
     // Spindrift.
-    const per = 12, n = crest.length * per;
+    const per = 20, n = crest.length * per;
     const ds = new Float32Array(Math.max(1, n) * 4);
     crest.forEach((c, k) => {
       for (let j = 0; j < per; j++) {
@@ -171,7 +186,7 @@ export class Particles {
   }
 
   /**
-   * Per frame. o: { time, wind (Vector3 m/s), snowDensity 0..1, streak, driftStrength, light (Color) }.
+   * Per frame. o: { time, wind (Vector3 m/s), snowDensity 0..1, streak, fall (m/s), driftStrength, light (Color) }.
    */
   update(o) {
     this.time.value = o.time;
@@ -179,6 +194,7 @@ export class Particles {
     this.snow.geometry.instanceCount = Math.min(this.snowMax, Math.round((this.snowTier ?? this.snowMax) * o.snowDensity));
     this.snow.visible = this.snow.geometry.instanceCount > 0;
     this.snowMat.uniforms.uStreak.value = o.streak ?? 0;
+    this.snowMat.uniforms.uFall.value = o.fall ?? 1.1;
     this.snowMat.uniforms.uSize.value = 0.03 + 0.03 * (o.streak ?? 0);
     this.driftMat.uniforms.uStrength.value = o.driftStrength;
     this.drift.visible = o.driftStrength > 0.01 && this.driftCount > 0;

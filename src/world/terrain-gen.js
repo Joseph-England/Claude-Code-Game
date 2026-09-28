@@ -7,14 +7,15 @@
 //   4. route distance field (nearest arc length s and signed lateral offset d per sample)
 //   5. carve the route cross-sections into the terrain (spline SDF)
 //   6. splat map: surface ids by section, route, slope
-//   7. a coarse backdrop of distant ranges (render only)
+//   7. the distant ranges (render only), grown by stream-power erosion (ranges.js)
 import { Noise } from './noise.js';
 import { erode } from './erosion.js';
 import { Route } from './route.js';
+import { generateRanges } from './ranges.js';
 import { SURFACE } from './surfaces.js';
 
 export const WORLD = { size: 1024, cell: 1, seed: 1917, valley: -150 };
-export const BACKDROP = { size: 14000, n: 193 };
+export const BACKDROP = { size: 14000, n: 225 };
 const FAR = 100; // m: route influence radius (distance field extent)
 
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -98,7 +99,7 @@ export function bedWidth(p) {
 
 export function generateTerrain(opts = {}, onProgress = () => {}) {
   const seed = opts.seed ?? WORLD.seed;
-  const noise = new Noise(seed), detail = new Noise(seed + 101), far = new Noise(seed + 202);
+  const noise = new Noise(seed), detail = new Noise(seed + 101);
   const route = new Route();
   const { size, cell } = WORLD;
   const n = Math.round(size / cell) + 1, origin = -size / 2;
@@ -279,40 +280,11 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
   }
   t = mark('splat', t);
 
-  // --- 7. Backdrop: distant ranges ringing the valley (render only). Structured like real ranges
-  // (DECISIONS #65): warped ridged noise lays out the main crest lines; an "eroded" fBm (each
-  // octave damped where the octaves below are steep) hangs spurs, gullies and cols off them; a power
-  // curve keeps the valleys broad and the summits sharp; heights fall toward the valley floor.
-  const bn = BACKDROP.n, bsize = BACKDROP.size, borigin = -bsize / 2, bcell = bsize / (bn - 1);
-  const backdrop = new Float32Array(bn * bn);
-  const eroded = (x, z) => {
-    let sum = 0, amp = 0.5, dx = 0, dz = 0, norm = 0;
-    for (let o = 0; o < 7; o++) {
-      const e = 0.01, v = far.simplex(x, z);
-      dx += (far.simplex(x + e, z) - v) / e;
-      dz += (far.simplex(x, z + e) - v) / e;
-      sum += (amp * v) / (1 + 0.6 * (dx * dx + dz * dz));
-      norm += amp;
-      amp *= 0.5;
-      const nx = (x * 0.8 - z * 0.6) * 2, nz = (x * 0.6 + z * 0.8) * 2;
-      x = nx + 17.1; z = nz - 9.4;
-    }
-    return sum / norm;
-  };
-  for (let j = 0; j < bn; j++) {
-    for (let i = 0; i < bn; i++) {
-      const x = borigin + i * bcell, z = borigin + j * bcell;
-      const r = Math.max(Math.abs(x), Math.abs(z));
-      far.warp(x / 4200, z / 4200, 0.45, 3, warp);
-      const crest = far.ridged(warp[0], warp[1], 3, 2, 0.5); // main ridgelines, 0 … 1
-      const e = eroded(x / 1700, z / 1700) * 0.5 + 0.5; // spurs and gullies, 0 … 1
-      const massif = 0.55 + 0.45 * far.fbm(x / 6000 + 3.1, z / 6000 - 7.7, 2); // some ranges higher
-      const shape = Math.pow(Math.max(0, 0.72 * crest + 0.5 * e - 0.28), 1.5);
-      const ring = smooth(size / 2 + 200, 2800, r);
-      const hills = 60 * (eroded(x / 600 + 40, z / 600) * 0.5 + 0.5);
-      backdrop[j * bn + i] = r < size / 2 + 60 ? WORLD.valley - 40 : WORLD.valley - 60 + ring * (massif * shape * 3400 + hills);
-    }
-  }
+  // --- 7. Backdrop: the distant ranges (render only), grown by stream-power erosion (ranges.js,
+  // DECISIONS #88). Their valley floor sits a little under the play area's edge.
+  const bn = BACKDROP.n, bsize = BACKDROP.size;
+  onProgress(0.9, 'raising the ranges');
+  const backdrop = generateRanges({ n: bn, size: bsize, seed: seed + 5, valley: WORLD.valley - 45, inner: 800, relief: 1900, iterations: 120 });
   mark('backdrop', t);
   timings.total = Date.now() - t0;
   onProgress(1, 'done');

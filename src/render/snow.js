@@ -74,11 +74,18 @@ export const SNOW_NORMAL = /* glsl */`
   {
     vec3 nW = inverseTransformDirection(normal, viewMatrix);
     #ifndef SNOW_SPLAT
-      // Distant ranges: rock where it is steep, snow elsewhere.
-      float steep = smoothstep(0.72, 0.55, nW.y);
-      gW = vec4(0.0, 1.0 - steep, 0.0, steep);
-      diffuseColor.rgb = mix(vec3(0.97, 0.98, 1.0), vec3(0.2, 0.18, 0.18), steep);
-      roughnessFactor = mix(0.85, 0.8, steep);
+      // Distant ranges (DECISIONS #88): snow above a wavering snowline except on faces too steep
+      // to hold it; below it scree and rock, and dark conifer forest on the gentler valley floors
+      // and lower slopes — the contrast that makes a range read as mountains.
+      float steep = smoothstep(0.74, 0.56, nW.y);
+      float snowline = 170.0 + 140.0 * noised(vWorldPos.xz * 0.0011).x + 60.0 * noised(vWorldPos.xz * 0.004).x;
+      float cover = smoothstep(snowline - 90.0, snowline + 40.0, vWorldPos.y + 90.0 * (nW.y - 0.8)) * (1.0 - steep);
+      float forest = (1.0 - smoothstep(-110.0, 40.0, vWorldPos.y + 60.0 * noised(vWorldPos.xz * 0.006).x)) * smoothstep(0.55, 0.8, nW.y);
+      vec3 rockC = vec3(0.2, 0.18, 0.17) * (0.8 + 0.35 * noised(vec2(vWorldPos.y * 0.05, dot(vWorldPos.xz, vec2(0.003, 0.002)))).x);
+      vec3 lowC = mix(rockC, vec3(0.045, 0.07, 0.055), forest);
+      gW = vec4(0.0, cover, 0.0, 1.0 - cover);
+      diffuseColor.rgb = mix(lowC, vec3(0.97, 0.98, 1.0), cover);
+      roughnessFactor = mix(0.85, 0.85, cover);
     #endif
     vec3 n = triBump(nW, vWorldPos, 0.35, gDetailFade * (0.18 * (gW.x + gW.y) + 0.02 * gW.z));
     n = triBump(n, vWorldPos, 1.7, (0.25 + 0.75 * gDetailFade) * 0.35 * gW.w);

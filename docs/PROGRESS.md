@@ -122,7 +122,7 @@ Playtest notes from Session 6's build (done first, Session 7):
 - [x] Note cairns draw you in (lanterns and prayer flags); notes never collide with earlier lines; the stone beat can't be missed (DECISIONS #85)
 - [x] Blizzard snow travels along the slope and falls; more blowing snow at the top (DECISIONS #86)
 - [x] New sun (DECISIONS #87)
-- [ ] Backdrop ranges that read as real mountains
+- [x] Backdrop ranges that read as real mountains (DECISIONS #88)
 - [ ] A summit that looks majestic from everywhere (pyramid, arêtes, rock faces, snow plume)
 - [ ] Environment craft: rocks that belong, outcrops, trees low down
 

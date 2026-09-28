@@ -473,8 +473,6 @@ createLoop({
     avatarSink += (sink - avatarSink) * Math.min(1, frameDt * 8);
     renderPos.y -= avatarSink;
     const crouch = THREE.MathUtils.lerp(player.prevCrouch, player.crouch, alpha);
-    // Scarf wind: a steady breeze across the slope plus the level's gusts and headwind.
-    avatar.wind.set(1.5 + level.wind.x * 0.6, 0, 0.8 + level.wind.z * 0.6);
     avatar.update(player, renderPos, alpha, frameDt);
     if (flow.mode === 'title') titleCamera(flow.t);
     else if (flow.mode === 'ending') ending.camera(camera, level.time - summitTime, atmosphere.sunDir);

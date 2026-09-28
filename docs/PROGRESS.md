@@ -115,8 +115,8 @@ Playtest notes from Session 6's build (done first, Session 7):
 - [x] No camera roll: the horizon stays level when turning (DECISIONS #79)
 - [x] Packed snow removed (look, sound, trail); new soft snow steps; quieter footsteps (DECISIONS #80)
 - [x] Ridge ice removed; gusts are waited out standing still or on rock (DECISIONS #81)
-- [ ] Scarf replaced by a knitted neck gaiter (no cloth simulation)
-- [ ] Better climber model and walk (feet that roll heel to toe, hip sway, pelvis turn, hood, gaiters)
+- [x] Scarf replaced by a knitted neck gaiter (no cloth simulation) (DECISIONS #82)
+- [x] Better climber model and walk (feet that roll heel to toe, hip sway, pelvis turn, trekking poles, hood, gaiters) (DECISIONS #82)
 - [ ] Sled at the chutes cairn replaces the boot-slide; the kicker launches cleanly over the crevasse
 - [ ] Contextual hints (what to do, when it matters)
 - [ ] Note cairns draw you in (lanterns and prayer flags); notes never collide with earlier lines; the stone beat can't be missed

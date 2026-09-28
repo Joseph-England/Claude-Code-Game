@@ -1,6 +1,7 @@
 // Kinematic momentum controller (DESIGN §2, DECISIONS #5). Pure logic, no DOM: runs in Node
-// for tools/check-movement.mjs. States: run, slide, air, stumble, sit.
-// (Wall-kick removed in Phase 5, DECISIONS #60.)
+// for tools/check-movement.mjs. States: run, slide (slipping on ground too steep to stand on),
+// sled (riding the sled, DECISIONS #83), air, stumble, sit.
+// (Wall-kick removed in Phase 5, DECISIONS #60; the boot-slide as a move went with the sled.)
 import * as THREE from 'three';
 import { SURFACE } from '../world/surfaces.js';
 
@@ -11,6 +12,7 @@ const _b = new THREE.Vector3();
 const _d = new THREE.Vector3();
 const _n = new THREE.Vector3();
 const _seg = new THREE.Line3();
+const _push = new THREE.Vector3();
 
 /** Rotate v about axis (unit) by angle (Rodrigues). */
 function rotateAbout(v, axis, angle) {
@@ -51,6 +53,20 @@ export class Controller {
     this.events = []; // { type: 'land'|'jump'|'stumble', ... } drained by the game each frame
     this.time = 0;
     this.topSpeed = tuning.run.speed;
+    this.sled = false; // riding the sled
+  }
+
+  /** Sit on the sled (the game places the body on it first). */
+  mountSled(yaw) {
+    this.sled = true;
+    this.vel.set(0, 0, 0);
+    this.facing = this.prevFacing = yaw;
+    this.state = this.grounded ? 'sled' : 'air';
+  }
+
+  dismountSled() {
+    this.sled = false;
+    if (this.state === 'sled') this.state = 'run';
   }
 
   teleport(p, yaw = this.facing) {
@@ -60,6 +76,7 @@ export class Controller {
     this.facing = this.prevFacing = yaw;
     this.state = 'run';
     this.grounded = true;
+    this.sled = false;
     this.groundNormal.copy(UP);
     for (const k in this.timers) this.timers[k] = 0;
   }
@@ -100,6 +117,7 @@ export class Controller {
   _chooseState(dt, cmd, wishMag) {
     const T = this.timers;
     if (!this.grounded) { this.state = 'air'; return; }
+    if (this.sled) { this.state = 'sled'; return; }
     const surf = this.surfaceParams;
     const steep = this.slopeAngle > surf.maxWalk * D2R;
     if (T.stumble > 0) { this.state = 'stumble'; return; }
@@ -113,7 +131,7 @@ export class Controller {
   /** Ground jump (with coyote time and input buffer). Slide-jumps are lower and keep all speed. */
   _tryJump(cmd) {
     const t = this.t, T = this.timers, v = this.vel;
-    if (T.buffer <= 0) return;
+    if (T.buffer <= 0 || this.sled) return;
     const onGround = this.grounded && this.state !== 'stumble';
     const coyote = !this.grounded && T.coyote > 0 && !this.jumping;
     if (!onGround && !coyote) return;
@@ -139,6 +157,7 @@ export class Controller {
     const t = this.t, v = this.vel, n = this.groundNormal, surf = this.surfaceParams;
     const G = t.gravity, state = this.state;
     if (state === 'sit') { v.set(0, 0, 0); return; }
+    if (state === 'sled') { this._sledForces(dt, cmd); return; }
 
     // 1. Gravity along the slope, scaled per state.
     const gScale = state === 'run' ? t.run.gravityScale : t.slide.gravityScale;
@@ -188,6 +207,31 @@ export class Controller {
     if (s > 0) reduceSpeed(v, (surf.drag * s * s + surf.linDrag * s) * dt);
   }
 
+  /**
+   * The sled: gravity along the slope, runner friction by surface (+ heels dragging on S), drag;
+   * A/D turn the velocity about the ground normal; W paddles off when nearly still.
+   */
+  _sledForces(dt, cmd) {
+    const t = this.t, sl = t.sled, v = this.vel, n = this.groundNormal, G = t.gravity;
+    _a.set(0, -G, 0).addScaledVector(n, G * n.y);
+    v.addScaledVector(_a, dt);
+    const speed = v.length();
+    if (speed > 0.3 && Math.abs(cmd.moveX) > 0.01) {
+      const rate = Math.min(sl.maxTurnRate, (sl.turnAccel * Math.abs(cmd.moveX)) / Math.max(speed, 3));
+      rotateAbout(v, n, -Math.sign(cmd.moveX) * rate * dt);
+      this._turnRate = -Math.sign(cmd.moveX) * rate;
+    }
+    if (cmd.moveY > 0.3 && speed < sl.pushMax) {
+      _push.set(-Math.sin(this.facing), 0, -Math.cos(this.facing)); // (_b holds the velocity before this step)
+      _push.addScaledVector(n, -_push.dot(n)).normalize();
+      v.addScaledVector(_push, sl.push * dt);
+    }
+    const mu = (sl.friction[this.groundSurface] ?? 0.05) + (cmd.moveY < -0.3 ? sl.brake : 0);
+    reduceSpeed(v, mu * G * n.y * dt);
+    const s = v.length();
+    if (s > 0) reduceSpeed(v, sl.drag * s * s * dt);
+  }
+
   /** Rotate v toward dir within the plane with normal n, limited to rate·dt. */
   _turnToward(v, dir, n, rate, dt) {
     _n.crossVectors(v, dir);
@@ -207,7 +251,7 @@ export class Controller {
     else if (v.y < 0) gMul = t.air.fallGravity;
     v.y -= t.gravity * gMul * dt;
 
-    if (wishMag > 0.01) {
+    if (wishMag > 0.01 && !this.sled) {
       const before = Math.hypot(v.x, v.z);
       v.x += wish.x * wishMag * t.run.accel * t.air.control * dt;
       v.z += wish.z * wishMag * t.run.accel * t.air.control * dt;
@@ -256,7 +300,7 @@ export class Controller {
     // Never snap down through a collider floor resolved this step (a box top a little above terrain).
     else if (!floor && wasGrounded && T.groundLock <= 0 && this.state !== 'air') {
       // Stay glued over a crest only if gravity can bend the path as fast as the ground falls away.
-      const slide = this.state === 'slide' || this.state === 'stumble';
+      const slide = this.state === 'slide' || this.state === 'stumble' || this.state === 'sled';
       const stick = slide ? t.slide.stick : t.run.stick;
       const snap = slide ? t.slide.snapDistance : t.run.snapDistance;
       if (gap < snap && v.dot(nH) <= t.gravity * nH.y * dt * stick + 1e-4) onHF = true;
@@ -287,11 +331,11 @@ export class Controller {
       this.jumpFromSlide = false;
       if (!wasGrounded) {
         this.events.push({ type: 'land', impact });
-        if (impact > t.landing.stumbleImpact) {
+        if (impact > t.landing.stumbleImpact && !this.sled) {
           T.stumble = t.landing.stumbleTime;
           this.events.push({ type: 'stumble', impact });
         }
-        if (this.state === 'air') this.state = 'run';
+        if (this.state === 'air') this.state = this.sled ? 'sled' : 'run';
       }
     } else if (wasGrounded) {
       this.state = 'air';
@@ -304,7 +348,7 @@ export class Controller {
     const hx = this.vel.x, hz = this.vel.z;
     let target = null;
     if (hx * hx + hz * hz > 0.25) target = Math.atan2(-hx, -hz);
-    else if (wishMag > 0.01 && this.state !== 'sit') target = Math.atan2(-wish.x, -wish.z);
+    else if (wishMag > 0.01 && this.state !== 'sit' && !this.sled) target = Math.atan2(-wish.x, -wish.z);
     if (target !== null) {
       let d = target - this.facing;
       d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -318,7 +362,7 @@ export class Controller {
     const k = 1 - Math.exp(-10 * dt);
     this.lean.x += (fwd - this.lean.x) * k;
     this.lean.y += (lat - this.lean.y) * k;
-    const crouched = this.state === 'slide' || this.state === 'sit' || this.state === 'stumble' || (this.state === 'air' && this.jumpFromSlide);
+    const crouched = this.sled || this.state === 'slide' || this.state === 'sit' || this.state === 'stumble' || (this.state === 'air' && this.jumpFromSlide);
     this.crouch += ((crouched ? 1 : 0) - this.crouch) * (1 - Math.exp(-14 * dt));
   }
 }

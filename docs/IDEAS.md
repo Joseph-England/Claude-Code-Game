@@ -11,3 +11,7 @@ Not scheduled. Only implement when a phase says so.
 - Let a held key skip the ending's camera timeline on a second playthrough.
 - Control glyphs drawn into the snow at the trailhead (DESIGN §3 Teaching) instead of the controls strip.
 - Echo of your own footsteps in the Descent's hollow (a short delay line on the sheltered reverb).
+- A soft tick for each pole plant in the snow (the poles are silent).
+- Per-part shine on the skinned climber (goggle lens, ice axe, pole shafts) via a roughness/metalness vertex attribute.
+- Cornice overhangs along the ridge as meshes (the heightfield can't overhang).
+- Tree shadows for the far forest (chunked instanced meshes so cascades can cull them).

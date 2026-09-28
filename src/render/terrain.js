@@ -11,8 +11,8 @@ export const CHUNK = 64;
 const LODS = [{ step: 1, dist: 170 }, { step: 2, dist: 420 }, { step: 4, dist: Infinity }];
 const SKIRT = [2.5, 5, 10];
 
-// Linear-space tints per surface id (packed, powder, ice, rock).
-export const SURFACE_TINTS = [[0.8, 0.83, 0.88], [0.96, 0.96, 1.0], [0.42, 0.66, 0.92], [0.36, 0.32, 0.3]];
+// Linear-space tints per surface id (snow, powder, ice, rock).
+export const SURFACE_TINTS = [[0.96, 0.96, 1.0], [0.96, 0.96, 1.0], [0.42, 0.66, 0.92], [0.36, 0.32, 0.3]];
 
 /** A CHUNK×CHUNK grid with `seg` segments per side plus a skirt ring (aSkirt = 1). */
 function chunkGeometry(seg) {

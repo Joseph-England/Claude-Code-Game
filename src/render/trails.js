@@ -2,7 +2,7 @@
 // WINDOW × WINDOW metre square that follows the player. Each frame one full-screen pass ping-pongs
 // the buffer: texels that just scrolled in are cleared to fresh snow, everything else is kept, and
 // the player's path (a capsule from the last position) and footprints are stamped in. The terrain
-// vertex shader sinks powder (and a little crust) along it; the fragment shader bends normals by
+// vertex shader sinks the snow (deeper in powder) along it; the fragment shader bends normals by
 // its gradient at the target's full resolution, so footprints read even between vertices.
 import * as THREE from 'three';
 import { makePass } from './post.js';
@@ -44,12 +44,12 @@ export const TRAIL_PARS = /* glsl */`
   }
 `;
 export const TRAIL_SINK = /* glsl */`
-  float trailSink(vec2 xz, vec4 w) { return trailAt(xz) * (0.3 * w.y + 0.06 * w.x); }
+  float trailSink(vec2 xz, vec4 w) { return trailAt(xz) * (0.3 * w.y + 0.12 * w.x); }
 `;
 export const TRAIL_NORMAL = /* glsl */`
   {
     float e = uTrailTexel;
-    float k = (0.3 * gW.y + 0.06 * gW.x) * gDetailFade * 2.5;
+    float k = (0.3 * gW.y + 0.12 * gW.x) * gDetailFade * 2.5;
     if (k > 0.0) {
       vec2 xz = vWorldPos.xz;
       float c = trailAt(xz);
@@ -58,7 +58,7 @@ export const TRAIL_NORMAL = /* glsl */`
       vec3 nW = inverseTransformDirection(normal, viewMatrix);
       nW = normalize(nW + vec3(dx, 0.0, dz) * k / (2.0 * e));
       normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz);
-      diffuseColor.rgb *= 1.0 - 0.12 * c * (gW.y + gW.x); // packed-down snow is a little greyer
+      diffuseColor.rgb *= 1.0 - 0.12 * c * (gW.y + gW.x); // trodden snow is a little greyer
     }
   }
 `;

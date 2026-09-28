@@ -109,9 +109,13 @@ Movement feel is the heart of the game. The character is a **kinematic body** wi
   rises (you carve, you don't pivot). Top run speed on flat packed snow ~7 m/s.
 - **Jump** — variable height (release early = short hop). Coyote time 100 ms, jump buffer 120 ms.
   Horizontal velocity is fully preserved. Jumping off a slope adds a small push along the surface normal.
-- **Slide** (hold Shift / B) — drop into a boot-ski crouch. Very low friction; input only *steers*
-  (carving) and cannot add speed. Gravity along the slope does all the work. The main speed tool.
-- **Slide-jump** — jumping out of a slide keeps all speed and gets a lower, longer arc: the "launch".
+- ~~Slide~~ / ~~slide-jump~~ — removed as moves in Session 7 (DECISIONS #83): crouch-skating on
+  your boots looked odd. Sliding is the **sled's** job (below); `slide` survives only as the
+  involuntary slip on ground too steep to stand on.
+- **Sled** (Session 7, DECISIONS #83) — a wooden sled waits by the Ice Chutes cairn. `E` / X sits on
+  it; gravity does the work; A/D steer (the velocity turns about the ground normal), S drags the heels,
+  W paddles off from rest. The kicker's lip throws a rider on a fixed arc over the crevasse; the
+  run-out climbs into deep powder where the sled stops and you step off.
 - **Landing** — velocity is projected onto the landing surface. Landing on a downslope that matches
   your arc keeps (even gains) speed; landing flat bleeds the normal component; a very hard flat landing
   causes a 0.3 s stumble.
@@ -125,8 +129,8 @@ Movement feel is the heart of the game. The character is a **kinematic body** wi
 ### Surfaces (per-triangle / per-texel surface id)
 | Surface | Friction | Drag | Control | Notes |
 |---|---|---|---|---|
-| Powder | medium | **high**, rises with depth | good | sink ~0.3 m, deep trail, slow |
-| Packed snow | medium | low | good | baseline; visible as wind-crust sheen |
+| Snow | medium | low | good | baseline (the old packed physics); looks and sounds like snow — there is no packed snow any more (Session 7, DECISIONS #80) |
+| Powder | medium | **high**, rises with depth | good | sink ~0.3 m, deep trail, slow; only in the Powder Fields and the whiteout col |
 | Ice | **near zero** | very low | poor | fast, slippery, glassy blue |
 | Rock | high | low | great | stops slides, climbable steep |
 
@@ -198,7 +202,12 @@ One continuous route, ~1.6 km of path, ~550 m of climb. Sun elevation is tied to
 | 7 | **Summit Push** — the summit ridge, storm behind you | 0:40 | Just walking: a steady climb that narrows to a ridge with the ranges either side | Resolve |
 | 8 | **Summit** | 0:30 | Walk, stand, look; no challenge | Quiet, ambiguous ending |
 
-### Teaching (no tutorial popups)
+### Teaching (as built, Session 7: contextual hints, DECISIONS #84)
+One-shot hints with key caps show when they matter — the sled and how to steer it, what to do when
+the wind rises on the ridge, the lanterns at the note cairns, leaving a stone — above the prompts for
+actions (`E` sit on the sled, `E` leave a stone). The original plan below is kept for reference.
+
+### Teaching (original plan: no tutorial popups)
 - Controls are shown once as tiny glyphs in the snow at the trailhead (drawn into the snow shader).
 - Section 1 gates: a small rise you can only crest with momentum from the preceding dip teaches that
   speed carries. A gentle slope with a lone boulder at the bottom invites the first slide.
@@ -225,6 +234,14 @@ cross-section profiles (trail, basin, pipe, ridge, cave, plateau, summit).
 | 7 | Summit Push | 150 m | 62 → 117 | — | Out of the storm onto a broad shoulder that narrows into the summit ridge: a steady 20–25° walk with the ranges on both sides and the low sun ahead (Session 6, DECISIONS #78; the dip, bank, couloir and rock line are gone) |
 | 8 | Summit | 26 m | 117 → 118 | — | Round top with 60 m falls; the ending takes over 12 m in (no flag) |
 
+**Session 7 changes** (DECISIONS #80–#91): the Foot's bank is a plain climb; the Powder Fields are
+deep powder with no packed trail; the Ice Chutes are ridden on the sled (it waits at 11 m; the lip
+launches at 198.8 m; the run-out from 238 m is powder); the ridge has no ice; the whiteout's note
+cairns have lanterns and prayer flags and the col is walled by six rock peaks; the Summit Push ridge
+and the summit sit on a planar pyramid with couloirs and strata, the top pointed at 121.5 m (view
+spot 13 m in, the ending triggers at 10 m). Bot 2:26, first-time estimate ≈ 4:36 climb, ≈ 5:36 title
+to credits.
+
 Phase 5 numbers (tighter controls, no chimneys): bot 2:16, first-time estimate ≈ 4:54 for the
 climb, ≈ 5:54 title to credits with the opening (~8 s) and the 52 s ending. The estimate is 1.35 ×
 bot + ~6 s hesitation per new mechanic + a retry share in the chutes, ridge and push + ~5 s reading
@@ -247,11 +264,16 @@ than ~4 s behind another except direct answers, which follow their line by desig
   shifts it to near-white.
 - **Particles** — GPU-animated instanced snow with a wind field; spindrift blowing off ridge crests;
   snow spray from slides/landings; breath puffs; embers of light at cairns.
-- **Character** — abstract procedural figure (capsules), procedural gait and lean, and a **verlet
-  scarf** in warm red — the one saturated warm colour until the sunset overtakes it. As built
+- **Character** — As built (Session 7, DECISIONS #82): a climber built from lathed and rounded
+  shapes as one rigidly skinned mesh — quilted down jacket, rolled hood, a **red knitted neck gaiter**
+  (it replaced the cloth scarf, which never behaved), beanie and goggles, pack with straps, foam mat
+  and ice axe, mittens, gaiters, boots on real ankles — walking heel to toe with pelvis sway, drop and
+  turn and trekking poles planted with the opposite foot (arms by IK). Originally: an abstract
+  capsule figure with a verlet scarf. As built
   (Session 6): feet are planted with two-bone IK on the snow under each foot (no foot slide; toe-off;
   hips ride steadily on slopes; lean into climbs; stepping turns; feet lift higher in powder), and
-  the scarf collides with capsules for jacket, pack, bedroll, head and arms (DECISIONS #74, #76).
+  the scarf collides with capsules for jacket, pack, bedroll, head and arms (DECISIONS #74, #76;
+  the scarf is gone since Session 7).
 - **Post** — HDR half-float target → physically based mip-chain bloom → per-section colour grade
   (saturation/temperature curve) → AgX/ACES tonemap → vignette, film grain, subtle speed-streak/
   chromatic aberration at high speed → FXAA.
@@ -268,20 +290,27 @@ alpenglow), `snow.js`, `trails.js`, `fog.js`, `particles.js`, `post.js`, `arc.js
 density and grade per section), `quality.js`. Decisions #51–59. Medium: 83–85 draw calls and
 275–329k triangles (both including shadow passes).
 
+**Session 7** (DECISIONS #86–#91): the sun is a larger coloured, limb-darkened disc in a warm aureole;
+snowfall moves in terrain-following coordinates and the storm's snow comes across the path out of
+the sky; the distant ranges are grown by stream-power erosion (`world/ranges.js`) with a snowline,
+rock faces with snow couloirs, and forest in the valleys; the summit is a pyramid with a snow plume
+(fog pass) and the col's horns are rock peaks; the note cairns' lanterns scatter halos through the
+storm (fog pass) and light their surroundings; rock is banded, gently bumped and snow-dusted;
+fractured snow-capped rocks and snow-laden firs (`world/rocks` in props.js, `world/trees.js`).
+Medium now: 43–84 draw calls, 300–430k triangles.
+
 ## 5. Audio (all procedural Web Audio)
 
 - **Wind** — pink noise through a rumble, a soft whistle band and a hiss, with slow swells; gusts
   are a deep roar plus a broad rush with turbulence, heard building from the warning, panned from
   upwind, dying away over ~2 s; the gap's storm adds a wandering two-band howl and its roar is heard
   from the approach (Session 6, DECISIONS #73).
-- **Footsteps** — synthesized per surface in `audio/steps.js` from a heel-then-ball force curve:
-  packed = the crust breaking (dense damped cracks at 0.4–2 kHz plus a low body; the Phase 5
-  highpassed clicks were far too bright); powder = soft low compression, a few muffled crunches, a
-  spill of snow; ice = tick + scrape + glassy grit; rock = boot heel knock, crushed grit, toe scuff
-  (noise only — the old sine thud read as a toy drum). 8 variations per surface, never the same one
-  twice in a row, and every play varies rate, level, pan (toward the foot) and a presence EQ.
-  Fired at each heel strike of the IK gait. Mix: steps sit ~10 dB above the wind bed at their peak
-  (about 7 dB lower than Phase 5's packed steps).
+- **Footsteps** — synthesized in `audio/steps.js`. As built (Session 7, DECISIONS #80): snow is one
+  soft muffled compression (one-pole lowpassed noise under a single swell — the Phase 5 powder
+  recipe the user liked), powder the same deeper and slower; ice = tick + scrape + glassy grit;
+  rock = boot heel knock, crushed grit, toe scuff. 8 variations per surface, never the same one twice
+  in a row, a small change of rate and level on every play, panned toward the foot, fired at each
+  heel strike of the IK gait; ~6 dB quieter than Session 6.
 - **Slide** — continuous filtered noise, cutoff and gain from speed and surface.
 - **Breath** — filtered noise swells on jumps, hard landings, in powder, sprinting and on steep climbs.
 - **Music** — generative ambient: slow pad chords (detuned oscillators through lowpass), a sparse

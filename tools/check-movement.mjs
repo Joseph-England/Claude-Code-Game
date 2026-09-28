@@ -51,8 +51,8 @@ function record(name, value, unit, lo, hi) {
 }
 
 // 1. Flat running per surface: top speed, time to 90 %, stopping distance.
-const runTargets = { packed: [4.85, 5.05], powder: [3.5, 4.8], ice: [4.6, 5.05], rock: [4.85, 5.05] };
-const t90Targets = { packed: [0.3, 0.8], ice: [1.8, 8] }; // tightened (DECISIONS #63)
+const runTargets = { snow: [4.85, 5.05], powder: [3.5, 4.8], ice: [4.6, 5.05], rock: [4.85, 5.05] };
+const t90Targets = { snow: [0.3, 0.8], ice: [1.8, 8] }; // tightened (DECISIONS #63)
 for (let s = 0; s < 4; s++) {
   const name = SURFACE_NAMES[s];
   const w = world('flat', flat, s);
@@ -67,7 +67,7 @@ for (let s = 0; s < 4; s++) {
   record(`run time to 90 % — ${name}`, t90, 's', ...(t90Targets[name] ?? []));
   const z0 = c.pos.z;
   const ticks = run(c, 30, cmd(), (cc) => hspeed(cc) < 0.01);
-  record(`run stop distance — ${name}`, Math.abs(c.pos.z - z0), 'm', ...(name === 'packed' ? [0.3, 1.2] : name === 'ice' ? [6, 30] : []));
+  record(`run stop distance — ${name}`, Math.abs(c.pos.z - z0), 'm', ...(name === 'snow' ? [0.3, 1.2] : name === 'ice' ? [6, 30] : []));
   record(`run stop time — ${name}`, ticks * DT, 's');
   const c3 = spawn(w, [0, 0, 180]);
   run(c3, 12, cmd({ moveY: 1, sprintHeld: true }));
@@ -82,7 +82,7 @@ for (let s = 0; s < 4; s++) {
   slideStop[SURFACE_NAMES[s]] = 200 - c.pos.z;
   record(`slide stop from 15 m/s — ${SURFACE_NAMES[s]}`, 200 - c.pos.z, 'm');
 }
-if (!(slideStop.rock < slideStop.powder && slideStop.powder < slideStop.packed && slideStop.packed < slideStop.ice)) failures.push('slide stop order rock<powder<packed<ice');
+if (!(slideStop.rock < slideStop.powder && slideStop.powder < slideStop.snow && slideStop.snow < slideStop.ice)) failures.push('slide stop order rock<powder<snow<ice');
 
 // 3. Uphill running on slopes (rising toward -z): speed after 5 s, forced slide?
 const walkable = {};
@@ -97,7 +97,7 @@ for (const [s, angles] of [[0, [10, 20, 30, 37, 40]], [2, [10, 20, 30]], [3, [40
     record(`uphill run ${a}° — ${SURFACE_NAMES[s]}: climbed in 6 s`, best / Math.sin(a * D), 'm along slope');
   }
 }
-for (const [k, want] of Object.entries({ packed30: true, packed37: true, packed40: false, rock45: true, rock50: true, rock58: false, ice30: false })) {
+for (const [k, want] of Object.entries({ snow30: true, snow37: true, snow40: false, rock45: true, rock50: true, rock58: false, ice30: false })) {
   if (walkable[k] !== want) failures.push(`walkability ${k} should be ${want}`);
 }
 
@@ -117,7 +117,7 @@ for (const a of [10, 20, 30]) {
   }
 }
 
-// 5. Jumps on flat packed snow.
+// 5. Jumps on flat snow.
 const flatW = world('flat', flat, 0);
 function jumpApex(opts) {
   const c = spawn(flatW, [0, 0, 150], opts.vel ?? [0, 0, 0]);

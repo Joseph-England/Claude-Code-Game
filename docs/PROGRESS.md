@@ -110,6 +110,22 @@ Playtest notes from Session 5's build (done first, Session 6):
 - [x] Whiteout motivated: a wind gap between two horns; the storm is a place you see, enter and leave (DECISIONS #77)
 - [x] Final ascent is a walk up the summit ridge, no platforming (DECISIONS #78)
 
+Playtest notes from Session 6's build (done first, Session 7):
+- [x] Title screen centred (the heading overflowed its 560 px column to the right) (DECISIONS #79)
+- [x] No camera roll: the horizon stays level when turning (DECISIONS #79)
+- [x] Packed snow removed (look, sound, trail); new soft snow steps; quieter footsteps (DECISIONS #80)
+- [x] Ridge ice removed; gusts are waited out standing still or on rock (DECISIONS #81)
+- [x] Scarf replaced by a knitted neck gaiter (no cloth simulation) (DECISIONS #82)
+- [x] Better climber model and walk (feet that roll heel to toe, hip sway, pelvis turn, trekking poles, hood, gaiters) (DECISIONS #82)
+- [x] Sled at the chutes cairn replaces the boot-slide; the kicker launches cleanly over the crevasse (DECISIONS #83)
+- [x] Contextual hints (what to do, when it matters) (DECISIONS #84)
+- [x] Note cairns draw you in (lanterns and prayer flags); notes never collide with earlier lines; the stone beat can't be missed (DECISIONS #85)
+- [x] Blizzard snow travels along the slope and falls; more blowing snow at the top (DECISIONS #86)
+- [x] New sun (DECISIONS #87)
+- [x] Backdrop ranges that read as real mountains (DECISIONS #88)
+- [x] A summit that looks majestic from everywhere (pyramid, arêtes, rock faces, snow plume) (DECISIONS #89)
+- [x] Environment craft: rocks that belong, outcrops, rock shading, banded slopes, trees low down (DECISIONS #90, #91)
+
 - [ ] Bug bash: full playthroughs on each quality tier; fix all blockers
 - [ ] Performance pass: profile, hit budgets, reduce draw calls/overdraw
 - [ ] Settings menu: quality, mouse sensitivity, invert Y, volume sliders, reduce motion
@@ -276,3 +292,38 @@ work, README is complete.
 - **Next step:** Phase 6, first item: bug bash — full playthroughs on each quality tier (start with
   the title → credits loop twice in a row, to confirm the reset: stone, notes, sun, music level, the
   standing ending's `admire`).
+
+### Session 7 — Phase 6 playtest notes, round 2 (2026-09-28)
+- **Completed (all 21 user playtest notes, done first):** title centred; no camera roll (#79). No
+  packed snow: one snow surface (old packed footing, snow look and sound), deep powder only where it
+  means something, soft Phase 5-style snow steps ~6 dB quieter (#80). No ridge ice (#81). No scarf:
+  a red knitted neck gaiter on a rebuilt climber (quilted jacket, hood, pack with straps and axe,
+  goggles, gaiters, boots on ankles) with a heel-to-toe walk, pelvis sway/drop/turn and trekking
+  poles planted with the opposite foot (#82). A sled at the chutes cairn replaces the boot-slide;
+  the kicker's lip launches a rider on a fixed arc over the crevasse; the run-out stops it (#83).
+  One-shot contextual hints with key caps (#84). Note cairns have storm lanterns whose light
+  scatters through the blizzard, prayer flags, notes that cut in over earlier lines, and a stone
+  prompt you can't miss (#85). Snowfall follows the terrain; the storm's snow comes across the path
+  from the sky; spindrift off the summit ridge (#86). A new sun (#87). Distant ranges grown by
+  stream-power erosion (#88). A summit that looks like one: pointed top, planar pyramid with
+  couloirs and strata, horns rebuilt as rock peaks, rock shards, a sunlit snow plume (#89).
+  Fractured snow-capped rocks (#90); rock shading with strata and snow on ledges, rock bands on
+  steep ground, firs from the tree line down, and a much cheaper frame (#91).
+- **New tools:** `tools/ranges.mjs` (backdrop map + skyline panorama from the summit);
+  `window.__game.look(x, z, pitch)` (dev: point the camera); `tools/check-gait.mjs` measures heel/ball
+  contact slip; `npm run playthrough` rides the sled and checks the run.
+- **Measured:** gait slip ≤ 0.034 m/s, sole 0.000 m (flat, ±20°, 2/5/9 m/s). Bot 2:26, first-time
+  estimate ≈ 4:36 climb / ≈ 5:36 title to credits; all 22 lines fire; soft-lock sweep 1 bot miss
+  (limit 3). Sled run from the cairn: one launch, clears the crevasse, stops at +245 m (steered) /
+  +252 m (hands off), top ~23–25 m/s. Medium in headless Chromium: 43–84 draw calls (was ~110) and
+  300–430k triangles (was 318–382k; budget 400k). Terrain generation ~3.1 s (ranges 0.7 s of it).
+  `npm run check`, `npm run playthrough`, `npm run build` pass.
+- **Broken / deferred:** nothing known broken. Not verifiable here: how the new snow steps sound
+  (measured, not heard), the sled's feel at real frame rates, the walk and poles in motion (frames
+  were ~1 s apart; the gait check covers the foot contact numbers). Triangles run up to ~7 % over the
+  Medium budget on some views (chutes, the Foot): the Phase 6 performance pass should trim them
+  (far trees, avatar segments, LOD distances). The first-time estimate fell to ≈ 4:36 because the
+  chutes rarely cost a retry now; the pacing still lands at ~5.5 min title to credits.
+- **Next step:** Phase 6, first item: bug bash — full playthroughs on each quality tier (start with
+  the title → credits loop twice in a row, to confirm the reset: sled back at the cairn, stone,
+  notes, hints, sun, music level, the standing ending's `admire`).

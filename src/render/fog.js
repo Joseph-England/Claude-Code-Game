@@ -9,19 +9,37 @@
 //     col (world/storm.js). Each view ray's optical depth through them is integrated analytically
 //     (density 1 − r²/R² along a line is a cubic), thinned above the col and streamed with the
 //     wind by a little noise — so the storm is a place: a white wall in the gap as you approach,
-//     a ~16 m whiteout inside, and still there behind you when you come out.
+//     a ~16 m whiteout inside, and still there behind you when you come out;
+//   - the storm lanterns at the note cairns (DECISIONS #85): each one's light scattered toward the
+//     eye by the snow in the air along the view ray — the closed-form in-scattering of a point
+//     light in a uniform medium, I·σ/h·[atan((D − t₀)/h) − atan(−t₀/h)] — dimmed by the snow
+//     between you and the lamp, so in the storm they are halos you can walk toward;
+//   - the summit's snow plume (DECISIONS #89): a banner of blowing snow streaming off the top,
+//     a chain of soft spheres widening downwind, each integrated analytically along the ray like
+//     the storm, streaked by flowing noise and lit by the low sun (bright toward it).
 import * as THREE from 'three';
 import { makePass } from './post.js';
 import { WORLD_PARS, world } from './materials.js';
 
 const STORM_N = 12;
+export const LAMP_N = 3;
+export const PLUME_N = 10;
 const FRAG = /* glsl */`
   #define STORM_N ${STORM_N}
+  #define LAMP_N ${LAMP_N}
+  #define PLUME_N ${PLUME_N}
   #include <packing>
   uniform sampler2D tHDR, tDepth;
   uniform float uNear, uFar, uAerial, uFogDensity, uFogHeight, uFogBase, uStormR, uStormTop; // uTime: WORLD_PARS
   uniform vec4 uStorm[STORM_N]; // x, z, density (1/m at the centre), base height
   uniform vec3 uStormFlow;
+  uniform vec4 uLamp[LAMP_N]; // position, amplitude (intensity × local snow density)
+  uniform float uLampSigma[LAMP_N]; // local extinction (1/m) between you and the lamp
+  uniform vec3 uLampTint;
+  uniform vec4 uPlume[PLUME_N]; // centre, radius
+  uniform float uPlumeRho[PLUME_N]; // density at the centre (1/m)
+  uniform vec3 uPlumeDir;
+  uniform float uPlumeK; // 0…1: a distant, sunlit sight (fades near the top and after sunset)
   uniform mat4 uInvProj, uCamWorld;
   uniform vec3 uCamPos, uSunColor, uWhiteColor;
   varying vec2 vUv;
@@ -58,6 +76,39 @@ const FRAG = /* glsl */`
     }
     return tau;
   }
+  // Optical depth of the plume along ro + rd·t, t in [0, D]: Σ ∫ ρ(1 − |p − c|²/R²) over each chord.
+  float plumeDepth(vec3 ro, vec3 rd, float D) {
+    float tau = 0.0;
+    for (int i = 0; i < PLUME_N; i++) {
+      vec4 c = uPlume[i];
+      if (uPlumeRho[i] <= 0.0) continue;
+      vec3 o = ro - c.xyz;
+      float B = dot(o, rd), A = dot(o, o), R2 = c.w * c.w, disc = B * B - (A - R2);
+      if (disc <= 0.0) continue;
+      float sq = sqrt(disc), t0 = max(-B - sq, 0.0), t1 = min(-B + sq, D);
+      if (t1 <= t0) continue;
+      float F1 = t1 - (A * t1 + B * t1 * t1 + t1 * t1 * t1 / 3.0) / R2;
+      float F0 = t0 - (A * t0 + B * t0 * t0 + t0 * t0 * t0 / 3.0) / R2;
+      vec3 pm = ro + rd * (0.5 * (t0 + t1));
+      float nz = vnoise(pm * vec3(0.06, 0.1, 0.06) - uPlumeDir * uTime * 0.35);
+      // A distant sight: a sphere you are close to fades out (its round edge would show).
+      float near = smoothstep(c.w + 10.0, c.w + 70.0, length(o));
+      tau += uPlumeRho[i] * (F1 - F0) * (0.25 + 1.5 * nz * nz) * near;
+    }
+    return min(tau, 1.1) * uPlumeK; // never a solid wall, whatever the angle
+  }
+  vec3 lampHalo(vec3 ro, vec3 rd, float D) {
+    vec3 sum = vec3(0.0);
+    for (int i = 0; i < LAMP_N; i++) {
+      vec4 l = uLamp[i];
+      if (l.w <= 0.0) continue;
+      vec3 o = l.xyz - ro;
+      float t0 = dot(o, rd), h = max(length(o - rd * t0), 0.12);
+      float s = (atan((D - t0) / h) - atan(-t0 / h)) / h;
+      sum += l.w * s * exp(-uLampSigma[i] * length(o));
+    }
+    return sum * uLampTint;
+  }
   void main() {
     vec3 col = texture2D(tHDR, vUv).rgb;
     float depth = texture2D(tDepth, vUv).r;
@@ -67,8 +118,11 @@ const FRAG = /* glsl */`
     // Blowing snow is lit: sky white, plus the low sun shining through it (strongly forward).
     float muS = max(dot(rd, uSunDir), 0.0);
     vec3 stormCol = uWhiteColor + uSunColor * 0.02 * (0.3 + 2.0 * pow(muS, 5.0)) * smoothstep(-0.02, 0.1, uSunDir.y);
+    // The plume: sky-lit white, and the low sun through it (strongly forward), pink at dusk.
+    vec3 plumeCol = uWhiteColor * 0.9 + uSunColor * 0.035 * (0.5 + 3.0 * pow(muS, 4.0)) * smoothstep(-0.03, 0.06, uSunDir.y) + uGlow * 0.12;
     if (depth >= 1.0) {
-      gl_FragColor = vec4(mix(col, stormCol, 1.0 - exp(-stormDepth(uCamPos, rd, 1500.0))), 1.0);
+      col = mix(col, plumeCol, 1.0 - exp(-plumeDepth(uCamPos, rd, 3000.0)));
+      gl_FragColor = vec4(mix(col, stormCol, 1.0 - exp(-stormDepth(uCamPos, rd, 1500.0))) + lampHalo(uCamPos, rd, 1500.0), 1.0);
       return;
     }
     float viewZ = perspectiveDepthToViewZ(depth, uNear, uFar);
@@ -93,8 +147,10 @@ const FRAG = /* glsl */`
     vec3 fogCol = mix(skyRad(vec3(rd.x, 0.4, rd.z)) * 0.7, skyRad(vec3(rd.x, 0.05, rd.z)) * 0.9, sunLit)
                 + uSunColor * 0.06 * pow(mu, 12.0) * sunLit;
     col = mix(col, fogCol, fogAmt);
-    // The storm in the gap.
+    // The summit's plume, then the storm in the gap.
+    col = mix(col, plumeCol, 1.0 - exp(-plumeDepth(uCamPos, rd, d)));
     col = mix(col, stormCol, 1.0 - exp(-stormDepth(uCamPos, rd, d)));
+    col += lampHalo(uCamPos, rd, d);
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -110,6 +166,10 @@ export class FogPass {
       uStorm: { value: Array.from({ length: STORM_N }, () => new THREE.Vector4()) }, uStormR: { value: 34 }, uStormTop: { value: 34 },
       uStormFlow: { value: new THREE.Vector3() },
       uWhiteColor: { value: new THREE.Color(0.8, 0.8, 0.86) },
+      uLamp: { value: Array.from({ length: LAMP_N }, () => new THREE.Vector4()) }, uLampSigma: { value: new Array(LAMP_N).fill(0) },
+      uLampTint: { value: new THREE.Color(1.0, 0.62, 0.3) },
+      uPlume: { value: Array.from({ length: PLUME_N }, () => new THREE.Vector4()) }, uPlumeRho: { value: new Array(PLUME_N).fill(0) },
+      uPlumeDir: { value: new THREE.Vector3(0, 0, -1) }, uPlumeK: { value: 1 },
     });
     this.u = this.p.u;
   }
@@ -122,6 +182,20 @@ export class FogPass {
     const u = this.u;
     u.uStormR.value = R; u.uStormTop.value = top; u.uStormFlow.value.copy(flow);
     u.uStorm.value.forEach((v, i) => { const c = cyl[i]; if (c) v.set(c[0], c[1], (c[2] * density), c[3]); else v.set(0, 0, 0, 0); });
+  }
+
+  /**
+   * The summit plume: from the top `p` (Vector3) downwind along `dir` (unit, horizontal-ish),
+   * `len` metres long, densest near the top (`rho`, 1/m).
+   */
+  setPlume(p, dir, len, rho) {
+    const u = this.u;
+    u.uPlumeDir.value.copy(dir);
+    for (let i = 0; i < PLUME_N; i++) {
+      const f = (i + 0.5) / PLUME_N, t = f * len;
+      u.uPlume.value[i].set(p.x + dir.x * t, p.y + 3 + dir.y * t, p.z + dir.z * t, 4 + 0.19 * t);
+      u.uPlumeRho.value[i] = rho * Math.pow(1 - f, 1.3) * Math.min(1, f * 5);
+    }
   }
 
   render(r, src, dst, camera) {

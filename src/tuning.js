@@ -13,11 +13,11 @@ export const tuning = {
   },
 
   run: {
-    speed: 5, // walking top speed on flat packed snow (user playtest: 7 was too fast for a walk)
+    speed: 5, // walking top speed on flat snow (user playtest: 7 was too fast for a walk)
     sprintSpeed: 9, // Shift held; unlimited stamina (DECISIONS #47)
     accel: 22, // a = accel·control·(1 − v/top): ~0.23 s walk / 0.4 s sprint time constant (tightened, DECISIONS #63)
     overspeedBrake: 0.4, // floor of the (1 − v/speed) factor when faster than top speed
-    brake: 24, // decel with no input (× surface grip): a sprint stops in ~0.4 s on packed
+    brake: 24, // decel with no input (× surface grip): a sprint stops in ~0.4 s on snow
     gravityScale: 0.5, // legs resist the slope while running
     turnAccel: 70, // max lateral accel when turning; turn rate = turnAccel/speed
     maxTurnRate: 16, // rad/s cap at low speed
@@ -33,6 +33,19 @@ export const tuning = {
     maxTurnRate: 2.5,
     stick: 1, // physical: leave the ground when v²/R > g·cosθ
     snapDistance: 0.25,
+  },
+
+  // The sled (Ice Chutes, DECISIONS #83): Coulomb μ per surface (snow, powder, ice, rock) — a
+  // sled glides on snow and ice and bogs down in deep powder; steering turns the velocity about
+  // the ground normal (A/D), S drags the heels (extra μ), W paddles off from rest.
+  sled: {
+    friction: [0.04, 0.3, 0.012, 0.6],
+    drag: 0.0022,
+    turnAccel: 16, // turn rate = turnAccel·steer / speed, capped
+    maxTurnRate: 1.6,
+    brake: 0.45,
+    push: 3, // m/s² paddling with the hands …
+    pushMax: 3.5, // … up to this speed
   },
 
   air: {
@@ -59,11 +72,11 @@ export const tuning = {
   // Avatar lean (render only). Small on foot, more when carving a slide (DECISIONS #50).
   avatar: { leanScale: 0.35, leanRun: 0.08, leanSlide: 0.3 },
 
-  // Indexed by SURFACE id: packed, powder, ice, rock.
+  // Indexed by SURFACE id: snow, powder, ice, rock.
   //  friction: Coulomb μ while sliding · drag: quadratic (1/m) · linDrag: linear (1/s)
   //  control: scales run accel and all turning · grip: scales run braking · maxWalk: deg
   surfaces: [
-    { name: 'packed', friction: 0.06, drag: 0.004, linDrag: 0, control: 1.0, grip: 1.0, maxWalk: 38 },
+    { name: 'snow', friction: 0.06, drag: 0.004, linDrag: 0, control: 1.0, grip: 1.0, maxWalk: 38 },
     { name: 'powder', friction: 0.1, drag: 0.02, linDrag: 0.25, control: 0.85, grip: 1.1, maxWalk: 38 },
     { name: 'ice', friction: 0.012, drag: 0.002, linDrag: 0, control: 0.22, grip: 0.05, maxWalk: 30 },
     { name: 'rock', friction: 0.45, drag: 0.004, linDrag: 0, control: 1.2, grip: 1.2, maxWalk: 55 },
@@ -90,9 +103,6 @@ export const tuning = {
     fovSpeedMin: 8,
     fovSpeedMax: 30,
     fovRate: 3,
-    rollMax: 0.1, // rad
-    rollPerTurn: 0.01, // rad per (m/s²) of lateral accel
-    rollRate: 4,
     clearance: 0.45, // m kept between camera and terrain/colliders
     minDistance: 1.1,
     liftRate: 10, // 1/s rise when terrain behind the player needs a higher boom

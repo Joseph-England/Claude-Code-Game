@@ -12,11 +12,13 @@ export const world = {
   uAmbient: { value: 1 }, uBounce: { value: new THREE.Color() }, uTime: { value: 0 },
   // Alpenglow: after sunset the high peaks keep a red-violet light (DESIGN §1, title).
   uGlow: { value: new THREE.Color() }, uGlowDir: { value: new THREE.Vector3(1, 0, 0) }, uGlowH: { value: 0 },
+  // The nearest storm lantern (world/beacons.js): a warm point light on everything around it.
+  uLampPos: { value: new THREE.Vector3(0, -1e4, 0) }, uLampColor: { value: new THREE.Color(0, 0, 0) },
 };
 
 export const WORLD_PARS = /* glsl */`
   uniform sampler2D tSky, tSunVis;
-  uniform vec3 uSunDir, uTintHigh, uTintLow, uBounce, uGlow, uGlowDir;
+  uniform vec3 uSunDir, uTintHigh, uTintLow, uBounce, uGlow, uGlowDir, uLampPos, uLampColor;
   uniform float uViewH, uIllum, uSunVisSize, uAmbient, uTime, uGlowH;
   uniform vec2 uSunVisOrigin;
   varying vec3 vWorldPos;
@@ -39,6 +41,11 @@ export const WORLD_PARS = /* glsl */`
   }
   vec3 alpenglow(vec3 n, vec3 p) {
     return uGlow * smoothstep(uGlowH - 60.0, uGlowH + 60.0, p.y) * max(dot(n, uGlowDir), 0.0);
+  }
+  vec3 lampLight(vec3 n, vec3 p) {
+    vec3 L = uLampPos - p;
+    float d2 = dot(L, L);
+    return uLampColor * max(dot(n, L * inversesqrt(d2 + 1e-4)), 0.0) / (d2 + 0.6) * (1.0 - smoothstep(49.0, 196.0, d2));
   }
   float sunVisAt(vec3 p) {
     vec2 uv = (p.xz - uSunVisOrigin) / uSunVisSize;
@@ -88,7 +95,7 @@ export function litMaterial(mat, { csm, patch, direct, key = 'lit' } = {}) {
       .replace('#include <common>', `#include <common>\n${WORLD_PARS}`)
       .replace('#include <lights_physical_pars_fragment>', `#include <lights_physical_pars_fragment>\n${direct ?? DIRECT_WRAP}`)
       .replace('#include <lights_fragment_begin>', `gSunVis = sunVisAt(vWorldPos);\n#include <lights_fragment_begin>`)
-      .replace('#include <lights_fragment_end>', `irradiance += skyIrradiance(inverseTransformDirection(normal, viewMatrix)) + alpenglow(inverseTransformDirection(normal, viewMatrix), vWorldPos);\n#include <lights_fragment_end>`);
+      .replace('#include <lights_fragment_end>', `irradiance += skyIrradiance(inverseTransformDirection(normal, viewMatrix)) + alpenglow(inverseTransformDirection(normal, viewMatrix), vWorldPos) + lampLight(inverseTransformDirection(normal, viewMatrix), vWorldPos);\n#include <lights_fragment_end>`);
     patch?.(shader);
   };
   mat.customProgramCacheKey = () => key;

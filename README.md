@@ -19,16 +19,20 @@ npm run preview   # serve the production build locally
 npm run check     # headless movement/camera checks (speeds, stops, jumps, slopes, camera clipping)
 npm run playthrough  # a bot plays the whole level headlessly: section times, respawns, soft-lock sweep
 node tools/map.mjs map.png   # top-down map of the generated mountain and route
+node tools/ranges.mjs out    # preview the distant ranges (map + skyline from the summit)
+node tools/check-gait.mjs    # foot slip and sole contact of the walk
 ```
 
 ## Controls
 
 Click the title to start (sound on; headphones help). **WASD / arrows** move (walk) · **Shift**
-sprint · **mouse** look · **Space** jump (hold for height) · **C** or **right mouse** slide · **E**
-leave a stone (at the last note cairn) · **R** back to the last cairn · **F2** cycle quality
-(low/medium/high) · **1–9** jump to a section (dev) · **F3** debug overlay · **F4** live tuning
-panel. Gamepad: left stick move, right stick look, A jump, B/RT slide, L3/LB/LT sprint, X leave a
-stone. At the summit the game takes over for the ending.
+sprint · **mouse** look · **Space** jump (hold for height) · **E** sit on the sled (at the top of
+the ice chutes) and leave a stone (at the last note cairn) · on the sled **A/D** steer, **S** brake,
+**W** push off · **R** back to the last cairn · **F2** cycle quality (low/medium/high) · **1–9** jump
+to a section (dev) · **F3** debug overlay · **F4** live tuning panel. Gamepad: left stick move (and
+steer the sled), right stick look, A jump, X sit on the sled / leave a stone, L3/LB/LT/RT sprint.
+Hints appear in the game when something new comes up. At the summit the game takes over for the
+ending.
 `?spawn=N` skips the title and starts at section N (1–8); `?quality=low|medium|high` forces a tier;
 `?course=graybox` opens the Phase 2 movement test course. `node tools/smoke.mjs "?spawn=4"` loads
 the game headlessly and prints console errors, draw calls and triangles.

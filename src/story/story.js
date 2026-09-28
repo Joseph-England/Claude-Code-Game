@@ -1,8 +1,6 @@
 // Story triggers (pure logic, no DOM; the Node playthrough runs it too). Every inner-voice line in
 // level.js is armed over a stretch of the route and fires once, either on entering its stretch or
 // when its condition is met there (DESIGN §1). Fired lines go to `out`; the narrator shows them.
-import { SURFACE } from '../world/surfaces.js';
-
 export class Story {
   constructor(route, cairns) {
     this.route = route;
@@ -67,7 +65,6 @@ export class Story {
         case undefined: ok = true; break;
         case 'input': ok = this.signals.has('input'); break;
         case 'jump': ok = this.signals.has('jump'); break;
-        case 'trail': ok = ctl.grounded && ctl.groundSurface === SURFACE.PACKED && level.section === l.section; break;
         // Slow through the powder: still in it well after an easy pace would have left.
         case 'slow': ok = level.section === l.section && this.sectionT > 30; break;
         case 'fast': ok = ctl.speed > 10.5; break;
@@ -81,7 +78,8 @@ export class Story {
     // After reading the last note of a section you can leave a stone on that cairn.
     const stone = this.lines.find((l) => l.when === 'stone' && !l.fired);
     const lastNote = stone && this.lines.filter((l) => l.when === 'cairn' && l.section === stone.section).at(-1);
-    this.stoneReady = !!(stone && lastNote?.fired && here === lastNote);
+    // Within a few steps of that cairn (a little wider than reading range, so it isn't missed).
+    this.stoneReady = !!(stone && lastNote?.fired && (lastNote.note.x - ctl.pos.x) ** 2 + (lastNote.note.z - ctl.pos.z) ** 2 < 7 ** 2);
     if (this.stoneReady && this.signals.has('stone')) { this.fire(stone); this.stoneCairn = lastNote.note; }
     this.signals.delete('jump');
     this.signals.delete('stone');

@@ -22,7 +22,7 @@ html, body {
   pointer-events: none;
 }
 /* All HUD text sits on a soft dark backing so it reads on white snow and on sunset colours alike. */
-#toast, #prompt, #controls {
+#toast, #prompt, #controls, #hint {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
@@ -39,7 +39,13 @@ html, body {
 }
 #controls { bottom: 12px; }
 #toast { top: 16%; font-size: 15px; letter-spacing: 0.06em; }
-#prompt { bottom: 24%; font-size: 14px; letter-spacing: 0.05em; }
+#prompt { bottom: 29%; font-size: 15px; letter-spacing: 0.05em; padding: 7px 16px; background: rgba(12, 10, 22, 0.62); }
+#hint { bottom: 35.5%; font-size: 14px; letter-spacing: 0.04em; padding: 6px 15px; transition: opacity 0.6s; }
+/* Key caps in prompts and hints. */
+kbd {
+  display: inline-block; min-width: 1.1em; padding: 1px 6px; margin: 0 2px; border-radius: 5px; text-align: center;
+  font: 600 12px/1.5 system-ui, sans-serif; color: #1c1826; background: #f1ecf4; box-shadow: 0 2px 0 #9d94a8; text-shadow: none;
+}
 #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; }
 
 /* Voices (DESIGN §1, DECISIONS #49). The Weight is not "someone else": it is the depression, so it
@@ -97,15 +103,18 @@ html, body {
 #title { background: #140d1d; cursor: default; }
 #title.ready { background: linear-gradient(180deg, rgba(14, 9, 22, 0.1) 0%, rgba(14, 9, 22, 0.25) 45%, rgba(14, 9, 22, 0.8) 100%); cursor: pointer; }
 #title.gone, #credits:not(.show) { opacity: 0; pointer-events: none; }
-#title .inner { max-width: 560px; padding: 24px; margin-top: 18vh; }
+/* Centred on both axes. The heading is wider than the note (its letter-spacing is large), so the
+   column is sized by the viewport and the note keeps its own measure; text-indent balances the
+   trailing letter-spacing so the word's ink is centred, not its box. */
+#title .inner { width: min(92vw, 900px); padding: 24px; box-sizing: border-box; }
 #title h1 {
-  font-weight: normal; font-size: clamp(40px, 8vw, 76px); letter-spacing: 0.32em; margin: 0 0 6px; text-indent: 0.32em;
+  font-weight: normal; font-size: clamp(30px, 7vw, 72px); letter-spacing: 0.32em; margin: 0 0 6px; text-indent: 0.32em; white-space: nowrap;
   text-transform: uppercase; color: #fff3f0; text-shadow: 0 0 30px rgba(255, 150, 170, 0.35), 0 2px 10px rgba(0, 0, 0, 0.6);
 }
 #title .sub { font-style: italic; font-size: 18px; margin: 0 0 34px; color: #f2d9df; text-shadow: 0 1px 6px #000; }
 #title .note {
   font: 14px/1.6 system-ui, sans-serif; color: #e3dbe8; background: rgba(12, 8, 20, 0.55); padding: 12px 18px;
-  border-radius: 10px; margin: 0 auto 26px;
+  border-radius: 10px; margin: 0 auto 26px; max-width: 520px;
 }
 #status { font: 14px/1.4 system-ui, sans-serif; letter-spacing: 0.12em; color: #d8cfe0; text-transform: lowercase; }
 #title.ready #status { animation: breathe 3.2s ease-in-out infinite; }

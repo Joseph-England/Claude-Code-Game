@@ -2,11 +2,13 @@
 // same code runs in the browser (audio.js wraps them in AudioBuffers) and in Node
 // (tools/audio-check.mjs measures level and brightness).
 //
-// A step is a ground-reaction curve — a heel strike, then the roll onto the ball of the foot — and
-// each surface turns that force into sound in its own way:
-//   packed  the crust breaking: hundreds of tiny damped cracks in the 0.4–2 kHz band plus a low
-//           body, so it crunches without hissing (user playtest: the old one was bright clicks)
-//   powder  a soft low compression with a few muffled crunches and a faint spill of snow after
+// Snow is one soft, muffled compression — the boot pressing into it — and nothing else (user
+// playtest, Session 7: the Phase 5 powder step was the one that worked; the crackle, heel/ball
+// double hit and spill added in Session 6 made both snow sounds worse, and packed snow is gone,
+// DECISIONS #80). Ice and rock follow a ground-reaction curve — a heel strike, then the roll onto
+// the ball of the foot:
+//   snow    lowpassed noise (≈ 350–600 Hz) under a single swell: ~30 ms in, ~70 ms out
+//   powder  the same, deeper and slower (the boot sinks further)
 //   ice     a hard little tick and a short scrape with sparse glassy grit
 //   rock    a boot heel on stone: a short dull knock (noise, never a tone — the old sine thud read
 //           as a toy drum), grit crushed under the sole as it rolls, and a small toe scuff
@@ -98,7 +100,7 @@ function shapedNoise(n, sr, R, envFn, filters) {
 function mix(out, x, g = 1) { for (let i = 0; i < out.length; i++) out[i] += x[i] * g; }
 
 /**
- * One footstep. surface: 0 packed, 1 powder, 2 ice, 3 rock. weight: 1 a step, ~2.5 a landing.
+ * One footstep. surface: 0 snow, 1 powder, 2 ice, 3 rock. weight: 1 a step, ~2.5 a landing.
  * Returns a Float32Array normalised to a per-surface loudness (see TARGET).
  */
 export function footstep(surface, seed, sr, weight = 1) {
@@ -107,25 +109,24 @@ export function footstep(surface, seed, sr, weight = 1) {
   // The foot: heel at ~6 ms, the ball 60–110 ms later (quicker for a landing: both at once).
   const heel = 0.006 + 0.006 * R(), roll = heavy ? 0.03 + 0.02 * R() : 0.06 + 0.05 * R();
   const toeAmp = heavy ? 0.5 : 0.35 + 0.4 * R();
-  const len = surface === 1 ? 0.42 : surface === 0 ? 0.34 : 0.26;
+  const len = surface === 1 ? 0.34 : surface === 0 ? 0.26 : 0.26;
   const n = Math.floor(len * sr), out = new Float32Array(n);
   const force = (t, soft = 1) => env(t - heel + 0.006 * soft, 0.006 * soft, 0.035 * soft * weight) + toeAmp * bump(t, heel + roll, 0.03 * soft);
 
-  if (surface === 0) {
-    // Packed: the crunch. Dense cracks while the load comes on, big ones rarer and lower.
-    const peak = 900 + 500 * R();
-    crackle(out, sr, R, (t) => peak * Math.min(1.2, force(t)), 550, 2300 + 600 * R(), 0.0005, 0.0018, 0.4);
-    crackle(out, sr, R, (t) => (force(t) > 0.3 ? 60 * force(t) : 0), 300, 800, 0.002, 0.005, 0.8, 3); // a few deeper cracks
-    mix(out, shapedNoise(n, sr, R, (t) => force(t), [['lowpass', 260 + 120 * R(), 0.8]]), 0.55); // weight
-    biquad(out, sr, 'lowpass', 3800 + 600 * R(), 0.6); // no hiss on top
-  } else if (surface === 1) {
-    // Powder: a soft low "whumpf" as the snow packs under the boot; a few muffled crunches; the
-    // spill of loose snow off the boot just after.
-    const soft = (t) => force(t, 2.2);
-    mix(out, shapedNoise(n, sr, R, soft, [['lowpass', 320 + 280 * R(), 0.7], ['lowpass', 1400, 0.5]]), 2.2);
-    crackle(out, sr, R, (t) => 260 * soft(t), 350, 1300, 0.0012, 0.0035, 0.22);
-    const spillAt = heel + roll + 0.05 + 0.04 * R();
-    mix(out, shapedNoise(n, sr, R, (t) => 0.5 * bump(t, spillAt, 0.06), [['bandpass', 1400 + 900 * R(), 0.9]]), 0.12);
+  if (surface <= 1) {
+    // Snow / powder: one-pole lowpassed noise (the Phase 5 recipe) under a single soft swell. Each
+    // variant draws its own cutoff and swell; a landing comes in faster and lasts longer.
+    const deep = surface === 1;
+    const k = (deep ? 0.035 + 0.015 * R() : 0.045 + 0.03 * R()) * 48000 / sr; // ≈ 280–600 Hz
+    const att = heavy ? 0.012 : (deep ? 0.04 : 0.024) + 0.014 * R();
+    const dec = (deep ? 0.1 : 0.062 + 0.02 * R()) * (heavy ? 1.6 : 1);
+    let lp = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / sr;
+      lp += (R() * 2 - 1 - lp) * k;
+      out[i] = lp * env(t, att, dec);
+    }
+    biquad(out, sr, 'lowpass', 4500, 0.5); // takes the hiss off the top, nothing more
   } else if (surface === 2) {
     // Ice: a hard tick, a short scrape and a little glassy grit.
     mix(out, shapedNoise(n, sr, R, (t) => env(t - heel, 0.0004, 0.003 * weight), [['highpass', 700, 0.7], ['lowpass', 6000, 0.7]]), 1.4);
@@ -148,6 +149,6 @@ export function footstep(surface, seed, sr, weight = 1) {
   return out;
 }
 
-// Per-surface loudness (dBFS, K-weighted peak 50 ms) before the per-play gain: powder is the
-// softest, rock and packed the clearest.
-export const TARGET = [-14, -17, -15, -14];
+// Per-surface loudness (dBFS, K-weighted peak 50 ms) before the per-play gain: snow and powder
+// are soft, ice and rock a little clearer.
+export const TARGET = [-17, -18, -16, -15];

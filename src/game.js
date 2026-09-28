@@ -18,6 +18,7 @@ import { ThirdPersonCamera } from './player/camera.js';
 import { Avatar } from './player/avatar.js';
 import { Sled } from './world/sled.js';
 import { Beacons } from './world/beacons.js';
+import { buildTrees } from './world/trees.js';
 import { TerrainRenderer, createBackdrop } from './render/terrain.js';
 import { createLights } from './render/lights.js';
 import { Pipeline } from './render/post.js';
@@ -128,6 +129,7 @@ const avatar = new Avatar(scene, tuning);
 const sled = new Sled(scene);
 const noteCairns = story.lines.filter((l) => l.note).map((l) => l.note);
 const beacons = new Beacons(scene, noteCairns, mountain.heightfield);
+const trees = buildTrees(scene, mountain);
 // Each heel strike: a footprint, a step sound (panned to that foot; soft for shuffling turns) and
 // a little kick of snow off the boot (more in deep powder).
 avatar.onFoot = (x, z, ctl, side, shuffle) => {
@@ -514,7 +516,7 @@ function updateParticles(dt) {
 }
 
 // Dev/test handle (tools/smoke.mjs reads it).
-window.__game = { cam, avatar, tuning, sled, particles,
+window.__game = { cam, avatar, tuning, sled, particles, trees,
   // Dev: stand at route arc length s (facing along the route, or back down it).
   tp: (s, back = false) => { const p = mountain.route.at(s), yaw = p.yaw + (back ? Math.PI : 0); player.teleport([p.x, mountain.heightfield.heightAt(p.x, p.z), p.z], yaw); cam.reset(player.pos, yaw); return s; },
   // Dev: turn the camera toward a world point (default: the summit), with a pitch.

@@ -15,7 +15,7 @@ import { generateRanges } from './ranges.js';
 import { SURFACE } from './surfaces.js';
 
 export const WORLD = { size: 1024, cell: 1, seed: 1917, valley: -150 };
-export const BACKDROP = { size: 14000, n: 225 };
+export const BACKDROP = { size: 14000, n: 193 };
 const FAR = 100; // m: route influence radius (distance field extent)
 
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -119,6 +119,7 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
   // --- 1. Macro shape on a coarse grid.
   const CC = 4, cn = Math.round(size / CC) + 1;
   const coarse = new Float32Array(cn * cn);
+  const coarseRoute = new Float32Array(cn * cn); // distance to the route (m), for the rock pass
   const pts = [];
   for (let s = 0; s <= route.length; s += 8) { const p = route.at(s); pts.push([p.x, p.z, route.heightAt(s, true)]); }
   const summit = pts[pts.length - 1];
@@ -193,6 +194,7 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
         wsum += w; hs += w * p[2]; rs += w * p[3];
       }
       const dRoute = Math.sqrt(dmin);
+      coarseRoute[j * cn + i] = dRoute;
       // Nearest point on the route polyline (for the summit's arête): project onto the segments
       // either side of the nearest sample; past the end, the distance is radial.
       let sN = imin * 8, dN = dRoute;
@@ -239,6 +241,25 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
     erode(coarse, cn, CC, { seed, droplets: 70000, thermalMask, onProgress: (f) => onProgress(0.2 + 0.3 * f, 'eroding') });
   }
   t = mark('erosion', t);
+
+  // --- 2b. Rock bands on the steep ground away from the route (DECISIONS #90): gently dipping
+  // strata step the eroded faces into ledges and risers, so the big slopes beside the route read
+  // as rock and snow instead of smooth grey curtains. Couloirs come from the erosion itself.
+  {
+    const src = coarse.slice();
+    for (let j = 1; j < cn - 1; j++) {
+      for (let i = 1; i < cn - 1; i++) {
+        const k = j * cn + i, x = origin + i * CC, z = origin + j * CC;
+        const gx = (src[k + 1] - src[k - 1]) / (2 * CC), gz = (src[k + cn] - src[k - cn]) / (2 * CC);
+        const w = smooth(0.6, 1.1, Math.hypot(gx, gz)) * smooth(40, 70, coarseRoute[k]) * smooth(150, 190, Math.hypot(x - summit[0], z - summit[1]));
+        if (w <= 0) continue;
+        // Band height and strength wander, so the steps never line up into stripes.
+        const band = 11 + 5 * noise.value(x / 90, z / 90), q = (src[k] + 0.05 * x + 0.02 * z + 6 * noise.value(x / 60 + 9, z / 60)) / band, fr = q - Math.floor(q);
+        const amt = 0.35 * w * smooth(-0.2, 0.5, noise.value(x / 70 - 4, z / 70 + 2));
+        coarse[k] = lerp(src[k], (Math.floor(q) + smooth(0.3, 0.7, fr)) * band - 0.05 * x - 0.02 * z - 6 * noise.value(x / 60 + 9, z / 60), amt);
+      }
+    }
+  }
 
   // --- 3. Upsample to the play grid + fine detail.
   const heights = new Float32Array(n * n);
@@ -360,7 +381,7 @@ export function generateTerrain(opts = {}, onProgress = () => {}) {
   // DECISIONS #88). Their valley floor sits a little under the play area's edge.
   const bn = BACKDROP.n, bsize = BACKDROP.size;
   onProgress(0.9, 'raising the ranges');
-  const backdrop = generateRanges({ n: bn, size: bsize, seed: seed + 5, valley: WORLD.valley - 45, inner: 800, relief: 1900, iterations: 120 });
+  const backdrop = generateRanges({ n: bn, size: bsize, seed: seed + 5, valley: WORLD.valley - 45, inner: 1000, relief: 1900, iterations: 120 });
   mark('backdrop', t);
   timings.total = Date.now() - t0;
   onProgress(1, 'done');

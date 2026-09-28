@@ -17,8 +17,8 @@ const ROCK_C = [0.3, 0.28, 0.27], SNOW_C = [0.93, 0.95, 1.0];
  * A fractured rock (DECISIONS #90): a sphere clipped by random planes, so it breaks into flat
  * angular facets like real rock, jittered a little; unit size, to be scaled and placed.
  */
-function fracturedRock(rand, planes = 14) {
-  const g = new THREE.IcosahedronGeometry(1, 3);
+function fracturedRock(rand, planes = 14, detail = 2) {
+  const g = new THREE.IcosahedronGeometry(1, detail);
   const P = [];
   // Deep cuts from spread-out directions (a jittered Fibonacci sphere), so nothing stays round.
   for (let k = 0; k < planes; k++) {
@@ -82,15 +82,15 @@ export function buildProps(mountain) {
   const boulderMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
   const ground = (x, z) => hf.heightAt(x, z);
   const rockGeos = []; // cairn stones, merged into one draw call at the end
-  const boulders = []; // fractured, snow-capped rocks (one more draw call)
+  const boulders = new Map(); // fractured, snow-capped rocks, bucketed by section (so far ones cull)
 
   /**
    * A fractured rock of size (sx, sy, sz) at (x, z), sunk `sink` of its height into the snow,
    * turned at random and leaning with the slope; collides if `solid`.
    */
   const addRock = (x, z, r, squash, sink = 0.35, solid = true, dims = null, lean = 0) => {
-    const g = fracturedRock(rand, 12 + Math.floor(rand() * 6));
     const [sx, sy, sz] = dims ?? [r * (0.9 + 0.4 * rand()), r * squash, r * (0.8 + 0.3 * rand())];
+    const g = fracturedRock(rand, 12 + Math.floor(rand() * 6), Math.max(sx, sy, sz) < 1.3 ? 1 : 2);
     g.scale(sx, sy, sz);
     if (lean) g.rotateZ(lean * (rand() < 0.5 ? -1 : 1));
     g.rotateY(rand() * Math.PI * 2);
@@ -100,7 +100,9 @@ export function buildProps(mountain) {
     g.translate(x, ground(x, z) + sy * (1 - 2 * sink), z);
     snowCap(g, rand);
     if (solid) meshes.push({ geometry: g, surface: SURFACE.ROCK });
-    boulders.push(g);
+    const pr = mountain.project?.(x, z) ?? { s: -1 }, key = pr.s >= 0 ? route.sectionIndexAt(pr.s) : -1;
+    if (!boulders.has(key)) boulders.set(key, []);
+    boulders.get(key).push(g);
   };
 
   route.sections.forEach((sec, k) => {
@@ -186,8 +188,8 @@ export function buildProps(mountain) {
   const rocks = new THREE.Mesh(mergeGeometries(rockGeos), rockMat);
   rocks.castShadow = rocks.receiveShadow = true;
   group.add(rocks);
-  if (boulders.length) {
-    const b = new THREE.Mesh(mergeGeometries(boulders), boulderMat);
+  for (const list of boulders.values()) {
+    const b = new THREE.Mesh(mergeGeometries(list), boulderMat);
     b.castShadow = b.receiveShadow = true;
     group.add(b);
   }

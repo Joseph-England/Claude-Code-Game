@@ -59,8 +59,11 @@ export const SNOW_COLOR = /* glsl */`
       gW = vec4(0.0, 1.0, 0.0, 0.0);
     #endif
     gDetailFade = exp(-length(vWorldPos - cameraPosition) / 70.0);
-    float strata = 0.8 + 0.35 * noised(vec2(vWorldPos.y * 0.9, dot(vWorldPos.xz, vec2(0.02, 0.013)))).x;
-    vec3 rock = vec3(0.21, 0.19, 0.19) * strata;
+    // Rock (DECISIONS #90): grey-brown, banded by thin strata that dip a little, lighter and
+    // darker layers, a faint warm iron stain here and there (snow on its ledges: SNOW_NORMAL).
+    float layer = vWorldPos.y * 1.3 + dot(vWorldPos.xz, vec2(0.05, -0.03)) + 1.2 * noised(vWorldPos.xz * 0.08).x;
+    float strata = 0.82 + 0.16 * sin(layer * 2.1) * sin(layer * 0.73 + 1.3) + 0.12 * noised(vec2(layer * 3.0, dot(vWorldPos.xz, vec2(0.3, 0.2)))).x;
+    vec3 rock = mix(vec3(0.23, 0.215, 0.205), vec3(0.3, 0.22, 0.16), 0.35 * smoothstep(0.55, 0.9, noised(vWorldPos.xz * 0.05 + 11.0).x)) * strata;
     vec3 alb = (gW.x + gW.y) * vec3(0.97, 0.98, 1.0) + gW.z * vec3(0.5, 0.72, 0.95) + gW.w * rock;
     diffuseColor.rgb = alb;
   }
@@ -79,7 +82,14 @@ export const SNOW_NORMAL = /* glsl */`
       // and lower slopes — the contrast that makes a range read as mountains.
       float steep = smoothstep(0.74, 0.56, nW.y);
       float snowline = 170.0 + 140.0 * noised(vWorldPos.xz * 0.0011).x + 60.0 * noised(vWorldPos.xz * 0.004).x;
-      float cover = smoothstep(snowline - 90.0, snowline + 40.0, vWorldPos.y + 90.0 * (nW.y - 0.8)) * (1.0 - steep);
+      // Faces too steep for a snowfield still hold snow in couloirs streaking down the fall line
+      // and on the ledges of dipping strata (noise stretched vertically / banded in height).
+      vec2 fall = normalize(nW.xz + 1e-4);
+      float across = dot(vWorldPos.xz, vec2(-fall.y, fall.x));
+      float couloir = smoothstep(0.62, 0.8, noised(vec2(across * 0.018, vWorldPos.y * 0.0035)).x + 0.25 * noised(vec2(across * 0.07, vWorldPos.y * 0.01)).x);
+      float ledge = smoothstep(0.72, 0.9, noised(vec2(across * 0.006, (vWorldPos.y + dot(vWorldPos.xz, vec2(0.04, 0.02))) * 0.03)).x);
+      float faceSnow = max(couloir, ledge * 0.6) * steep * smoothstep(-60.0, 120.0, vWorldPos.y);
+      float cover = max(smoothstep(snowline - 90.0, snowline + 40.0, vWorldPos.y + 90.0 * (nW.y - 0.8)) * (1.0 - steep), faceSnow);
       float forest = (1.0 - smoothstep(-110.0, 40.0, vWorldPos.y + 60.0 * noised(vWorldPos.xz * 0.006).x)) * smoothstep(0.55, 0.8, nW.y);
       vec3 rockC = vec3(0.2, 0.18, 0.17) * (0.8 + 0.35 * noised(vec2(vWorldPos.y * 0.05, dot(vWorldPos.xz, vec2(0.003, 0.002)))).x);
       vec3 lowC = mix(rockC, vec3(0.045, 0.07, 0.055), forest);
@@ -88,7 +98,12 @@ export const SNOW_NORMAL = /* glsl */`
       roughnessFactor = mix(0.85, 0.85, cover);
     #endif
     vec3 n = triBump(nW, vWorldPos, 0.35, gDetailFade * (0.18 * (gW.x + gW.y) + 0.02 * gW.z));
-    n = triBump(n, vWorldPos, 1.7, (0.25 + 0.75 * gDetailFade) * 0.35 * gW.w);
+    // Broken rock: a coarse and a fine octave, gentle (a strong single octave read as spots).
+    n = triBump(n, vWorldPos, 0.8, (0.3 + 0.7 * gDetailFade) * 0.14 * gW.w);
+    n = triBump(n, vWorldPos, 3.3, gDetailFade * 0.07 * gW.w);
+    // Snow lies on the rock wherever it is flat enough to hold it.
+    float dust = gW.w * smoothstep(0.8, 0.94, n.y + 0.08 * noised(vWorldPos.xz * 1.7).x);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95, 0.96, 1.0), dust * 0.9);
     normal = normalize((viewMatrix * vec4(n, 0.0)).xyz);
   }
 `;

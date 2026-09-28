@@ -5,7 +5,7 @@
 // (they are compiled into every lit material) and follow the stored tier from the next load.
 export const TIERS = {
   low: { name: 'low', scale: 0.6, dynamic: true, cascades: 1, shadowSize: 1024, lod: [110, 300], snow: 4000, bloom: 4, trail: 256, glitter: 0 },
-  medium: { name: 'medium', scale: 0.8, dynamic: true, cascades: 2, shadowSize: 1024, lod: [170, 420], snow: 12000, bloom: 5, trail: 512, glitter: 1 },
+  medium: { name: 'medium', scale: 0.8, dynamic: true, cascades: 2, shadowSize: 1024, lod: [150, 400], snow: 12000, bloom: 5, trail: 512, glitter: 1 },
   high: { name: 'high', scale: 1.0, dynamic: false, cascades: 3, shadowSize: 2048, lod: [240, 600], snow: 30000, bloom: 6, trail: 1024, glitter: 1 },
 };
 const ORDER = ['low', 'medium', 'high'];

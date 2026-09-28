@@ -124,7 +124,7 @@ Playtest notes from Session 6's build (done first, Session 7):
 - [x] New sun (DECISIONS #87)
 - [x] Backdrop ranges that read as real mountains (DECISIONS #88)
 - [x] A summit that looks majestic from everywhere (pyramid, arêtes, rock faces, snow plume) (DECISIONS #89)
-- [ ] Environment craft: rocks that belong, outcrops, trees low down
+- [x] Environment craft: rocks that belong, outcrops, rock shading, banded slopes, trees low down (DECISIONS #90, #91)
 
 - [ ] Bug bash: full playthroughs on each quality tier; fix all blockers
 - [ ] Performance pass: profile, hit budgets, reduce draw calls/overdraw

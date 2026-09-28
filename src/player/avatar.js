@@ -83,57 +83,57 @@ function quilted(prof, y0, y1, pitch, bulge, n = 48) {
   return pts;
 }
 
-/** Collects geometry per material for one joint and merges it into one mesh per material. */
+/**
+ * Collects the geometry of one joint (a bone), coloured per part. At the end of the constructor all
+ * parts are merged into a single rigidly skinned mesh: one draw call per pass for the whole figure
+ * (per-joint meshes cost ~100 draw calls with the shadow cascades).
+ */
 class Part {
-  constructor(group) { this.group = group; this.byMat = new Map(); }
+  constructor(bone, sink) { this.bone = bone; this.sink = sink; this.geos = []; }
   add(mat, geo, { p = [0, 0, 0], r = [0, 0, 0], s = [1, 1, 1] } = {}) {
     const m = new THREE.Matrix4().compose(new THREE.Vector3(...p), new THREE.Quaternion().setFromEuler(new THREE.Euler(...r)), new THREE.Vector3(...s));
     geo.applyMatrix4(m);
-    if (geo.index) geo = geo.toNonIndexed(); // merge everything as plain triangles
-    for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(k)) geo.deleteAttribute(k);
-    if (!this.byMat.has(mat)) this.byMat.set(mat, []);
-    this.byMat.get(mat).push(geo);
+    if (geo.index) geo = geo.toNonIndexed();
+    for (const k of Object.keys(geo.attributes)) if (!['position', 'normal'].includes(k)) geo.deleteAttribute(k);
+    const n = geo.attributes.position.count, col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) col.set([mat.r, mat.g, mat.b], i * 3);
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    this.geos.push(geo);
     return this;
   }
-  build() {
-    for (const [mat, geos] of this.byMat) {
-      const mesh = new THREE.Mesh(mergeGeometries(geos), mat);
-      mesh.castShadow = true;
-      this.group.add(mesh);
-    }
-  }
+  build() { this.sink.push(this); }
 }
 
 export class Avatar {
   constructor(scene, tuning) {
     this.t = tuning;
-    const M = (color, roughness, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, ...extra });
+    const M = (color) => new THREE.Color(color); // colours, not materials: everything shares one skinned mesh
     const mat = {
       jacket: M(0x2f6490, 0.66), jacketDark: M(0x1f4462, 0.75), trousers: M(0x2c2f3a, 0.85), gaiter: M(0x17181d, 0.7),
       skin: M(0xdcb49a, 0.6), knit: M(0xb52a22, 0.95), wool: M(0xd9cfb6, 0.95), boot: M(0x5a3b28, 0.62), sole: M(0x1b1714, 0.9),
       mitten: M(0x34373f, 0.85), pack: M(0x6a5f3a, 0.82), strap: M(0x24262a, 0.75), mat: M(0xc9a23a, 0.9),
       metal: M(0x9aa3ad, 0.3, { metalness: 0.8 }), lens: M(0xe0892c, 0.12, { metalness: 0.6 }), dark: M(0x15161a, 0.5),
     };
-    this.mat = mat;
+    const parts = [];
     this.root = new THREE.Group();
-    this.lean = new THREE.Group();
+    this.lean = new THREE.Bone();
     this.root.add(this.lean);
     // hips: pelvis and everything above it (sways, drops and turns with the stride);
     // legBase: the legs' root at the same point, kept square so planted feet stay planted.
-    this.hips = new THREE.Group();
-    this.legBase = new THREE.Group();
+    this.hips = new THREE.Bone();
+    this.legBase = new THREE.Bone();
     this.lean.add(this.hips, this.legBase);
 
     // Pelvis: the seat of the trousers.
-    new Part(this.hips).add(mat.trousers, new THREE.SphereGeometry(0.165, 18, 12), { p: [0, -0.03, 0.005], s: [1, 0.72, 0.76] }).build();
+    new Part(this.hips, parts).add(mat.trousers, new THREE.SphereGeometry(0.165, 12, 8), { p: [0, -0.03, 0.005], s: [1, 0.72, 0.76] }).build();
 
     // Torso: quilted jacket, hem, rolled hood, neck gaiter, pack, straps, ice axe.
-    this.torso = new THREE.Group();
+    this.torso = new THREE.Bone();
     this.hips.add(this.torso);
-    const T = new Part(this.torso);
-    const body = quilted([[0.172, -0.1], [0.178, -0.05], [0.168, 0.08], [0.176, 0.2], [0.19, 0.32], [0.19, 0.42], [0.175, 0.47], [0.13, 0.515], [0.08, 0.545], [0, 0.552]], 0.0, 0.46, 0.092, 0.007);
-    T.add(mat.jacket, lathe(body, 24), { s: [0.96, 1, 0.74] });
-    T.add(mat.jacketDark, new THREE.TorusGeometry(0.168, 0.018, 6, 24), { p: [0, -0.06, 0], r: [Math.PI / 2, 0, 0], s: [0.97, 0.74, 1] }); // hem band
+    const T = new Part(this.torso, parts);
+    const body = quilted([[0.172, -0.1], [0.178, -0.05], [0.168, 0.08], [0.176, 0.2], [0.19, 0.32], [0.19, 0.42], [0.175, 0.47], [0.13, 0.515], [0.08, 0.545], [0, 0.552]], 0.0, 0.46, 0.092, 0.007, 34);
+    T.add(mat.jacket, lathe(body, 16), { s: [0.96, 1, 0.74] });
+    T.add(mat.jacketDark, new THREE.TorusGeometry(0.168, 0.018, 4, 16), { p: [0, -0.06, 0], r: [Math.PI / 2, 0, 0], s: [0.97, 0.74, 1] }); // hem band
     T.add(mat.jacketDark, new THREE.TorusGeometry(0.078, 0.034, 8, 16, Math.PI * 1.2), { p: [0, 0.52, 0.035], r: [Math.PI / 2, 0, -Math.PI * 0.1], s: [1.25, 1, 1] }); // hood, rolled at the back of the collar
     // Neck gaiter: a ribbed knit tube bunched on the collar, pulled up under the chin.
     const rib = [];
@@ -161,13 +161,13 @@ export class Avatar {
     T.build();
 
     // Head: face, nose, beanie with cuff and pompom, goggles pushed up on it.
-    this.neck = new THREE.Group();
+    this.neck = new THREE.Bone();
     this.neck.position.y = TORSO + 0.01;
     this.torso.add(this.neck);
-    this.head = new THREE.Group();
+    this.head = new THREE.Bone();
     this.neck.add(this.head);
-    const H = new Part(this.head);
-    H.add(mat.skin, new THREE.SphereGeometry(0.105, 18, 14), { p: [0, 0.13, 0], s: [0.92, 1.05, 1] });
+    const H = new Part(this.head, parts);
+    H.add(mat.skin, new THREE.SphereGeometry(0.105, 12, 10), { p: [0, 0.13, 0], s: [0.92, 1.05, 1] });
     H.add(mat.skin, new THREE.SphereGeometry(0.02, 8, 6), { p: [0, 0.115, -0.1], s: [0.9, 1, 1.1] });
     for (const x of [-0.034, 0.034]) H.add(mat.dark, new THREE.SphereGeometry(0.009, 6, 4), { p: [x, 0.14, -0.093] });
     H.add(mat.wool, lathe([[0.112, 0.12], [0.114, 0.17], [0.104, 0.215], [0.078, 0.252], [0.04, 0.27], [0, 0.275]], 18));
@@ -179,21 +179,21 @@ export class Avatar {
 
     // Arms: puffy upper arm and forearm (quilted), cuff, mitten with a thumb.
     this.arms = [-1, 1].map((side) => {
-      const shoulder = new THREE.Group();
+      const shoulder = new THREE.Bone();
       shoulder.position.set(side * 0.205, TORSO - 0.1, 0);
       this.torso.add(shoulder);
-      const S = new Part(shoulder);
-      S.add(mat.jacket, new THREE.SphereGeometry(0.07, 12, 10));
-      S.add(mat.jacket, lathe(quilted([[0.054, -0.29], [0.056, -0.15], [0.062, -0.02], [0.045, 0.04]], -0.28, 0, 0.07, 0.004, 24), 14));
+      const S = new Part(shoulder, parts);
+      S.add(mat.jacket, new THREE.SphereGeometry(0.07, 8, 6));
+      S.add(mat.jacket, lathe(quilted([[0.054, -0.29], [0.056, -0.15], [0.062, -0.02], [0.045, 0.04]], -0.28, 0, 0.07, 0.004, 16), 10));
       S.build();
-      const elbow = new THREE.Group();
+      const elbow = new THREE.Bone();
       elbow.position.y = -0.285;
       shoulder.add(elbow);
-      const E = new Part(elbow);
-      E.add(mat.jacket, new THREE.SphereGeometry(0.052, 10, 8));
-      E.add(mat.jacket, lathe(quilted([[0.046, -0.22], [0.05, -0.1], [0.052, 0]], -0.2, 0, 0.066, 0.003, 18), 14));
+      const E = new Part(elbow, parts);
+      E.add(mat.jacket, new THREE.SphereGeometry(0.052, 8, 6));
+      E.add(mat.jacket, lathe(quilted([[0.046, -0.22], [0.05, -0.1], [0.052, 0]], -0.2, 0, 0.066, 0.003, 12), 10));
       E.add(mat.jacketDark, new THREE.CylinderGeometry(0.049, 0.049, 0.035, 12), { p: [0, -0.215, 0] });
-      E.add(mat.mitten, new THREE.SphereGeometry(0.052, 10, 8), { p: [0, -0.275, -0.004], s: [0.78, 1.15, 1] });
+      E.add(mat.mitten, new THREE.SphereGeometry(0.052, 8, 6), { p: [0, -0.275, -0.004], s: [0.78, 1.15, 1] });
       E.add(mat.mitten, new THREE.CapsuleGeometry(0.018, 0.04, 3, 6), { p: [-side * 0.02, -0.255, -0.035], r: [0.5, 0, -side * 0.5] });
       E.build();
       return { shoulder, elbow, side };
@@ -201,26 +201,26 @@ export class Avatar {
 
     // Legs: thigh, knee, shin with a gaiter, and an ankle joint carrying the boot.
     this.legs = [-1, 1].map((side) => {
-      const hip = new THREE.Group();
+      const hip = new THREE.Bone();
       hip.position.set(side * 0.095, 0, 0);
       hip.rotation.order = 'ZYX'; // pitch in the leg's own plane first, then a little roll
       this.legBase.add(hip);
-      new Part(hip).add(mat.trousers, lathe([[0.066, -THIGH - 0.01], [0.074, -0.3], [0.086, -0.12], [0.088, 0.0], [0.07, 0.04]], 14)).build();
-      const knee = new THREE.Group();
+      new Part(hip, parts).add(mat.trousers, lathe([[0.066, -THIGH - 0.01], [0.074, -0.3], [0.086, -0.12], [0.088, 0.0], [0.07, 0.04]], 10)).build();
+      const knee = new THREE.Bone();
       knee.position.y = -THIGH;
       hip.add(knee);
-      const K = new Part(knee);
-      K.add(mat.trousers, new THREE.SphereGeometry(0.066, 10, 8));
-      K.add(mat.trousers, lathe([[0.056, -0.24], [0.06, -0.12], [0.064, 0]], 14));
-      K.add(mat.gaiter, lathe([[0.062, -SHIN + 0.02], [0.068, -SHIN + 0.1], [0.066, -0.21], [0.062, -0.19]], 14));
+      const K = new Part(knee, parts);
+      K.add(mat.trousers, new THREE.SphereGeometry(0.066, 8, 6));
+      K.add(mat.trousers, lathe([[0.056, -0.24], [0.06, -0.12], [0.064, 0]], 10));
+      K.add(mat.gaiter, lathe([[0.062, -SHIN + 0.02], [0.068, -SHIN + 0.1], [0.066, -0.21], [0.062, -0.19]], 10));
       K.build();
-      const ankle = new THREE.Group();
+      const ankle = new THREE.Bone();
       ankle.position.y = -SHIN;
       knee.add(ankle);
-      const A = new Part(ankle);
-      A.add(mat.boot, lathe([[0.058, -0.06], [0.061, 0.0], [0.063, 0.055], [0.06, 0.06]], 14));
-      A.add(mat.boot, new THREE.CapsuleGeometry(0.046, 0.13, 4, 10), { p: [0, -0.038, -0.075], r: [Math.PI / 2, 0, 0], s: [1.18, 1, 0.92] });
-      A.add(mat.boot, new THREE.SphereGeometry(0.052, 10, 8), { p: [0, -0.035, 0.035] });
+      const A = new Part(ankle, parts);
+      A.add(mat.boot, lathe([[0.058, -0.06], [0.061, 0.0], [0.063, 0.055], [0.06, 0.06]], 10));
+      A.add(mat.boot, new THREE.CapsuleGeometry(0.046, 0.13, 3, 8), { p: [0, -0.038, -0.075], r: [Math.PI / 2, 0, 0], s: [1.18, 1, 0.92] });
+      A.add(mat.boot, new THREE.SphereGeometry(0.052, 8, 6), { p: [0, -0.035, 0.035] });
       A.add(mat.sole, new RoundedBoxGeometry(0.108, 0.03, 0.3, 2, 0.012), { p: [0, -ANKLE_H + 0.015, -0.055] });
       A.add(mat.strap, new THREE.BoxGeometry(0.1, 0.012, 0.03), { p: [0, 0.01, -0.052], r: [0.4, 0, 0] }); // laces
       A.build();
@@ -229,17 +229,37 @@ export class Avatar {
     // Trekking poles: grip, shaft, basket, tip. Each is placed in world space every frame, from the
     // mitten to where its tip is planted.
     this.poles = [-1, 1].map((side) => {
-      const g = new THREE.Group(); // origin at the grip, the shaft down −y
-      new Part(g)
+      const g = new THREE.Bone(); // origin at the grip, the shaft down −y
+      new Part(g, parts)
         .add(mat.dark, new THREE.CylinderGeometry(0.017, 0.015, 0.13, 8), { p: [0, -0.03, 0] })
         .add(mat.metal, new THREE.CylinderGeometry(0.008, 0.0065, POLE - 0.09, 6), { p: [0, -0.09 - (POLE - 0.09) / 2, 0] })
         .add(mat.dark, new THREE.TorusGeometry(0.034, 0.005, 4, 12), { p: [0, -POLE + 0.08, 0], r: [Math.PI / 2, 0, 0] })
         .add(mat.metal, new THREE.ConeGeometry(0.006, 0.03, 5), { p: [0, -POLE + 0.015, 0], r: [Math.PI, 0, 0] })
         .build();
-      scene.add(g);
+      this.root.add(g);
       return { g, side, tip: new THREE.Vector3(), grip: new THREE.Vector3() };
     });
     scene.add(this.root);
+    // One skinned mesh: each part rigidly bound to its joint, in the rest pose.
+    this.root.updateMatrixWorld(true);
+    const bones = [], index = new Map(), geos = [];
+    this.root.traverse((o) => { if (o.isBone) { index.set(o, bones.length); bones.push(o); } });
+    for (const part of parts) {
+      for (const g of part.geos) {
+        g.applyMatrix4(part.bone.matrixWorld);
+        const n = g.attributes.position.count, si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+        for (let i = 0; i < n; i++) { si[i * 4] = index.get(part.bone); sw[i * 4] = 1; }
+        g.setAttribute('skinIndex', new THREE.BufferAttribute(si, 4));
+        g.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
+        geos.push(g);
+      }
+    }
+    this.mesh = new THREE.SkinnedMesh(mergeGeometries(geos), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78 }));
+    this.mesh.castShadow = true;
+    this.mesh.frustumCulled = false;
+    this.root.add(this.mesh);
+    this.mesh.bind(new THREE.Skeleton(bones));
+    this._inv = new THREE.Matrix4();
 
     this.pose = { ...POSES.lie };
     this.phase = 0; // gait cycle 0…1 (left foot strikes at 0, right at 0.5)
@@ -469,8 +489,10 @@ export class Avatar {
         grip = _S.lerpVectors(hand, _y, lying);
         _v.lerp(_z, lying).normalize();
       }
-      pole.g.position.copy(grip);
-      pole.g.quaternion.setFromUnitVectors(DOWN, _v);
+      // The pole bone hangs off the root: its world pose, taken into the root's frame.
+      _q.setFromUnitVectors(DOWN, _v);
+      _m.compose(grip, _q, _y.set(1, 1, 1)).premultiply(this._inv.copy(this.root.matrixWorld).invert());
+      _m.decompose(pole.g.position, pole.g.quaternion, pole.g.scale);
     }
   }
 

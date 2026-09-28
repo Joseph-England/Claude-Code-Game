@@ -82,12 +82,11 @@ fog.u.uSunColor.value = atmosphere.sunColor;
   fog.setStorm(level.storm, STORM_R, STORM_TOP, 1 / (16 * STORM_NORM), new THREE.Vector3(-mid.dx, 0, -mid.dz).multiplyScalar(12));
 }
 
-// The summit's snow plume streams off the top to the north-east, away from the route (fog.js).
-const PLUME_DIR = new THREE.Vector3(0.72, 0.05, -0.69).normalize();
-{
-  const top = mountain.route.at(mountain.route.sections.at(-1).s0 + 13);
-  fog.setPlume(new THREE.Vector3(top.x, mountain.heightfield.heightAt(top.x, top.z), top.z), PLUME_DIR, 320, 0.16);
-}
+// The summit's snow plume streams off the top to the north-north-west, away from the route and
+// side-on to the start, the ridge and the ending's cameras (end-on it stacks into a ball; fog.js).
+const PLUME_DIR = new THREE.Vector3(-0.5, 0.05, -0.866).normalize();
+const plumeTop = mountain.route.at(mountain.route.sections.at(-1).s0 + 13);
+fog.setPlume(new THREE.Vector3(plumeTop.x, mountain.heightfield.heightAt(plumeTop.x, plumeTop.z), plumeTop.z), PLUME_DIR, 320, 0.13);
 
 // Spindrift emitters along the ridge crest, the summit ridge and the summit, and off the crest's
 // edges up there (user playtest: more blowing snow at the top; DECISIONS #86).
@@ -641,7 +640,10 @@ createLoop({
     // The storm's colour: a lavender white lit by the sky (the fog pass places it in the gap).
     const wo = level.wind.whiteout;
     fog.u.uTime.value = level.time;
-    fog.u.uWhiteColor.value.copy(atmosphere.ambientSky).multiplyScalar(0.55).addScalar(0.25 * atmosphere.sunColor.g / 16 + 0.08);
+    // The plume is seen from down the mountain while the sun is on it; near the top it thins away.
+    fog.u.uPlumeK.value = smooth(Math.hypot(camera.position.x - plumeTop.x, camera.position.z - plumeTop.z), 140, 300) * smooth(atmosphere.sunDir.y, -0.01, 0.04);
+    // (Its brightness floor goes with the daylight, or it glows in the dark valley after sunset.)
+    fog.u.uWhiteColor.value.copy(atmosphere.ambientSky).multiplyScalar(0.55).addScalar((0.25 * atmosphere.sunColor.g / 16 + 0.08) * smooth(atmosphere.sunDir.y, -0.06, 0.02) + 0.006);
     windEl.style.opacity = flow.mode === 'playing' && (level.wind.warn || level.wind.gust > 0.2) ? 1 : 0;
     const sinceSummit = summitTime === null ? -1 : level.time - summitTime;
     atmosphere.setSun(sunElevation(level.progressFraction, sinceSummit), SUN_AZIMUTH, level.time);

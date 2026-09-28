@@ -39,6 +39,7 @@ const FRAG = /* glsl */`
   uniform vec4 uPlume[PLUME_N]; // centre, radius
   uniform float uPlumeRho[PLUME_N]; // density at the centre (1/m)
   uniform vec3 uPlumeDir;
+  uniform float uPlumeK; // 0…1: a distant, sunlit sight (fades near the top and after sunset)
   uniform mat4 uInvProj, uCamWorld;
   uniform vec3 uCamPos, uSunColor, uWhiteColor;
   varying vec2 vUv;
@@ -90,9 +91,11 @@ const FRAG = /* glsl */`
       float F0 = t0 - (A * t0 + B * t0 * t0 + t0 * t0 * t0 / 3.0) / R2;
       vec3 pm = ro + rd * (0.5 * (t0 + t1));
       float nz = vnoise(pm * vec3(0.06, 0.1, 0.06) - uPlumeDir * uTime * 0.35);
-      tau += uPlumeRho[i] * (F1 - F0) * (0.25 + 1.5 * nz * nz);
+      // A distant sight: a sphere you are close to fades out (its round edge would show).
+      float near = smoothstep(c.w + 10.0, c.w + 70.0, length(o));
+      tau += uPlumeRho[i] * (F1 - F0) * (0.25 + 1.5 * nz * nz) * near;
     }
-    return tau;
+    return min(tau, 1.1) * uPlumeK; // never a solid wall, whatever the angle
   }
   vec3 lampHalo(vec3 ro, vec3 rd, float D) {
     vec3 sum = vec3(0.0);
@@ -166,7 +169,7 @@ export class FogPass {
       uLamp: { value: Array.from({ length: LAMP_N }, () => new THREE.Vector4()) }, uLampSigma: { value: new Array(LAMP_N).fill(0) },
       uLampTint: { value: new THREE.Color(1.0, 0.62, 0.3) },
       uPlume: { value: Array.from({ length: PLUME_N }, () => new THREE.Vector4()) }, uPlumeRho: { value: new Array(PLUME_N).fill(0) },
-      uPlumeDir: { value: new THREE.Vector3(0, 0, -1) },
+      uPlumeDir: { value: new THREE.Vector3(0, 0, -1) }, uPlumeK: { value: 1 },
     });
     this.u = this.p.u;
   }

@@ -377,3 +377,15 @@ work, README is complete.
 - **Broken / deferred:** nothing known. (The title → credits → title loop no longer exists, so the
   bug-bash item about replaying twice in a row now means two refreshes.)
 - **Next step:** Phase 6, first item: bug bash on each quality tier.
+
+### Session 13 — the player model (2026-09-28)
+- **Completed:** the climber rebuilt for fit and realism (DECISIONS #98): face under a properly
+  seated beanie, goggles on the knit, lofted boots, fuller trousers; world-planted feet with zero
+  slip, a real walk/run blend by speed, settling steps on stops and turns, landing dip, a real
+  get-up, the stone reach to the cairn's top, a slow breath at rest. New dev tool: `tools/lab/`
+  (avatar-only renderer + `shoot.mjs` contact sheets). Gait check 0.000 m/s slip everywhere;
+  movement checks, playthrough and build pass.
+- **Broken / deferred:** nothing known. At the game's 5 m/s top speed the climber runs (that's the
+  real gait for that speed); lowering the walking speed would give a walk, but that is a movement
+  change, not a model one.
+- **Next step:** Phase 6, first item: bug bash on each quality tier.

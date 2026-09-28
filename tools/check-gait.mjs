@@ -4,11 +4,11 @@
 // ball each frame) and how far the sole sits above/below the snow while planted.
 // Usage: node tools/check-gait.mjs
 import * as THREE from 'three';
-import { Avatar, ANKLE_H } from '../src/player/avatar.js';
+import { Avatar, ANKLE_H, BALL_F, HEEL_B } from '../src/player/avatar.js';
 import { tuning } from '../src/tuning.js';
 
 function run(speed, slope, heading = 0) {
-  const hf = { heightAt: (x, z) => -z * slope }; // uphill toward -z
+  const hf = { heightAt: (x, z) => -z * slope }; // uphill toward -z (no sample(): the avatar differentiates)
   const scene = new THREE.Scene(), av = new Avatar(scene, tuning);
   av.wake = 1;
   const n = new THREE.Vector3(0, 1, slope).normalize();
@@ -29,8 +29,8 @@ function run(speed, slope, heading = 0) {
     pmin = Math.min(pmin, av.pelvis); pmax = Math.max(pmax, av.pelvis);
     av.legs.forEach((leg, i) => {
       kmax = Math.max(kmax, -leg.knee.rotation.x);
-      leg.ankle.localToWorld(heel.set(0, -ANKLE_H, 0.06));
-      leg.ankle.localToWorld(ball.set(0, -ANKLE_H, -0.13));
+      leg.ankle.localToWorld(heel.set(0, -ANKLE_H, HEEL_B));
+      leg.ankle.localToWorld(ball.set(0, -ANKLE_H, -BALL_F));
       const st = stats[i];
       if (leg.stance) {
         if (st.last) {

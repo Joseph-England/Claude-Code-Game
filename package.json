@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "node tools/check-movement.mjs",
-    "playthrough": "node tools/playthrough.mjs"
+    "playthrough": "node tools/playthrough.mjs",
+    "check-avatar": "node tools/check-avatar.mjs"
   },
   "dependencies": {
     "lil-gui": "^0.21.0",

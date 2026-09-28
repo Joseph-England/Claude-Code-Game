@@ -12,6 +12,7 @@ const _b = new THREE.Vector3();
 const _d = new THREE.Vector3();
 const _n = new THREE.Vector3();
 const _seg = new THREE.Line3();
+const _push = new THREE.Vector3();
 
 /** Rotate v about axis (unit) by angle (Rodrigues). */
 function rotateAbout(v, axis, angle) {
@@ -221,9 +222,9 @@ export class Controller {
       this._turnRate = -Math.sign(cmd.moveX) * rate;
     }
     if (cmd.moveY > 0.3 && speed < sl.pushMax) {
-      _b.set(-Math.sin(this.facing), 0, -Math.cos(this.facing));
-      _b.addScaledVector(n, -_b.dot(n)).normalize();
-      v.addScaledVector(_b, sl.push * dt);
+      _push.set(-Math.sin(this.facing), 0, -Math.cos(this.facing)); // (_b holds the velocity before this step)
+      _push.addScaledVector(n, -_push.dot(n)).normalize();
+      v.addScaledVector(_push, sl.push * dt);
     }
     const mu = (sl.friction[this.groundSurface] ?? 0.05) + (cmd.moveY < -0.3 ? sl.brake : 0);
     reduceSpeed(v, mu * G * n.y * dt);

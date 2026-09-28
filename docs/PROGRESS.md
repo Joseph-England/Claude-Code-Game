@@ -389,3 +389,16 @@ work, README is complete.
   real gait for that speed); lowering the walking speed would give a walk, but that is a movement
   change, not a model one.
 - **Next step:** Phase 6, first item: bug bash on each quality tier.
+
+### Session 14 — the climber's motion polished (2026-09-28)
+- **Completed:** the get-up no longer vanishes (exact springs; slow-frame tests pass); no crouch
+  when stopping or standing; jolts removed from stops, running, landings, take-offs, turns and the
+  first step (DECISIONS #99). New `npm run check-avatar` (pops, slip, rest height, NaN, hitches);
+  `tools/lab/strip.mjs` renders frame strips from the real controller (incl. the get-up).
+  Movement check, gait check, playthrough and build pass.
+- **Broken / deferred:** check-avatar still misses 9 targets, all in running up a slope, turning
+  round (flat and on a slope), the jump's take-off frame and sprint hip height — see #99. The
+  uphill one is the most visible: a small hip drop at each push-off.
+- **Next step:** the uphill push-off drop (the hips need to anticipate the trailing foot's reach
+  without lowering the whole gait); then Phase 6, first item: bug bash on each quality tier.
+

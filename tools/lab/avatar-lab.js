@@ -33,7 +33,7 @@ gridHelper.position.y = 0.002;
 scene.add(gridHelper);
 const camera = new THREE.PerspectiveCamera(30, W / H, 0.05, 100);
 const av = new Avatar(scene, tuning);
-const pos = new THREE.Vector3();
+let pos = new THREE.Vector3();
 let ctl;
 
 function sim({ speed = 0, slope: sl = 0, state = 'run', seconds = 2, facing = 0, yawRate = 0, wake = 1, seated = 0, reach = 0, surface = 0, grounded = true, stopAfter = 0 } = {}) {
@@ -70,10 +70,9 @@ function step(n = 1) {
 }
 let view = { az: 30, el: 10, dist: 3.2, ty: 0.95 };
 function place() {
-  const a = (view.az * Math.PI) / 180 + ctl.facing, e = (view.el * Math.PI) / 180;
+  const e = (view.el * Math.PI) / 180;
   const t = new THREE.Vector3(pos.x, pos.y + view.ty, pos.z);
   // az 0 = in front of the figure (it faces −z at facing 0)
-  camera.position.set(t.x - Math.sin(a) * Math.cos(e) * view.dist * -1 * 0 + Math.sin(-a + Math.PI) * 0, 0, 0);
   const fx = -Math.sin(ctl.facing), fz = -Math.cos(ctl.facing);
   const dir = new THREE.Vector3(fx, 0, fz).applyAxisAngle(new THREE.Vector3(0, 1, 0), (view.az * Math.PI) / 180);
   camera.position.copy(t).addScaledVector(dir, view.dist * Math.cos(e)).add(new THREE.Vector3(0, view.dist * Math.sin(e), 0));
@@ -100,5 +99,5 @@ function sheet({ views = [[0, 8], [90, 8], [180, 8], [270, 8]], cols = 4, stepFr
 }
 sim();
 render();
-window.lab = { sim, step, view: setView, render, sheet, av, ctl: () => ctl };
+window.lab = { sim, step, view: setView, render, sheet, av, ctl: () => ctl, bind: (c) => { ctl = c; pos = c.pos; } };
 window.labReady = true;

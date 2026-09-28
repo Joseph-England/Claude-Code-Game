@@ -21,6 +21,14 @@
 // tuck in the air, a seat on the sled, lying in the snow and getting up over planted feet, turning
 // to a cairn and reaching up to leave a stone, a stumble wobble, and a slow breath when standing
 // (quicker after running). Lean is deliberately small (DECISIONS #50).
+//
+// Smoothness (DECISIONS #99): every animated quantity moves on exact critically damped springs or
+// continuous curves — no value may step, and no speed may step either (a velocity step is a visible
+// jolt). The controller's own steps are absorbed: its instant stop at the snow on landing and its
+// instant launch on a jump carry through the hips and feet, its fixed-rate turn is eased, and the
+// swing's landing spot and pace are eased copies of the body's. The hips look ahead along the rest
+// of each swing so they start down in time to meet the landing foot. `npm run check-avatar` scores
+// all of this (pops, slip, crouch at rest, NaN, slow frames) on scripted runs.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -29,6 +37,17 @@ const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const lerp = THREE.MathUtils.lerp;
+/**
+ * One step of a critically damped spring toward `target` (natural frequency w), solved exactly, so
+ * it is stable at any frame time — an explicit step blew up on a slow frame (> ~70 ms: loading,
+ * the opening's first seconds) and threw the hips metres into the ground for a frame.
+ */
+function spring(x, v, target, w, dt) {
+  const y = x - target, e = Math.exp(-w * dt), j = (v + w * y) * dt;
+  return [target + (y + j) * e, (v - w * j) * e];
+}
+/** Smooth minimum of values (log-sum-exp, width k): continuous slope where the smallest changes. */
+const smin = (vals, k) => { const m = Math.min(...vals); if (k < 1e-4) return m; let sum = 0; for (const x of vals) sum += Math.exp(-(x - m) / k); return m - k * Math.log(sum); };
 export const THIGH = 0.44, SHIN = 0.44, TORSO = 0.55;
 export const ANKLE_H = 0.088; // ankle joint above the sole
 export const BALL_F = 0.135, HEEL_B = 0.065; // ball of the foot ahead of / heel contact behind the ankle
@@ -39,7 +58,7 @@ const POLE = 1.08; // grip → tip
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _S = new THREE.Vector3(), _n = new THREE.Vector3(), _b = new THREE.Vector3();
 const _x = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _qp = new THREE.Quaternion();
 const DOWN = new THREE.Vector3(0, -1, 0), UP = new THREE.Vector3(0, 1, 0), _qy = new THREE.Quaternion();
-const _fw = new THREE.Vector3(), _rt = new THREE.Vector3(), _md = new THREE.Vector3(), _hd = new THREE.Vector3(), _e2 = new THREE.Vector3(), _e = new THREE.Euler();
+const _hj = new THREE.Vector3(), _fw = new THREE.Vector3(), _rt = new THREE.Vector3(), _md = new THREE.Vector3(), _md2 = new THREE.Vector3(), _hd = new THREE.Vector3(), _e2 = new THREE.Vector3(), _e = new THREE.Euler();
 
 // Pose parameters that blend smoothly between states (the gait adds on top). ankle: foot pitch
 // relative to the shin (+ = toes up).
@@ -323,6 +342,7 @@ export class Avatar {
     this._inv = new THREE.Matrix4();
 
     this.pose = { ...POSES.lie };
+    this.pV = {}; // (the pose parameters' spring velocities)
     this.phase = 0; // gait cycle 0…1 (left foot strikes at 0, right at 0.5)
     this.gait = 0; // 0 still … 1 moving
     this.ikW = 0; // 0 posed legs … 1 feet planted by IK
@@ -342,7 +362,7 @@ export class Avatar {
     this.landX = 0; this.landV = 0;
   }
 
-  reset() { this.pelvisY = undefined; for (const f of this.feet) f.init = false; this.poleTips = null; }
+  reset() { this.pelvis = undefined; for (const f of this.feet) f.init = false; this.poleTips = null; }
 
   /** Ground height and normal at (x, z): the heightfield, or a plane through the player's feet. */
   ground(x, z, n) {
@@ -379,12 +399,17 @@ export class Avatar {
     dt = Math.min(dt, 0.1);
     const g = this.t.gravity, a = this.t.avatar;
     this.root.position.copy(pos);
-    const yaw = lerpAngle(ctl.prevFacing, ctl.facing, alpha);
+    // The body's facing on a critically damped spring: the controller turns at a fixed rate that
+    // starts and stops at once, which would snap the whole figure into and out of a turn.
+    const yawT = lerpAngle(ctl.prevFacing, ctl.facing, alpha);
+    if (this.yawS === undefined || (this.prevPos && this.prevPos.distanceTo(pos) > 2)) { this.yawS = yawT; this.yawV = 0; } // (a teleport: no spin)
+    else { const [d, v] = spring(0, this.yawV, Math.atan2(Math.sin(yawT - this.yawS), Math.cos(yawT - this.yawS)), 30, dt); this.yawS = Math.atan2(Math.sin(this.yawS + d), Math.cos(this.yawS + d)); this.yawV = v; }
+    const yaw = this.yawS;
     this.root.quaternion.copy(this.tilt).multiply(_qy.setFromAxisAngle(UP, yaw));
     const state = ctl.state, seated = this.seated;
     const hs = Math.hypot(ctl.vel.x, ctl.vel.z);
-    const k = 1 - Math.exp(-10 * dt);
     this.time = (this.time ?? 0) + dt;
+    this.prevPos = this.prevPos ?? pos.clone();
 
     // --- Pose parameters for the state, blended (the legs' IK and the gait add on top).
     let target = POSES.stand;
@@ -396,11 +421,12 @@ export class Avatar {
     // Opening: lying → sitting (posed) → standing up over planted feet (IK) as `wake` goes 0 → 1.
     const up = smooth(0, 0.5, this.wake), stand = smooth(0.45, 1, this.wake);
     const P = this.pose;
-    const kp = state === 'sit' || this.wake < 1 ? 1 - Math.exp(-4 * dt) : 1 - Math.exp(-12 * dt);
     for (const key of KEYS) {
       let want = target[key];
       if (this.wake < 1) want = lerp(lerp(POSES.lie[key], POSES.sit[key], up), target[key], stand);
-      P[key] += (want - P[key]) * (this.wake < 1 ? 1 : kp);
+      // (A critically damped spring per parameter, not an exponential filter: that starts at full
+      // speed the instant its target changes — a jolt at every change of state.)
+      if (this.wake < 1) { P[key] = want; this.pV[key] = 0; } else [P[key], this.pV[key]] = spring(P[key], this.pV[key] ?? 0, want, state === 'sit' ? 5 : 13, dt);
     }
 
     // --- Ground and frame.
@@ -411,31 +437,42 @@ export class Avatar {
     G.hf = hf; G.onCollider = (ctl.heightAboveGround ?? 0) > 0.05; G.n.copy(n0); G.x = pos.x; G.y = pos.y; G.z = pos.z;
     G.sx = -n0.x / Math.max(n0.y, 0.3); G.sz = -n0.z / Math.max(n0.y, 0.3);
     const uphill = clamp(-(n0.x * fx + n0.z * fz) / Math.max(n0.y, 0.3), -0.7, 1);
+    this.root.updateMatrixWorld(true); // (this frame's position, for the feet's hip-relative reach)
 
     // --- Landing: the knees take it (a critically damped dip, deeper for harder landings).
-    if (ctl.grounded && !this.wasGrounded && (this.prevVy ?? 0) < -2.5 && seated < 0.5) this.landV = Math.max(-4, (this.landV ?? 0) + this.prevVy * 0.38);
+    // The body carries on down at the speed it fell (the controller's stop at the snow is instant) —
+    // no jolt in the hips' path — and the legs bring it back up.
+    if (ctl.grounded && !this.wasGrounded && (this.prevVy ?? 0) < -0.5 && seated < 0.5) { this.landV = Math.max(-7, (this.landV ?? 0) + this.prevVy); this.landX += this.prevPos.y - pos.y; } // (the root's own drop this frame is already part of the fall)
+    // Take-off likewise: the controller launches at once; the hips follow on the legs' push.
+    else if (!ctl.grounded && this.wasGrounded && ctl.vel.y - (this.prevVy ?? 0) > 1.5 && seated < 0.5) { const j = Math.min(ctl.vel.y - (this.prevVy ?? 0), 7); this.tkV = (this.tkV ?? 0) - j; }
     this.wasGrounded = ctl.grounded; this.prevVy = ctl.vel.y;
-    { const w = 12; const acc = -w * w * this.landX - 2 * w * this.landV; this.landV += acc * dt; this.landX += this.landV * dt; }
+    [this.landX, this.landV] = spring(this.landX, this.landV, 0, 18, dt);
+    [this.tkX, this.tkV] = spring(this.tkX ?? 0, this.tkV ?? 0, 0, 18, dt);
+    [this.landT, this.landTV] = spring(this.landT ?? 0, this.landTV ?? 0, this.landX, 16, dt); // (the torso bows with it, a beat behind)
 
     // --- Which mode the legs are in: planted by IK (on foot, or standing up in the opening), or posed.
     const rising = this.wake > 0.4 && this.wake < 1;
     const onFoot = state === 'run' && ctl.grounded && this.wake >= 1 && seated < 0.01;
     const legIK = onFoot || rising;
     const ikWant = onFoot ? 1 : rising ? smooth(0.4, 0.5, this.wake) : 0;
-    this.ikW += (ikWant - this.ikW) * (ikWant > this.ikW ? 1 - Math.exp(-14 * dt) : 1 - Math.exp(-20 * dt));
-    if (legIK && (!this.wasIK || !this.feet[0].init)) this.plantFromPose(pos, fwdW, rightW); // landing / getting up: feet where they are
+    [this.ikW, this.ikV] = spring(this.ikW, this.ikV ?? 0, ikWant, ikWant > this.ikW ? 16 : 22, dt);
+    this.ikW = clamp(this.ikW, 0, 1);
+    if (legIK && (!this.wasIK || !this.feet[0].init)) this.plantFromPose(pos, fwdW, rightW, onFoot && hs > 1.5, 0.5 * (2.4 + 0.14 * hs)); // landing / getting up: feet where they are
     this.wasIK = legIK;
 
     // --- Gait. Walk below ~2 m/s (long stance, no flight, straight-ish knees, the hips highest over
     // the standing foot), run above ~3 m/s (short stance, a flight phase, knees that give, the hips
     // lowest mid-stance); both cadence and stride grow with speed as they do in people.
-    const v = onFoot ? hs : 0, powder = ctl.groundSurface === 1;
+    // A smoothed velocity for the swing's landing predictions (the controller can stop in 0.2 s).
+    this.velS = this.velS ?? ctl.vel.clone().setY(0); this.velSV = this.velSV ?? new THREE.Vector3();
+    for (const ax of ['x', 'z']) [this.velS[ax], this.velSV[ax]] = spring(this.velS[ax], this.velSV[ax], ctl.vel[ax], 14, dt);
+    const v = onFoot || state === 'air' ? hs : 0, powder = ctl.groundSurface === 1; // (in the air the run/walk blend holds: no snap at take-off)
     const wRun = smooth(2.0, 3.2, v);
     this.wRun = wRun;
     const moveW = onFoot ? smooth(0.12, 0.7, v) : 0;
     // (On a slope, up or down, people take shorter, quicker steps at the same speed.)
-    const cad0 = (lerp(1.15 + 0.5 * Math.min(v, 2.6), 2.4 + 0.14 * v, wRun) - (powder ? 0.15 : 0)) * (1 + 0.9 * Math.min(0.6, Math.abs(uphill))), cadence = Math.min(4.3, cad0); // steps/s
-    const duty = lerp(0.63 - 0.02 * Math.min(v, 2.6), 0.42 - 0.025 * v, wRun); // stance share of a stride (contact 0.25 s jogging … 0.12 s sprinting)
+    const cad0 = (lerp(1.2 + 0.55 * Math.min(v, 2.6), 2.4 + 0.14 * v, wRun) - (powder ? 0.15 : 0)) * (1 + 0.9 * Math.min(0.6, Math.abs(uphill))), cadence = Math.min(4.3, cad0); // steps/s
+    const duty = lerp(0.62 - 0.025 * Math.min(v, 2.6), 0.36 - 0.02 * v, wRun); // stance share of a stride (contact ~0.2 s jogging … 0.1 s sprinting)
     const stepW = lerp(0.105, 0.07, wRun); // feet either side of the line of travel
     const moveDir = _md.set(ctl.vel.x, 0, ctl.vel.z);
     if (hs > 0.3) moveDir.divideScalar(hs); else moveDir.copy(fwdW);
@@ -447,28 +484,62 @@ export class Avatar {
         const side = i ? 1 : -1;
         const ex = f.plant.x - (pos.x + rx * side * stepW), ez = f.plant.z - (pos.z + rz * side * stepW);
         const yawErr = Math.abs(Math.atan2(Math.sin(f.yaw - yaw), Math.cos(f.yaw - yaw)));
-        const err = Math.max(Math.hypot(ex, ez) / 0.14, yawErr / 0.35);
+        const err = Math.max(Math.hypot(ex, ez) / 0.07, yawErr / 0.35);
         if (err > 1) need = 1;
         if (err > worstErr) { worstErr = err; worst = i; }
       }
       // From standing, the foot most out of place steps at once (both are down, so jumping the
       // cycle to that foot's toe-off changes nothing visible).
-      if (need && allDown && this.idle && moveW < 0.05) this.phase = ((duty - (worst ? 0.5 : 0) + 1.001) % 1);
+      // Starting to move from standing is the same: the first step goes at once.
+      if ((need || moveW > 0.02) && allDown && this.idle) {
+        this.phase = ((duty - (worst >= 0 ? (worst ? 0.5 : 0) : 0) + 1.001) % 1);
+        for (const f of this.feet) f.dutyT = duty;
+      }
     }
-    const drive = Math.max(moveW, need), cadEff = Math.max(cadence, need > moveW ? 2.3 : 0);
-    const rate = 0.5 * cadEff * drive; // strides per second
+    const drive = Math.max(moveW, need), cadEff = Math.max(cadence, need * lerp(2.3, cadence, moveW)); // (a settling step is brisk; blended by speed so the pace never jumps as you slow)
+    // Hurry the swing when the foot on the ground is falling behind (setting off briskly, a sudden
+    // speed-up): a quick step, as people take, instead of a planted foot trailing far back.
+    let urgency = 0;
+    if (legIK && !rising) for (const f of this.feet) if (f.planted && this.feet.some((o) => !o.planted)) {
+      const relB = -((f.plant.x - pos.x) * fx + (f.plant.z - pos.z) * fz);
+      urgency = Math.max(urgency, smooth(0.25, 0.5, relB));
+    }
+    [this.urgency, this.urgV] = spring(this.urgency ?? 0, this.urgV ?? 0, urgency, 6, dt); // (eased: a step in the swing speed is a jolt)
+    const rate = 0.5 * cadEff * drive * (1 + 0.9 * this.urgency); // strides per second
     if (legIK && !rising) this.phase = (this.phase + dt * rate) % 1;
     this.idle = legIK && drive < 0.001;
-    this.gait += (moveW - this.gait) * k;
+    [this.gait, this.gaitV] = spring(this.gait, this.gaitV ?? 0, moveW, 10, dt);
     const tLand = (u) => Math.min(0.6, (1 - u) / Math.max(rate, 0.4));
     // The foot lands a little ahead of the hips and leaves well behind them (more so running).
-    const halfStance = moveW * (2 * v * duty / Math.max(cadEff, 0.1)) * lerp(0.46, 0.36, wRun);
-    const peelMax = lerp(0.5, 0.75, wRun) * moveW, strikeMax = lerp(0.24, 0.08, wRun) * moveW;
+    // (With these numbers the legs reach the snow comfortably at the hips' natural height: the heel
+    // lands ~0.3 m ahead walking, the push-off ~0.5 m behind running.)
+    const halfStance = moveW * (2 * v * duty / Math.max(cadEff, 0.1)) * lerp(0.4, 0.38, wRun);
+    // (The swinging foot aims with an eased copy: the body can stop in a tenth of a second, and a
+    // landing spot that jumps back with it jerks the foot in mid-air.)
+    [this.hsS, this.hsV] = spring(this.hsS ?? halfStance, this.hsV ?? 0, halfStance, 14, dt);
+    [this.wRunS, this.wRunSV] = spring(this.wRunS ?? wRun, this.wRunSV ?? 0, wRun, 14, dt);
+    const stepWS = lerp(0.105, 0.07, this.wRunS), strikeS = lerp(0.24, 0.08, this.wRunS) * this.gait;
+    const mdS = _md2.set(this.velS.x + 0.05 * fwdW.x, 0, this.velS.z + 0.05 * fwdW.z).normalize();
+    // How far behind the hips a planted foot goes before it pushes off, whatever the clock says (so
+    // the foot left planted as you set off doesn't trail far behind and drag the hips down).
+    const backMax = Math.max(0.12, halfStance / lerp(0.4, 0.38, wRun) * (1 - lerp(0.4, 0.38, wRun)) + 0.03);
+    const peelMax = lerp(0.5, 0.75, wRun) * moveW;
     const lift = lerp(0.085, 0.2 + 0.25 * smooth(3, 9, v), wRun) * drive + (powder ? 0.08 : 0) * moveW; // running: the heel kicks up behind
 
     for (const [i, f] of this.feet.entries()) {
       const leg = this.legs[i], side = leg.side;
-      if (!legIK) { f.planted = false; continue; }
+      if (!legIK) { // (airborne / posed: the targets travel with the body while the IK fades out)
+        if (f.planted || f.relAnk === undefined) {
+          f.relAnk = (f.relAnk ?? new THREE.Vector3()).subVectors(f.ankle, this.prevPos); f.planted = false; // (from where the body was when the ankle was set)
+          // It carries on as it was moving (a planted foot: still) and eases into the body's motion
+          // — the controller launches the body at once.
+          (f.ao ??= new THREE.Vector3()).set(0, 0, 0); (f.aoV ??= new THREE.Vector3()).copy(f.vel ?? ctl.vel).sub(ctl.vel);
+        }
+        for (const ax of ['x', 'y', 'z']) [f.ao[ax], f.aoV[ax]] = spring(f.ao[ax], f.aoV[ax], 0, 16, dt);
+        f.ankle.copy(pos).add(f.relAnk).add(f.ao);
+        continue;
+      }
+      f.relAnk = undefined;
       if (rising) {
         // Standing up: feet flat on the snow in front of the hips, drawn in as the hips come over them.
         const d = 0.42 * (1 - stand);
@@ -479,19 +550,33 @@ export class Avatar {
         f.rot = 0;
         continue;
       }
-      const u = (this.phase + (side > 0 ? 0.5 : 0)) % 1, stance = u < duty;
-      if (stance && !f.planted) { // touchdown: the foot lands where the swing was taking it
+      // Each foot keeps the timing it started its stance / swing with: when the pace changes (a stop),
+      // a foot on the ground doesn't suddenly get a walk's long stance and get left behind, and a
+      // swinging foot doesn't jump along its path. A planted foot that has fallen too far behind
+      // (or can't be reached without a crouch) lifts regardless.
+      const u = (this.phase + (side > 0 ? 0.5 : 0)) % 1, wrapped = u < (f.prevU ?? u);
+      f.prevU = u;
+      const relNow = (f.plant.x - pos.x) * fx + (f.plant.z - pos.z) * fz;
+      if (!f.planted && wrapped) { // touchdown: the foot lands where the swing was taking it
         f.plant.copy(f.pos); f.plant.y = this.ground(f.plant.x, f.plant.z); f.yaw = f.curYaw ?? yaw; f.planted = true; f.touch = (f.touch ?? 0) + 1;
+        f.dutyT = duty; f.strike0 = f.rot ?? 0; // (the stance starts from the pitch it landed with)
         if (this.onFoot && drive > 0.3) this.onFoot(f.plant.x, f.plant.z, ctl, side, moveW < 0.3);
-      } else if (!stance && f.planted) { // toe-off
-        f.planted = false; f.lift.copy(f.plant); f.liftYaw = f.yaw; f.liftRot = f.rot ?? 0; f.rel0.set(f.plant.x - pos.x, 0, f.plant.z - pos.z);
+      } else if (f.planted && !wrapped && u < 0.999 && (u >= Math.min(f.dutyT ?? duty, duty) || f.over || (relNow < -backMax && (this.feet[1 - i].planted || wRun > 0.3)))) { // toe-off (speeding up shortens a stance; slowing down doesn't lengthen it)
+        // (The swing began a frame ago: no frame where the foot pauses.)
+        f.planted = false; f.liftU = Math.max(0, u - dt * rate); f.lift.copy(f.plant); f.liftYaw = f.yaw; f.liftRot = f.rot ?? 0; f.rel0.set(f.plant.x - (pos.x - ctl.vel.x * dt), 0, f.plant.z - (pos.z - ctl.vel.z * dt)); // (from where the body was then)
+        // How it left the snow, as tangents in the swing's own time (fixed for this swing: the swing's
+        // duration changes as the pace does — a stop — and must not reshape its start).
+        const Tsw0 = (1 - f.liftU) / Math.max(rate, 0.4);
+        f.m0 = (f.m0 ?? new THREE.Vector3()).set(-ctl.vel.x * Tsw0, 0, -ctl.vel.z * Tsw0);
+        f.rm0 = clamp((f.rotV ?? 0) * Tsw0, -1.2, 1.2);
+        f.pkW = wRun; f.Tsw0 = Tsw0; // (the lift curve's shape is fixed for this swing)
       }
       let rot;
       if (f.planted) {
         // Planted: fixed on the snow. Heel strike (toes up) while the foot is ahead of the hips,
         // flat, then the heel peels up about the ball as the body passes over and beyond it.
-        const e = u / duty, rel = (f.plant.x - pos.x) * fx + (f.plant.z - pos.z) * fz;
-        const strike = strikeMax * Math.pow(1 - smooth(0, 0.2, e), 2) * smooth(0, 0.15, rel);
+        const e = Math.min(1, u / (f.dutyT ?? duty)), rel = (f.plant.x - pos.x) * fx + (f.plant.z - pos.z) * fz;
+        const strike = Math.max(0, f.strike0 ?? 0) * Math.pow(1 - smooth(0, 0.2, e), 2); // (heel strike: the toes come down)
         const peel = peelMax * Math.pow(smooth(0.45, 1, e), 1.6) * smooth(-0.05, -0.3, rel);
         rot = peel > 0.001 ? -peel : strike;
         // A quick turn on the spot pivots the planted foot (on its ball) rather than twisting the leg.
@@ -500,61 +585,158 @@ export class Avatar {
           const turn = twist - Math.sign(twist) * 0.6, bx = -Math.sin(f.yaw) * BALL_F, bz = -Math.cos(f.yaw) * BALL_F;
           f.yaw += turn;
           f.plant.x += bx + Math.sin(f.yaw) * BALL_F; f.plant.z += bz + Math.cos(f.yaw) * BALL_F; // (the ball stays put)
+          f.plant.y = this.ground(f.plant.x, f.plant.z); // (on a slope, the pivoted heel is on the snow too)
         }
         f.pos.copy(f.plant);
         this.ground(f.pos.x, f.pos.z, _n);
         this.footPose(f, f.plant, _S.set(-Math.sin(f.yaw), 0, -Math.cos(f.yaw)), _n, rot);
         f.curYaw = f.yaw;
+        f.futPl = true; // (a stance isn't looked ahead: tried, it lowered the hips more than it smoothed them)
       } else {
         // Swing: from toe-off to the predicted next strike, lifted clear (a heel kick at speed),
         // the toes pointing down after toe-off and coming up to strike.
         // Horizontal path relative to the hips (a Hermite curve): it leaves the snow with the snow's
         // speed (still in the world, so moving back relative to the body), swings through, and
         // meets the snow again at the snow's speed — no skid at toe-off or strike.
-        const e = (u - duty) / (1 - duty), se = e * e * (3 - 2 * e);
-        const tl = tLand(u), Tsw = (1 - duty) / Math.max(rate, 0.4);
-        const p1x = moveDir.x * halfStance + rx * side * stepW, p1z = moveDir.z * halfStance + rz * side * stepW;
-        f.target.set(pos.x + ctl.vel.x * tl + p1x, 0, pos.z + ctl.vel.z * tl + p1z);
+        const u0 = f.liftU ?? duty, e = clamp((u - u0) / Math.max(1e-3, 1 - u0), 0, 1), se = e * e * (3 - 2 * e);
+        f.e = e;
+        const tl = tLand(u), Tsw = (1 - u0) / Math.max(rate, 0.4);
+        const p1x = mdS.x * this.hsS + rx * side * stepWS, p1z = mdS.z * this.hsS + rz * side * stepWS;
+        f.target.set(pos.x + this.velS.x * tl + p1x, 0, pos.z + this.velS.z * tl + p1z);
+        const pk0 = lerp(0.42, 0.3, f.pkW ?? wRun), bExp0 = 2 * (1 - pk0) / pk0;
         const h00 = 2 * e * e * e - 3 * e * e + 1, h10 = e * e * e - 2 * e * e + e, h01 = -2 * e * e * e + 3 * e * e, h11 = e * e * e - e * e;
-        const m0x = -0.55 * ctl.vel.x * Tsw, m0z = -0.55 * ctl.vel.z * Tsw, m1x = 0.55 * m0x, m1z = 0.55 * m0z;
+        const m0x = f.m0 ? f.m0.x : 0, m0z = f.m0 ? f.m0.z : 0, bl = smooth(0.5, 1, e), Tm = lerp(f.Tsw0 ?? Tsw, Tsw, bl), m1x = -0.9 * lerp(this.velS.x, ctl.vel.x, bl) * Tm, m1z = -0.9 * lerp(this.velS.z, ctl.vel.z, bl) * Tm; // (leaves the snow still — as it was while planted — and lands at a tenth of body speed; late in the swing it matches the body's actual velocity and the swing's current length, so a change of pace doesn't leave it skidding)
         f.pos.set(pos.x + h00 * f.rel0.x + h10 * m0x + h01 * p1x + h11 * m1x, 0, pos.z + h00 * f.rel0.z + h10 * m0z + h01 * p1z + h11 * m1z);
+        // The rest of this swing, sampled (relative to the hips; heights on the snow ahead): the hips
+        // look ahead and start down in time to meet the foot, rather than being dragged down late.
+        f.fut = f.fut ?? Array.from({ length: 5 }, () => new THREE.Vector4());
+        const gT = this.ground(f.target.x, f.target.z);
+        for (let k = 0; k < 5; k++) {
+          const e2 = Math.min(1, e + (1 - e) * (k + 1) / 5), a0 = 2 * e2 ** 3 - 3 * e2 ** 2 + 1, a1 = e2 ** 3 - 2 * e2 ** 2 + e2, a2 = -2 * e2 ** 3 + 3 * e2 ** 2, a3 = e2 ** 3 - e2 ** 2;
+          const dx = a0 * f.rel0.x + a1 * m0x + a2 * p1x + a3 * m1x, dz = a0 * f.rel0.z + a1 * m0z + a2 * p1z + a3 * m1z;
+          const s2 = e2 * e2 * (3 - 2 * e2);
+          const dtk = (e2 - e) * Tsw, gB = this.ground(pos.x + this.velS.x * dtk, pos.z + this.velS.z * dtk) - pos.y; // (the body will have moved on by then, up or down the slope)
+          f.fut[k].set(dx, lerp(f.lift.y, gT, s2) - gB + ANKLE_H + lift * (e2 * e2 * Math.pow(Math.max(0, 1 - e2), bExp0)) / (pk0 * pk0 * Math.pow(1 - pk0, bExp0)), dz, dtk);
+        }
+        f.futE = e; f.futPl = false;
         const T = f.target;
         const gy = this.ground(f.pos.x, f.pos.z, _n);
-        const baseY = Math.max(gy, lerp(f.lift.y, this.ground(T.x, T.z), se));
-        f.pos.y = baseY + lift * Math.pow(Math.sin(Math.PI * Math.pow(e, lerp(0.8, 0.55, wRun))), 1.2);
-        rot = lerp(f.liftRot ?? 0, strikeMax, smooth(0.35, 0.95, e)) - wRun * 0.3 * moveW * Math.sin(Math.PI * e);
+        const bl0 = lerp(f.lift.y, this.ground(T.x, T.z), se), baseY = (gy + bl0 + Math.hypot(gy - bl0, 0.04 * Math.sin(Math.PI * e))) / 2; // (a smooth max: over a rise in the snow without a kink)
+        // Lift: a bump e²(1−e)^b peaking early (the heel kicks up soon after push-off when running),
+        // starting and ending with zero vertical speed — no kick as it leaves or meets the snow.
+        const pk = pk0, bExp = bExp0;
+        f.pos.y = baseY + lift * (e * e * Math.pow(1 - e, bExp)) / (pk * pk * Math.pow(1 - pk, bExp));
+        // The foot's pitch carries on rolling as it did at push-off (a Hermite curve with the same
+        // angular speed: no kink in the ankle's path), toes down mid-swing, up to strike.
+        rot = clamp(h00 * (f.liftRot ?? 0) + h10 * (f.rm0 ?? 0) + h01 * strikeS * smooth(0, 0.15, this.hsS) - this.wRunS * 0.3 * this.gait * Math.sin(Math.PI * e) ** 2, -1.1, 0.4);
         f.curYaw = lerpAngle(f.liftYaw ?? yaw, yaw, smooth(0.1, 0.8, e));
         _n.lerp(UP, 0.5 * smooth(0, 0.3, e) * (1 - smooth(0.7, 1, e))).normalize(); // (the snow's tilt at toe-off and strike)
         this.footPose(f, f.pos, _S.set(-Math.sin(f.curYaw), 0, -Math.cos(f.curYaw)), _n, rot);
+        // Keep the swinging foot within an easy reach of its hip (a soft limit): the knee then eases
+        // toward straight at the front of the swing instead of hitting full extension with a jolt.
+        if (this.pelvis !== undefined) {
+          const Hj = this.lean.localToWorld(_hj.set((side > 0 ? 1 : -1) * 0.095, this.pelvis, 0));
+          // (It lets go before touchdown — there the hips come down to meet the foot instead; holding
+          // the foot up until the last moment dropped it, and the hips, in one frame.)
+          const runKs = wRun * moveW, dv = _v.subVectors(f.ankle, Hj), len = dv.length(), L0 = (THIGH + SHIN) * lerp(0.99, 0.955, runKs), L1 = (THIGH + SHIN) * 0.998;
+          const clampW = 1 - smooth(0.8, 0.97, e); // (L0 is the hips' own reach limit for a landing foot: by then they're low enough)
+          if (len > L0 && clampW > 0) {
+            const nl = L0 + (L1 - L0) * Math.tanh((len - L0) / (L1 - L0));
+            const dlt = dv.multiplyScalar((nl / len - 1) * clampW);
+            f.ankle.add(dlt); f.pos.add(dlt);
+          }
+        }
       }
+      f.rotV = f.planted ? (rot - (f.rot ?? rot)) / Math.max(dt, 1e-3) : 0;
+      if (f.ankPrev) (f.vel ??= new THREE.Vector3()).subVectors(f.ankle, f.ankPrev).divideScalar(Math.max(dt, 1e-3)); (f.ankPrev ??= new THREE.Vector3()).copy(f.ankle);
       f.rot = rot;
       leg.stance = f.planted; leg.pitch = rot; // (the gait check reads these)
     }
 
-    // --- Hips. Their height: as high as the legs allow over the planted feet (a walk's inverted
-    // pendulum), on a spring curve when running (lowest mid-stance, highest in flight), down into
-    // a landing, a squat to leave a stone, and up out of the snow in the opening.
+    // --- Lean: small into turns (tan θ = a_lat/g, scaled) — the whole body tilts from the feet —
+    // and a little forward with acceleration / back when braking, which on foot is the upper body's
+    // (tipping the legs too would pull the hips off the planted feet: a crouch on every stop).
+    const latAcc = lerp(ctl.prevLean.y, ctl.lean.y, alpha);
+    const fwdAcc = lerp(ctl.prevLean.x, ctl.lean.x, alpha);
+    const carving = state === 'slide' || seated > 0.5;
+    const maxSide = carving ? a.leanSlide : a.leanRun;
+    const sideWant = ctl.grounded && hs > 2 ? clamp(Math.atan2(latAcc, g) * a.leanScale, -maxSide, maxSide) : 0;
+    const fwdWant = ctl.grounded && hs > 1 && seated < 0.5 ? clamp(Math.atan2(fwdAcc, g) * 0.3, -0.12, 0.12) : 0;
+    [this.side, this.sideV] = spring(this.side, this.sideV ?? 0, sideWant, 7, dt);
+    [this.fwd, this.fwdV] = spring(this.fwd, this.fwdV ?? 0, fwdWant, 7, dt);
+    this.lean.rotation.set(-this.fwd * (1 - this.ikW), 0, -this.side, 'YXZ');
+    if (state === 'stumble') this.lean.rotation.x += Math.sin(ctl.time * 40) * 0.12;
+    this.root.updateMatrixWorld(true);
+
+    // --- Hips. Their height (along the body's up, above the feet's root): legs straight standing
+    // (a knee bend of a few degrees, as people stand); walking, as high as the legs reach over the
+    // planted feet (a walk's inverted pendulum: highest over the standing foot); running, on a spring
+    // curve (lowest mid-stance, highest in flight); down into a landing; up out of the snow in the
+    // opening. The legs' reach is solved exactly from where each hip joint really is (lean included).
     const cyc = 2 * Math.PI * this.phase, walkW = moveW * (1 - wRun);
     const sway = -0.024 * walkW * Math.sin(cyc) - 0.008 * moveW * wRun * Math.sin(cyc);
     const hipRoll = -0.05 * walkW * Math.sin(cyc) - 0.02 * moveW * wRun * Math.sin(cyc);
     const hipYaw = -(0.06 + 0.07 * wRun) * moveW * Math.cos(cyc);
-    const standH = ANKLE_H + LEG * 0.992;
+    // Hip → ankle reach: nearly straight standing and walking (knee ~8°); running, feet land and push
+    // off with the knee already bent (~25°) — and a leg never swings through the straight-knee
+    // singularity, where the knee would flick.
+    const runK = wRun * moveW;
+    const Lmax = (THIGH + SHIN) * lerp(0.9975, 0.975, runK), Lswing = (THIGH + SHIN) * lerp(0.99, 0.955, runK);
+    const standH = ANKLE_H + Lmax;
     const psi = (((2 * this.phase - duty) % 1) + 1) % 1;
     const runH = ANKLE_H + 0.83 - 0.025 * smooth(5, 9, v) + lerp(0.03, 0.07, smooth(3, 9, v)) * (1 - Math.cos(2 * Math.PI * psi)) / 2;
-    let hipY = pos.y + lerp(standH, lerp(standH, runH, wRun), moveW);
-    if (rising) hipY = pos.y + lerp(0.13, standH, stand * stand * (3 - 2 * stand));
-    hipY -= 0.03 * this.reach; // (a slight give in the knees as the arm reaches up)
-    for (const [i, f] of this.feet.entries()) {
-      if (!legIK || !f.planted) continue;
-      const side = i ? 1 : -1;
-      const hx = pos.x + rx * (sway + side * 0.095), hz = pos.z + rz * (sway + side * 0.095);
-      const dh = Math.hypot(f.ankle.x - hx, f.ankle.z - hz);
-      hipY = Math.min(hipY, f.ankle.y + Math.sqrt(Math.max(0.01, (LEG - 0.004) ** 2 - dh * dh)));
+    let h = lerp(standH, lerp(standH, runH, wRun), moveW);
+    if (rising) h = lerp(0.13, standH, stand * stand * (3 - 2 * stand));
+    h -= 0.03 * this.reach; // (a slight give in the knees as the arm reaches up)
+    let hHard = Infinity;
+    const lims = [], soft = [];
+    if (legIK) {
+      const upW = _e2.set(0, 1, 0).transformDirection(this.lean.matrixWorld);
+      for (const [i, f] of this.feet.entries()) {
+        // Planted feet must be reached; a foot that has just pushed off lets go of the hips over the
+        // first part of its swing (not all at once: that bobbed them up), and a foot about to land
+        // starts to pull them down to meet it.
+        const wS = f.planted ? 1 : Math.max(1 - smooth(0, 0.35, f.e ?? 0), smooth(0.45, 0.82, f.e ?? 0));
+        if (!f.futPl && f.fut) {
+          // The lowest the hips will need to be for the rest of the swing, approached at no more than
+          // DESC m/s (the lower envelope): the pelvis spring then meets the limit tangentially.
+          const A0 = this.lean.localToWorld(_hj.set(sway * this.ikW + (i ? 1 : -1) * 0.095, 0, 0)), DESC = 0.8;
+          for (const s4 of f.fut) {
+            const e2 = f.futE + (1 - f.futE) * (f.fut.indexOf(s4) + 1) / 5;
+            const w2 = Math.max(1 - smooth(0, 0.35, e2), smooth(0.45, 0.82, e2));
+            const L2 = lerp(Lmax, Lswing, smooth(0.45, 0.75, e2) * (1 - smooth(0.88, 1, e2)));
+            const q2 = _v.set(A0.x - pos.x - s4.x, A0.y - s4.y, A0.z - pos.z - s4.z), b2 = q2.dot(upW), c2 = q2.lengthSq() - L2 * L2, d2 = b2 * b2 - c2;
+            soft.push((d2 > 0 ? -b2 + Math.sqrt(d2) : -b2) + (1 - w2) * 0.25 + DESC * s4.w - DESC / 28);
+          }
+        }
+        if (wS <= 0) continue;
+        const A = this.lean.localToWorld(_S.set(sway * this.ikW + (i ? 1 : -1) * 0.095, 0, 0));
+        const L = f.planted ? Lmax : lerp(Lmax, Lswing, smooth(0.45, 0.75, f.e ?? 0) * (1 - smooth(0.88, 1, f.e ?? 0))); // (no step in the limit at toe-off or touchdown)
+        const q = A.sub(f.ankle), b = q.dot(upW), c = q.lengthSq() - L * L, disc = b * b - c;
+        const hmax = disc > 0 ? -b + Math.sqrt(disc) : -b; // (−b: as close as it gets)
+        if (f.planted) lims.push(hmax);
+        else { const wE = 1 - smooth(0, 0.35, f.e ?? 0); if (wE > 0) lims.push(hmax + (1 - wE) * 0.25); soft.push(hmax + (1 - wS) * 0.25); }
+      }
     }
-    hipY += this.landX;
-    if (this.pelvisY === undefined || !legIK) this.pelvisY = hipY;
-    else this.pelvisY = hipY < this.pelvisY ? hipY : this.pelvisY + (hipY - this.pelvisY) * (1 - Math.exp(-20 * dt)); // down at once (planted feet must reach), up smoothly
-    this.pelvis = this.pelvisY - pos.y;
+    // A smooth minimum (the limiting foot changes without a kink in the hips' path); the legs may
+    // stretch imperceptibly (see the IK) to cover the few millimetres it can run over.
+    if (lims.length) { const kS = 0.012 * moveW, m = smin(lims, kS); h = smin([h, m, ...soft], kS); hHard = m; } // (exact when standing: the knees are straight)
+    // The hips follow that height on a critically damped spring (no velocity steps), never above
+    // what the planted feet allow.
+    if (this.pelvis === undefined) { this.pelvis = h; this.pelvisV = 0; }
+    else if (!legIK) [this.pelvis, this.pelvisV] = spring(this.pelvis, this.pelvisV, this.ikW > 0.01 ? this.pelvis : h, 20, dt); // (held while the IK fades; the posed height takes over)
+    else {
+      [this.pelvis, this.pelvisV] = spring(this.pelvis, this.pelvisV, h, 28, dt);
+      if (!Number.isFinite(this.pelvis)) { this.pelvis = h; this.pelvisV = 0; } // (never lose the figure)
+      if (this.pelvis > hHard) { this.pelvis = hHard; this.pelvisV = Math.min(this.pelvisV, 0); }
+    }
+    // A planted leg stretched past what the IK can cover lifts next step (running: push-off at full
+    // extension; walking: only after a sudden turn-around).
+    if (legIK) for (const [i, f] of this.feet.entries()) {
+      if (!f.planted) { f.over = false; continue; }
+      const A = this.lean.localToWorld(_S.set(sway * this.ikW + (i ? 1 : -1) * 0.095, this.pelvis, 0));
+      f.over = A.distanceTo(f.ankle) > (THIGH + SHIN) * 1.012;
+    }
 
     // Lying: the hips tip back and rest on the snow; posed heights for sitting/air/sled.
     const tilt = 1.45 * (1 - up);
@@ -563,24 +745,13 @@ export class Avatar {
     // (Lying and sitting in the snow the hips rest on it; standing up is the IK's.)
     let hipsPose = this.wake < 1 ? 0.13 : state === 'air' && seated < 0.5 ? THIGH + SHIN - 0.1 : poseDrop;
     hipsPose = lerp(hipsPose, SEAT_H, seated);
-    const hy = lerp(hipsPose, this.pelvis, this.ikW);
+    // (Eased like the pose itself: changing state — air to ground — mustn't move the hips at once.)
+    if (this.wake < 1 || this.hipsP === undefined) { this.hipsP = hipsPose; this.hipsPV = 0; } else [this.hipsP, this.hipsPV] = spring(this.hipsP, this.hipsPV, hipsPose, 13, dt);
+    const hy = lerp(this.hipsP, this.pelvis, this.ikW) + this.landX + this.tkX;
     this.hips.rotation.set(tilt, hipYaw * this.ikW, hipRoll * this.ikW);
     this.legBase.rotation.set(tilt, 0, 0);
     this.hips.position.set(sway * this.ikW, hy, 0);
     this.legBase.position.set(sway * this.ikW, hy, 0);
-
-    // --- Lean: small into turns (tan θ = a_lat/g, scaled), a little forward with acceleration.
-    const latAcc = lerp(ctl.prevLean.y, ctl.lean.y, alpha);
-    const fwdAcc = lerp(ctl.prevLean.x, ctl.lean.x, alpha);
-    const carving = state === 'slide' || seated > 0.5;
-    const maxSide = carving ? a.leanSlide : a.leanRun;
-    const sideWant = ctl.grounded && hs > 2 ? clamp(Math.atan2(latAcc, g) * a.leanScale, -maxSide, maxSide) : 0;
-    const fwdWant = ctl.grounded && hs > 1 && seated < 0.5 ? clamp(Math.atan2(fwdAcc, g) * 0.3, -0.12, 0.12) : 0;
-    const kl = 1 - Math.exp(-6 * dt);
-    this.side += (sideWant - this.side) * kl;
-    this.fwd += (fwdWant - this.fwd) * kl;
-    this.lean.rotation.set(-this.fwd, 0, -this.side, 'YXZ');
-    if (state === 'stumble') this.lean.rotation.x += Math.sin(ctl.time * 40) * 0.12;
 
     // --- Legs: two-bone IK in 3D from each hip to its ankle, the knee toward the foot's direction
     // (a touch outward), the foot set to its planted/swinging orientation; blended over the pose.
@@ -590,15 +761,24 @@ export class Avatar {
       _qp.setFromEuler(_e.set(P.thigh, 0, 0)); leg.hip.quaternion.copy(_qp);
       leg.knee.rotation.set(-P.knee, 0, 0);
       leg.ankle.rotation.set(P.ankle, 0, 0);
+      leg.knee.position.y = -THIGH; leg.ankle.position.y = -SHIN;
       if (this.ikW > 0.001 && f.init) {
         leg.hip.updateMatrixWorld(true);
         const H = leg.hip.getWorldPosition(_S);
-        const d = _v.subVectors(f.ankle, H), D = clamp(d.length(), 0.25, THIGH + SHIN - 0.002);
+        const d = _v.subVectors(f.ankle, H), Dr = d.length();
+        // Past full stretch the leg lengthens by up to 2 % (hidden in the knee) instead of the foot
+        // coming off its spot or the knee snapping straight.
+        const Dmax = (THIGH + SHIN) * 0.999, str = clamp(Dr / Dmax, 1, 1.02) * this.ikW + (1 - this.ikW);
+        leg.knee.position.y = -THIGH * str; leg.ankle.position.y = -SHIN * str;
+        const D = clamp(Dr / str, 0.25, Dmax);
         d.normalize();
         const bend = Math.PI - Math.acos(clamp((THIGH * THIGH + SHIN * SHIN - D * D) / (2 * THIGH * SHIN), -1, 1));
         const a1 = Math.acos(clamp((THIGH * THIGH + D * D - SHIN * SHIN) / (2 * THIGH * D), -1, 1));
         // Knee direction: the foot's facing blended with the body's, slightly out.
-        const kd = _w.set(-Math.sin(f.curYaw ?? yaw), 0, -Math.cos(f.curYaw ?? yaw)).add(fwdW).addScaledVector(rightW, leg.side * 0.12);
+        // (Plus some up when the foot is out in front — sitting, getting up — where forward alone is
+        // parallel to the leg and the knee's direction would be undefined; not with the foot behind,
+        // where it would flip the knee up over the hip in a heel kick.)
+        const kd = _w.set(-Math.sin(f.curYaw ?? yaw), 0, -Math.cos(f.curYaw ?? yaw)).add(fwdW).addScaledVector(rightW, leg.side * 0.12).addScaledVector(UP, 0.6 * (d.dot(fwdW) + Math.hypot(d.dot(fwdW), 0.05))); // (a smooth max(0, ·): no kink as the foot passes under the hip)
         const kp2 = kd.addScaledVector(d, -kd.dot(d)).normalize(); // ⟂ to hip→ankle
         const thighDir = _x.copy(d).multiplyScalar(Math.cos(a1)).addScaledVector(kp2, Math.sin(a1)).normalize();
         const zW = _z.copy(kp2).addScaledVector(thighDir, -kp2.dot(thighDir)).normalize().negate(); // bone +z: back, away from the knee's front
@@ -625,11 +805,11 @@ export class Avatar {
     const br = Math.sin(2 * Math.PI * this.breath) * lerp(0.006, 0.014, this.exert) * (1 - 0.7 * this.gait);
     const climb = clamp(uphill, -0.4, 0.9) * 0.3 * this.ikW * (0.4 + 0.6 * moveW);
     const risingLean = rising ? 0.75 * Math.sin(Math.PI * stand) : 0;
-    const torsoPitch = P.torso + (0.02 + 0.09 * wRun + 0.06 * smooth(5, 9, v)) * this.gait + climb + risingLean + 0.12 * this.reach - this.landX * 1.5;
+    const torsoPitch = P.torso + (0.02 + 0.09 * wRun + 0.06 * smooth(5, 9, v)) * this.gait + climb + risingLean + 0.12 * this.reach - this.landT * 1.5 + this.fwd * this.ikW;
     this.torso.rotation.set(-torsoPitch - br, -1.6 * hipYaw * this.ikW, -0.8 * hipRoll * this.ikW);
     this.head.rotation.set(-P.head * 0.6 + torsoPitch * 0.55 - climb * 0.2 + 0.2 * this.reach + 0.16 * this.admire + br * 0.8, 1.4 * hipYaw * this.ikW, -0.2 * hipRoll);
     // Arms (without poles planted): swing with the opposite leg; bent 90° running.
-    const armAmp = lerp(0.26, 0.62, wRun) * moveW;
+    const armAmp = lerp(0.26, 0.62, wRun) * this.gait;
     for (const arm of this.arms) {
       const swing = arm.side > 0 ? armAmp * Math.cos(cyc) : -armAmp * Math.cos(cyc);
       const reach = arm.side > 0 ? this.reach : 0; // the right hand places the stone
@@ -653,16 +833,18 @@ export class Avatar {
     // lying in the snow they lie beside you and are picked up as you get up.
     this.root.updateMatrixWorld(true);
     const hand = _hd, lying = 1 - smooth(0.45, 0.85, this.wake);
-    const plantW = this.ikW * (1 - wRun) * (1 - this.reach) * (rising ? 0 : 1);
+    const plantWant = this.ikW * (1 - wRun) * (1 - this.reach) * (rising ? 0 : 1);
+    [this.plantW, this.plantV] = spring(this.plantW ?? 0, this.plantV ?? 0, plantWant, 9, dt);
+    this.plantW = clamp(this.plantW, 0, 1);
+    const plantW = this.plantW;
     for (const pole of this.poles) {
       const arm = this.arms[pole.side < 0 ? 0 : 1], f = this.feet[pole.side < 0 ? 1 : 0];
       arm.elbow.localToWorld(hand.set(0, -FORE, 0));
       let hang = 1;
       if (plantW > 0.01 && f.init) {
-        const u = (this.phase + (pole.side < 0 ? 0.5 : 0)) % 1;
         // Planted only as its foot touches down (not partway through a stance), and lifted if the
         // hand has moved out of reach of it.
-        if (f.planted && !pole.planted && pole.touch !== f.touch && (f.touch ?? 0) > 0 && (u < 0.12 * duty)) {
+        if (f.planted && !pole.planted && pole.touch !== f.touch && (f.touch ?? 0) > 0) {
           pole.plant.copy(f.plant).addScaledVector(rightW, pole.side * 0.24).addScaledVector(fwdW, -0.06); pole.plant.y = this.ground(pole.plant.x, pole.plant.z);
           pole.planted = true; pole.touch = f.touch;
         }
@@ -675,13 +857,19 @@ export class Avatar {
           hang = 1;
         } else {
           if (pole.planted) { pole.from.copy(pole.plant); pole.planted = false; }
-          const e = (u - duty) / (1 - duty), se = e * e * (3 - 2 * e);
+          const e = f.e ?? 0, se = e * e * (3 - 2 * e);
           _S.copy(f.target).addScaledVector(rightW, pole.side * 0.24).addScaledVector(fwdW, -0.06);
           pole.tip.set(lerp(pole.from.x, _S.x, se), 0, lerp(pole.from.z, _S.z, se));
           pole.tip.y = this.ground(pole.tip.x, pole.tip.z) + 0.18 * Math.sin(Math.PI * e) * drive;
           hang = Math.pow(Math.sin(Math.PI * e), 0.7) * drive;
         }
-        pole.grip.subVectors(hand, pole.tip).normalize().multiplyScalar(POLE).add(pole.tip).lerp(hand, hang);
+        // (The hang weight eases, and the grip the arm reaches for is smoothed relative to the body:
+        // a pole going from planted to hanging, or lifted early, never snaps the arm.)
+        [pole.hang, pole.hangV] = spring(pole.hang ?? 1, pole.hangV ?? 0, hang, 16, dt);
+        pole.grip.subVectors(hand, pole.tip).normalize().multiplyScalar(POLE).add(pole.tip).lerp(hand, pole.hang).sub(pos);
+        if (!pole.gripRel) pole.gripRel = pole.grip.clone();
+        pole.gripRel.lerp(pole.grip, 1 - Math.exp(-22 * dt));
+        pole.grip.copy(pole.gripRel).add(pos);
         this.solveArm(arm, pole.grip, plantW, fwdW, rightW);
         arm.elbow.localToWorld(hand.set(0, -FORE, 0));
       } else pole.planted = false;
@@ -696,6 +884,10 @@ export class Avatar {
         if (_x.y < minY && minY > -1) { const kk = Math.sqrt(Math.max(0, 1 - minY * minY) / Math.max(1e-6, _x.x * _x.x + _x.z * _x.z)); _x.set(_x.x * kk, minY, _x.z * kk); }
         _v.lerp(_x, plantW).normalize();
       }
+      // (The shaft's direction eases too.)
+      if (!pole.dir) pole.dir = _v.clone();
+      pole.dir.lerp(_v, 1 - Math.exp(-22 * dt)).normalize();
+      _v.copy(pole.dir);
       let grip = hand;
       if (lying > 0) {
         _y.set(pos.x + rx * pole.side * 0.62 + fx * 0.35, 0, pos.z + rz * pole.side * 0.62 + fz * 0.35);
@@ -708,24 +900,42 @@ export class Avatar {
       _m.compose(grip, _q, _y.set(1, 1, 1)).premultiply(this._inv.copy(this.root.matrixWorld).invert());
       _m.decompose(pole.g.position, pole.g.quaternion, pole.g.scale);
     }
+    this.endFrame(pos);
   }
 
+  /** (Called at the end of update: where the body was this frame.) */
+  endFrame(pos) { this.prevPos.copy(pos); }
+
   /** Plant both feet where the posed legs have them now (landing from the air, getting up). */
-  plantFromPose(pos, fwdW, rightW) {
+  plantFromPose(pos, fwdW, rightW, moving = false, rate = 1) {
     this.root.updateMatrixWorld(true);
     for (const [i, leg] of this.legs.entries()) {
       const f = this.feet[i];
       leg.ankle.getWorldPosition(_S);
+      // (Never far from where it would stand: the pose may be lying, a tuck, a seat.)
+      const nx = pos.x + rightW.x * leg.side * 0.105, nz = pos.z + rightW.z * leg.side * 0.105, ex = _S.x - nx, ez = _S.z - nz, el = Math.hypot(ex, ez);
+      if (el > 0.2) { _S.x = nx + ex * 0.2 / el; _S.z = nz + ez * 0.2 / el; }
       _S.y = this.ground(_S.x, _S.z, _n);
       f.plant.copy(_S); f.pos.copy(_S); f.lift.copy(_S); f.target.copy(_S);
-      f.yaw = f.curYaw = f.liftYaw = Math.atan2(-fwdW.x, -fwdW.z); f.rot = f.liftRot = 0;
+      f.yaw = f.curYaw = f.liftYaw = Math.atan2(-fwdW.x, -fwdW.z); f.rot = f.liftRot = f.strike0 = 0;
       f.init = true;
       this.footPose(f, f.plant, fwdW, _n, 0);
     }
     // Resume the cycle at double support (both feet down), so neither foot is caught mid-swing.
-    const duty = 0.6;
-    this.phase = duty - 0.5 + 0.02;
-    for (const f of this.feet) f.planted = true;
+    this.phase = 0.05; // (left just down, right partway through its stance: both planted)
+    for (const f of this.feet) { f.planted = true; f.dutyT = 0.7; f.prevU = undefined; f.over = false; } // (neither lifts at once)
+    // Landing on the move: the leading foot takes the landing and the other is already swinging
+    // through (both planted at running speed would leave one trailing and drag the hips down).
+    if (moving) {
+      const lead = (this.feet[0].plant.x - pos.x) * fwdW.x + (this.feet[0].plant.z - pos.z) * fwdW.z > (this.feet[1].plant.x - pos.x) * fwdW.x + (this.feet[1].plant.z - pos.z) * fwdW.z ? 0 : 1;
+      this.phase = lead ? 0.52 : 0.02;
+      const f = this.feet[1 - lead], leg = this.legs[1 - lead];
+      leg.ankle.getWorldPosition(_S);
+      f.planted = false; f.liftU = 0.5; f.Tsw0 = 0.5 / Math.max(rate, 0.4); f.rel0.set(_S.x - pos.x, 0, _S.z - pos.z);
+      f.lift.set(_S.x, Math.max(this.ground(_S.x, _S.z), _S.y - ANKLE_H), _S.z);
+      (f.m0 ??= new THREE.Vector3()).set(0, 0, 0); f.rm0 = 0; f.pkW = 1;
+      this.feet[lead].dutyT = 0.3;
+    }
   }
 
   /**

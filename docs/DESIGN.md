@@ -47,8 +47,8 @@ Not a cure, not a defeat — a person who is still here, noticing light.
 ### Inner-voice lines (final, locked in Phase 5; W = Weight, Y = You, O = Other)
 Revised once from the 34-line first draft to 30 (DECISIONS #68): cut lines that explained what the
 player could already see ("look how far there is to fall", "I'm not the first one lost up here",
-"downhill is always easy"), tightened the rest, and rewrote the relapse beat for the Descent. Cut again to 18 (13 on the climb, the ending's 5 kept;
-DECISIONS #93) so the few words there are carry more, and none play while you sled. Data:
+"downhill is always easy"), tightened the rest, and rewrote the relapse beat for the Descent. Cut again to 18 (DECISIONS #93), then 16
+(11 on the climb, the ending's 5 kept; #94: the ridge pair didn't make sense) so the few words there are carry more, and none play while you sled. Data:
 `src/world/level.js` (`beats`); logic: `src/story/story.js`; display: `src/story/narrator.js`.
 
 | # | Section / trigger | Voice | Line |
@@ -58,8 +58,6 @@ DECISIONS #93) so the few words there are carry more, and none play while you sl
 | 4 | 1 Foot — first jump (or by the bank) | Y | One thing. Then the next. |
 | 5 | 2 Powder — into the deep powder | W | everything takes more than it should. |
 | 8 | 3 Chutes — stepping off the sled at the bottom (no words while you ride) | Y | Oh. I forgot what that felt like. |
-| 11 | 4 Ridge — 40 m along the crest | W | you're too much. you've always been too much. |
-| 12 | 4 — straight after 11 | Y | That's the wind. It sounds like me. It isn't. |
 | 18 | 6 — note in cairn A | O | I stopped here too. It passed. |
 | 19 | 6 — note in cairn B | O | Keep the stones on your left. Rest if you need to. |
 | 20 | 6 — note in cairn C | O | You don't have to do this alone. I didn't. |
@@ -72,7 +70,7 @@ DECISIONS #93) so the few words there are carry more, and none play while you sl
 | 29 | 8 — sitting, the sun gone, light still on the far peaks | Y | The light stays on the peaks after the sun goes. I never noticed that. |
 | 30 | 8 — final | Y | I'm still here. |
 
-(#3, 6, 7, 9, 10, 13–17, 22, 23 are retired with the cut lines; ids are stable, not contiguous.) Lines never block input. One
+(#3, 6, 7, 9–17, 22, 23 are retired with the cut lines; ids are stable, not contiguous.) Lines never block input. One
 on screen at a time from a queue: fade in (W 1.4 s, Y 0.8 s, O 0.9 s), hold 2.2 s + 55 ms/char
 (min 2.6 s), fade out, then 1.2 s of quiet (0.3 s before a direct answer). A note stays up while you
 stand at its cairn. Each line has a soft bell under it (W low and dull, Y warm, O a small chime).
@@ -253,7 +251,7 @@ than ~4 s behind another except direct answers, which follow their line by desig
 - **Fog** — height fog + aerial perspective tinted by sky in-scattering; whiteout raises density and
   shifts it to near-white.
 - **Particles** — GPU-animated instanced snow with a wind field; spindrift blowing off ridge crests;
-  snow spray from slides/landings; breath puffs (visual only, no breathing sound); embers of light at cairns.
+  snow spray from slides/landings; no breath puffs or breathing sound; embers of light at cairns.
 - **Character** — As built (Session 7, DECISIONS #82): a climber built from lathed and rounded
   shapes as one rigidly skinned mesh — quilted down jacket, rolled hood, a **red knitted neck gaiter**
   (it replaced the cloth scarf, which never behaved), beanie and goggles, pack with straps, foam mat

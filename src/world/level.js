@@ -99,11 +99,7 @@ export const SECTIONS = [
     surface: SNOW,
     paint: [[26, 34, ROCK], [60, 70, ROCK], [94, 104, ROCK], [118, 124, ROCK]],
     cairns: [[8, -4]],
-    // Gusts push toward +d (right of travel). Rock shelters (× 0.35). Telegraphed 0.8 s ahead.
-    beats: [
-      { at: 40, id: 11, voice: 'W', text: 'you\'re too much. you\'ve always been too much.' },
-      { at: 22, id: 12, voice: 'Y', text: 'That\'s the wind. It sounds like me. It isn\'t.', after: 11 },
-    ],
+    beats: [], // no words on the ridge (DECISIONS #94)
     oob: { below: 5, side: 30 },
   },
   {

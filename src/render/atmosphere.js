@@ -90,10 +90,11 @@ const SKYVIEW_FRAG = /* glsl */`
   ${ATMO_GLSL}
   vec3 transmittance(vec3 p, vec3 dir) {
     float h = length(p); vec3 up = p / h;
-    // The planet blocks the sun: soft edge over ~0.4° so Earth's shadow has a penumbra.
+    // The planet blocks the sun: soft edge over ~1.1° so Earth's shadow has a penumbra and the light
+    // fades as the disc sets instead of switching off (Session 9: the ending must be smooth).
     float muH = -sqrt(max(0.0, 1.0 - (Rg / h) * (Rg / h)));
     float mu = dot(up, dir);
-    float lit = smoothstep(muH - 0.004, muH + 0.004, mu);
+    float lit = smoothstep(muH - 0.01, muH + 0.01, mu);
     return texture2D(tTrans, transUV(h - Rg, mu)).rgb * lit;
   }
   void main() {
@@ -172,7 +173,12 @@ const SKY_FRAG = /* glsl */`
     // darkening that reddens toward the edge, squashed a little by refraction near the horizon,
     // inside a soft warm aureole (forward scattering in the haze) that grows as it gets low.
     float cosA = dot(d, uSunDir);
-    vec3 sunHue = uSunColor / max(max(uSunColor.r, uSunColor.g), 1e-4) * vec3(1.0, 0.9, 0.72); // a little golden
+    // Once the planet starts to hide it, the light's colour is ~0 and its hue meaningless: the disc
+    // fades out (added, never painted over the sky, so it can't go black; user playtest, Session 9)
+    // and its hue settles on a deep red-orange.
+    float sunM = max(max(uSunColor.r, uSunColor.g), uSunColor.b) / uIllum;
+    float sunVis = smoothstep(0.0, 0.05, sunM);
+    vec3 sunHue = mix(vec3(1.0, 0.32, 0.1), uSunColor / max(max(uSunColor.r, uSunColor.g), 1e-4), smoothstep(0.0, 0.02, sunM)) * vec3(1.0, 0.9, 0.72); // a little golden
     float low = 1.0 - smoothstep(0.0, 0.12, uSunDir.y);
     {
       // Offset from the sun's centre in a frame with "up" toward the zenith, for the squash.
@@ -184,7 +190,7 @@ const SKY_FRAG = /* glsl */`
         vec3 limb = mix(vec3(0.62, 0.38, 0.25), vec3(1.0), pow(mu, 0.55)); // redder and darker at the rim
         float edge = smoothstep(1.0, 0.94, r);
         float bright = mix(22.0, 7.0, low); // bright enough to bloom, not so bright it goes white
-        c = mix(c, sunHue * bright * limb, edge);
+        c += sunHue * bright * limb * edge * sunVis;
       }
     }
     float ca = max(cosA, 0.0);
@@ -214,7 +220,7 @@ const ext = (h) => {
 export function transmittanceJS(h, mu, steps = 24) {
   const r = ATMO.Rg + h;
   const muH = -Math.sqrt(Math.max(0, 1 - (ATMO.Rg / r) ** 2));
-  const lit = Math.min(1, Math.max(0, (mu - (muH - 0.004)) / 0.008));
+  const u = Math.min(1, Math.max(0, (mu - (muH - 0.01)) / 0.02)), lit = u * u * (3 - 2 * u); // as the GLSL
   if (lit <= 0) return [0, 0, 0];
   const b = r * mu, c = r * r - ATMO.Rt * ATMO.Rt;
   const L = -b + Math.sqrt(Math.max(0, b * b - c));

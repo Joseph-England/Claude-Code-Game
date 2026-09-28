@@ -89,10 +89,21 @@ const UP_FRAG = /* glsl */`
 
 const COMPOSITE_FRAG = /* glsl */`
   uniform sampler2D tHDR, tBloom;
-  uniform float uExposure, uBloom, uSat, uTemp, uContrast, uVignette, uGrain, uTime, uSpeed;
+  uniform float uExposure, uBloom, uSat, uTemp, uContrast, uVignette, uGrain, uTime, uSpeed, uNoGreen;
   uniform vec3 uLift, uGain;
   varying vec2 vUv;
   ${TONEMAP_GLSL}
+  vec3 rgb2hsv(vec3 c) {
+    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+    float d = q.x - min(q.w, q.y), e = 1.0e-10;
+    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+  }
+  vec3 hsv2rgb(vec3 c) {
+    vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+    return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
+  }
   float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
   vec3 hdrAt(vec2 uv) { return mix(texture2D(tHDR, uv).rgb, texture2D(tBloom, uv).rgb, uBloom); }
   void main() {
@@ -119,6 +130,20 @@ const COMPOSITE_FRAG = /* glsl */`
     // Contrast around mid-grey (display-referred linear).
     c = clamp(0.18 * pow(c / 0.18, vec3(uContrast)), 0.0, 1.0);
     vec3 s = toSRGB(c);
+    // No green in the sunset (user playtest, Session 9): where yellow light meets blue sky the mix
+    // (and AgX) can read green. As the sun gets low, hues in the green band are pulled out of it —
+    // yellow-greens toward gold, blue-greens toward sky blue — and greyed toward the band's middle,
+    // so there is no seam where the two pulls meet.
+    if (uNoGreen > 0.0) {
+      vec3 h = rgb2hsv(s);
+      float hue = h.x * 360.0;
+      float band = smoothstep(58.0, 80.0, hue) * (1.0 - smoothstep(168.0, 192.0, hue)) * uNoGreen;
+      float mid = 1.0 - smoothstep(0.0, 38.0, abs(hue - 125.0));
+      float to = hue < 125.0 ? 45.0 : 208.0;
+      h.x = mix(hue, to, band * 0.8) / 360.0;
+      h.y *= 1.0 - band * (0.35 + 0.6 * mid);
+      s = hsv2rgb(h);
+    }
     // Vignette and grain (display space).
     float v = smoothstep(0.85, 0.25, length(fromC * vec2(1.0, 0.8)));
     s *= mix(1.0, v, uVignette);
@@ -140,7 +165,7 @@ export class Pipeline {
     this.fog = null; // FogPass
     this.ldr = new THREE.WebGLRenderTarget(1, 1, { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter });
     this.composite = makePass(COMPOSITE_FRAG, {
-      tHDR: { value: null }, tBloom: { value: null }, uExposure: { value: 0.62 }, uBloom: { value: 0.05 },
+      tHDR: { value: null }, tBloom: { value: null }, uExposure: { value: 0.62 }, uBloom: { value: 0.05 }, uNoGreen: { value: 0 },
       uSat: { value: 1 }, uTemp: { value: 0 }, uContrast: { value: 1 }, uLift: { value: new THREE.Vector3() },
       uGain: { value: new THREE.Vector3(1, 1, 1) }, uVignette: { value: 0.35 }, uGrain: { value: 0.03 },
       uTime: { value: 0 }, uSpeed: { value: 0 },

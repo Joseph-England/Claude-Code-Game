@@ -24,7 +24,7 @@ const FRAG = /* glsl */`
     return mix(mix(a, c, f.x), mix(d, e, f.x), f.y);
   }
   void main() {
-    if (uSunDir.y < -0.02) { gl_FragColor = vec4(0.0); return; }
+    if (uSunDir.y < -0.08) { gl_FragColor = vec4(0.0); return; } // (well past sunset; above this the march fades it)
     vec2 t0 = vUv * float(uN);
     float h0 = hAt(t0) + 0.4;
     vec2 dirT = normalize(uSunDir.xz) / uCell;       // texels per metre horizontally

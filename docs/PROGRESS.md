@@ -362,3 +362,9 @@ work, README is complete.
   lines, ≈ 5:25 title to credits) and build pass.
 - **Broken / deferred:** nothing known.
 - **Next step:** Phase 6, first item: bug bash (title → credits twice in a row on each tier).
+
+### Session 11 — the khaki sunset (2026-09-28)
+- **Completed:** the olive/khaki band above the gold horizon is now salmon → rose → lavender
+  (DECISIONS #96). Checks and build pass.
+- **Broken / deferred:** nothing known.
+- **Next step:** Phase 6, first item: bug bash (title → credits twice in a row on each tier).

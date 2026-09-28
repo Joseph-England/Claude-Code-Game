@@ -22,10 +22,7 @@ export class Input {
     this.locked = false;
     this.padJumpWas = false;
     this.lastDevice = 'keyboard';
-    this.mouseRight = false;
 
-    addEventListener('mousedown', (e) => { if (e.button === 2) this.mouseRight = true; });
-    addEventListener('mouseup', (e) => { if (e.button === 2) this.mouseRight = false; });
     addEventListener('contextmenu', (e) => e.preventDefault());
     addEventListener('keydown', (e) => {
       if (e.code === 'Tab' || e.code === 'F3' || e.code === 'F4' || e.code === 'F2' || e.code === 'Space') e.preventDefault();
@@ -34,7 +31,7 @@ export class Input {
       this.lastDevice = 'keyboard';
     });
     addEventListener('keyup', (e) => this.down.delete(e.code));
-    addEventListener('blur', () => { this.down.clear(); this.mouseRight = false; });
+    addEventListener('blur', () => this.down.clear());
     element.addEventListener('click', () => {
       if (!this.locked) element.requestPointerLock?.();
     });
@@ -68,9 +65,10 @@ export class Input {
 
     let jumpPressed = this.pressed.has('Space');
     let jumpHeld = k.has('Space');
-    // Shift sprints; C or the right mouse button slides (DECISIONS #47).
+    // Shift sprints (DECISIONS #47). There is no slide button any more: sliding is the sled's job
+    // (DECISIONS #83); slideHeld stays in the command for the dev course and the movement check.
     let sprintHeld = k.has('ShiftLeft') || k.has('ShiftRight');
-    let slideHeld = k.has('KeyC') || this.mouseRight;
+    const slideHeld = false;
     let interact = this.pressed.has('KeyE') || this.pressed.has('KeyF');
 
     const pad = navigator.getGamepads?.().find((p) => p && p.connected && p.mapping === 'standard');
@@ -79,7 +77,7 @@ export class Input {
       const [rx, ry] = deadzone2(pad.axes[2], pad.axes[3]);
       const b = pad.buttons;
       const jump = b[0]?.pressed;
-      const padActive = lx || ly || rx || ry || jump || b[1]?.pressed || b[7]?.value > 0.3;
+      const padActive = lx || ly || rx || ry || jump || b[2]?.pressed;
       if (padActive) this.lastDevice = 'gamepad';
       if (lx || ly) { mx = lx; my = -ly; }
       lookX += rx * s.stickLookSpeed * frameDt;
@@ -87,10 +85,9 @@ export class Input {
       if (jump && !this.padJumpWas) jumpPressed = true;
       this.padJumpWas = jump;
       jumpHeld ||= jump;
-      slideHeld ||= b[1]?.pressed || b[7]?.value > 0.3;
-      if (b[2]?.pressed && !this.padXWas) interact = true; // X: leave a stone
+      if (b[2]?.pressed && !this.padXWas) interact = true; // X: sit on the sled, leave a stone
       this.padXWas = b[2]?.pressed;
-      sprintHeld ||= b[10]?.pressed || b[4]?.pressed || b[6]?.value > 0.3; // L3, LB or LT
+      sprintHeld ||= b[10]?.pressed || b[4]?.pressed || b[6]?.value > 0.3 || b[7]?.value > 0.3; // L3, LB, LT or RT
     }
 
     if (s.invertY) lookY = -lookY;

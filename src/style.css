@@ -22,7 +22,7 @@ html, body {
   pointer-events: none;
 }
 /* All HUD text sits on a soft dark backing so it reads on white snow and on sunset colours alike. */
-#toast, #prompt, #controls {
+#toast, #prompt, #controls, #hint {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
@@ -39,7 +39,13 @@ html, body {
 }
 #controls { bottom: 12px; }
 #toast { top: 16%; font-size: 15px; letter-spacing: 0.06em; }
-#prompt { bottom: 24%; font-size: 14px; letter-spacing: 0.05em; }
+#prompt { bottom: 24%; font-size: 15px; letter-spacing: 0.05em; padding: 7px 16px; background: rgba(12, 10, 22, 0.62); }
+#hint { bottom: 31%; font-size: 14px; letter-spacing: 0.04em; padding: 6px 15px; transition: opacity 0.6s; }
+/* Key caps in prompts and hints. */
+kbd {
+  display: inline-block; min-width: 1.1em; padding: 1px 6px; margin: 0 2px; border-radius: 5px; text-align: center;
+  font: 600 12px/1.5 system-ui, sans-serif; color: #1c1826; background: #f1ecf4; box-shadow: 0 2px 0 #9d94a8; text-shadow: none;
+}
 #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; }
 
 /* Voices (DESIGN §1, DECISIONS #49). The Weight is not "someone else": it is the depression, so it

@@ -44,18 +44,16 @@ export const SECTIONS = [
   },
   {
     name: 'The Foot', len: 160, turn: -38,
-    // Rolling hills → a gentle 12° slope with a lone boulder at its foot (first slide) → a 1.9 m
-    // bank too steep to walk (40°) that you crest with the slide's speed → climb.
-    knots: [[0, 0], [20, 2.5], [40, 0.8], [60, 6], [75, 11], [118, 1.5], [130, 1.5, 1], [132.4, 3.1, 1], [160, 12]],
+    // Rolling hills → a gentle 12° slope down to a lone boulder → the climb out. (The momentum
+    // bank went with the boot-slide, DECISIONS #83: this is a walk.)
+    knots: [[0, 0], [20, 2.5], [40, 0.8], [60, 6], [75, 11], [118, 1.5], [160, 12]],
     profile: { type: 'trail', w: 8, shoulder: 22 },
     surface: SNOW,
-    paint: [[128, 134, ROCK, 4.5, 99]], // rock grips to 55°: the walkers' way up the bank
     props: [{ type: 'boulder', at: 122, d: 9, r: 2.6 }],
     beats: [
       { at: 8, id: 4, voice: 'Y', text: 'One thing. Then the next.', when: 'jump', until: 110, fallback: true },
     ],
     oob: { below: 12, side: 60 },
-    bot: { slide: [[77, 131]], edge: [118, 134, 6] }, // edge: walk the rock strip when too slow
   },
   {
     name: 'Powder Fields', len: 120, turn: -52,
@@ -72,22 +70,27 @@ export const SECTIONS = [
   },
   {
     name: 'Ice Chutes', len: 260, turn: -6,
-    // Chute 1 (safe: high walls, run-out rises), a packed rise, chute 2, kicker, 7 m crevasse,
-    // downslope landing, and a rise the speed carries you up.
+    // Ridden on the sled that waits by the cairn (DECISIONS #83): chute 1 (high walls, the run-out
+    // rises), a snow rise the speed carries you over, chute 2, the kicker and the 8.5 m crevasse —
+    // the lip launches the sled on a fixed arc (`launch`), so a rider always clears it — a
+    // downslope landing, and a rise into deep snow where the sled stops and you step off.
     knots: [[0, 34], [12, 34], [90, 15], [104, 15], [122, 21], [132, 21], [188, 5], [194, 4.5, 1], [199.5, 5.8, 1], [208, 3, 1], [232, -4], [260, 8]],
     gaps: [[199.5, 8.5, 14]],
     profile: { type: 'pipe', w: 3, r: 7, depth: 6, shoulder: 16 },
     profiles: [[0, 12, { type: 'trail', w: 8, shoulder: 18 }], [186, 260, { type: 'trail', w: 11, shoulder: 18 }]],
     surface: ICE,
-    paint: [[0, 12, SNOW], [92, 132, SNOW], [186, 199.5, SNOW], [207.5, 260, SNOW]],
+    paint: [[0, 12, SNOW], [92, 132, SNOW], [186, 199.5, SNOW], [207.5, 238, SNOW], [238, 260, POWDER]],
     cairns: [[6, -6]],
+    sled: { at: 11, d: 0 }, // where the sled waits (and returns to on a respawn before the end)
+    launch: { at: 198.8, speed: 12.5, pitch: 0.26 }, // kicker lip: min speed (m/s) and pitch (rad)
+    sledEnd: 232, // past here, the rider steps off once the sled has slowed
     beats: [
       { at: 12, id: 8, voice: 'Y', text: 'Oh. I forgot what that felt like.', when: 'fast', until: 200 },
       { at: 190, id: 9, voice: 'W', text: 'don\'t get used to it.', when: 'retry', until: 215 },
       { at: 238, id: 10, voice: 'Y', text: 'It doesn\'t last. But it carries.' },
     ],
     oob: { below: 7, side: 16 },
-    bot: { slide: [[12, 199]], jump: [198.5] },
+    bot: { sled: true },
   },
   {
     name: 'Cornice Ridge', len: 140, turn: 80,
@@ -127,7 +130,6 @@ export const SECTIONS = [
       { at: 74, id: 16, voice: 'Y', text: 'It\'s not starting over. It\'s the way through.' },
     ],
     oob: { below: 12, side: 40 },
-    bot: { slide: [[10, 62]] },
   },
   {
     name: 'Whiteout', len: 165, turn: 70,

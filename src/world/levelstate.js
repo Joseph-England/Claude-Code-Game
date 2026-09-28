@@ -1,6 +1,7 @@
 // Level runtime (pure logic, no DOM; the Node playthrough uses it too): route progress, section
 // tracking, cairn checkpoints + respawn points, out-of-bounds detection, wind (ridge gusts,
-// whiteout headwind) and the summit. Story lines are armed and fired by the narrator (story.js).
+// whiteout headwind), the sled (where it rests, mounting, the kicker's launch, stepping off) and
+// the summit. Story lines are armed and fired by the narrator (story.js).
 import { SURFACE } from './surfaces.js';
 import { stormCylinders, stormAt, stormNear, STORM_HEAD } from './storm.js';
 
@@ -14,6 +15,15 @@ export class LevelState {
     this.tuning = tuning;
     this.events = [];
     this.storm = stormCylinders(this.route);
+    // The sled (DECISIONS #83): where it waits, where the rider steps off, the kicker's launch.
+    const k = this.route.sections.findIndex((x) => x.sled);
+    if (k >= 0) {
+      const sec = this.route.sections[k], p = this.route.place(k, sec.sled.at, sec.sled.d);
+      this.sledSection = k;
+      this.sledHome = { x: p.x, z: p.z, yaw: p.yaw, s: p.s };
+      this.sledEnd = sec.s0 + sec.sledEnd;
+      this.launch = { ...sec.launch, s: sec.s0 + sec.launch.at };
+    }
     this.reset();
   }
 
@@ -27,6 +37,44 @@ export class LevelState {
     this.finished = false;
     this.wind = { x: 0, z: 0, gust: 0, warn: false, whiteout: 0, stormNear: 0 };
     this.gustClock = 0;
+    this.prevS = 0;
+    this.slowT = 0;
+    this.sled = this.sledHome ? { ...this.sledHome, riding: false, done: false } : null;
+  }
+
+  /** On a respawn: the sled goes back to the cairn unless it was ridden to the end already. */
+  resetSled() {
+    if (!this.sled) return;
+    this.sled.riding = false;
+    if (!this.sled.done) Object.assign(this.sled, this.sledHome);
+  }
+
+  /** The resting sled is within reach (and you are on your feet). */
+  sledNear(ctl) {
+    const b = this.sled;
+    return !!b && !b.riding && !ctl.sled && ctl.grounded && (b.x - ctl.pos.x) ** 2 + (b.z - ctl.pos.z) ** 2 < 2.4 ** 2;
+  }
+
+  /** Sit on the sled: the body moves onto it, facing the way it points. */
+  mount(ctl) {
+    const b = this.sled, hf = this.m.heightfield;
+    ctl.teleport([b.x, hf.heightAt(b.x, b.z), b.z], b.yaw);
+    ctl.mountSled(b.yaw);
+    b.riding = true;
+    this.launched = false;
+    this.events.push({ type: 'mount' });
+  }
+
+  /** Step off: the sled stays where it stopped, just to your left. */
+  dismount(ctl) {
+    const b = this.sled;
+    if (!b?.riding) return;
+    const yaw = ctl.facing;
+    b.x = ctl.pos.x - Math.cos(yaw) * 0.75; b.z = ctl.pos.z + Math.sin(yaw) * 0.75; b.yaw = yaw;
+    b.riding = false;
+    if (this.s > this.sledEnd - 20) b.done = true;
+    ctl.dismountSled();
+    this.events.push({ type: 'dismount' });
   }
 
   get progressFraction() { return this.progress / this.route.length; }
@@ -55,6 +103,29 @@ export class LevelState {
     }
     const sec = route.sections[this.section], ls = this.s - sec.s0;
     const Hbase = route.heightAt(this.s, true);
+
+    // The sled: the kicker's lip throws a rider (heading down the route with some speed) on a
+    // fixed arc that clears the crevasse — the heightfield's lip, with the gap cut right after it,
+    // could bounce a sled straight up (user playtest). Past the end, the rider steps off once slow.
+    if (ctl.sled && this.sled?.riding) {
+      const L = this.launch;
+      // Taken once per ride, in the last 3 m before the lip, on the snow or just off it (a sled
+      // at speed leaves the kicker's convex top a little early).
+      if (L && !this.launched && this.s >= L.s - 3 && this.s <= L.s + 0.7 && (ctl.grounded || ctl.heightAboveGround < 0.6) && Math.abs(this.d) < 8) {
+        const p = route.at(L.s), hv = Math.hypot(ctl.vel.x, ctl.vel.z);
+        const along = (ctl.vel.x * p.dx + ctl.vel.z * p.dz) / (hv || 1);
+        if (hv > 4 && along > 0.8) {
+          const sp = Math.max(hv, L.speed), c = Math.cos(L.pitch), si = Math.sin(L.pitch);
+          ctl.vel.set(p.dx * sp * c, sp * si, p.dz * sp * c);
+          ctl.grounded = false; ctl.state = 'air'; ctl.timers.groundLock = 0.2;
+          this.launched = true;
+          this.events.push({ type: 'launch' });
+        }
+      }
+      this.slowT = ctl.grounded && ctl.speed < 1.2 ? this.slowT + dt : 0;
+      if ((this.s > this.sledEnd && this.slowT > 0.4) || this.s > this.sledEnd + 40 || this.section > this.sledSection) this.dismount(ctl);
+    }
+    this.prevS = this.s;
 
     // Progress only counts while standing near the route bed (no credit for falling past it).
     // Up to 30 m ahead near the bed; standing right on the bed catches up from further (a slide

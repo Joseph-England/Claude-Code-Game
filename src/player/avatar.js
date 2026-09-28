@@ -30,12 +30,12 @@ export const ANKLE_H = 0.085; // ankle joint above the sole
 const LEG = THIGH + SHIN - 0.01; // working leg length for the gait
 const BALL = [0.13, ANKLE_H]; // ball of the foot relative to the ankle: [forward, down]
 const HEEL = [0.06, ANKLE_H]; // heel contact relative to the ankle: [back, down]
-export const SEAT_H = 0.34; // hips above the snow when sitting on the sled
+export const SEAT_H = 0.38; // hips above the snow when sitting on the sled
 const UPPER = 0.285, FORE = 0.275; // shoulder → elbow, elbow → centre of the mitten
 const POLE = 1.08; // grip → tip
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _S = new THREE.Vector3(), _n = new THREE.Vector3(), _b = new THREE.Vector3();
 const _x = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _qp = new THREE.Quaternion();
-const DOWN = new THREE.Vector3(0, -1, 0);
+const DOWN = new THREE.Vector3(0, -1, 0), UP = new THREE.Vector3(0, 1, 0), _qy = new THREE.Quaternion();
 
 // Pose parameters that blend smoothly between states (the gait adds on top). ankle: foot pitch
 // relative to the shin (+ = toes up).
@@ -48,7 +48,7 @@ const POSES = {
   lie: { thigh: 0.9, knee: 1.4, torso: 0, armOut: 0.35, arm: 0.1, elbow: 0.2, head: -0.15, reach: 0, ankle: 0.1 },
   stone: { thigh: 1.2, knee: 2.0, torso: 0.7, armOut: 0.08, arm: 0.9, elbow: 0.3, head: -0.4, reach: 1, ankle: 0.5 },
   // On the sled: legs out in front, heels on the front bar, hands on the rope.
-  sled: { thigh: 1.42, knee: 0.55, torso: -0.08, armOut: 0.3, arm: 0.95, elbow: 0.7, head: 0.08, reach: 0, ankle: -0.1 },
+  sled: { thigh: 1.42, knee: 0.55, torso: -0.04, armOut: 0.32, arm: 0.72, elbow: 0.4, head: 0.08, reach: 0, ankle: -0.1 },
 };
 const KEYS = Object.keys(POSES.stand);
 
@@ -252,6 +252,7 @@ export class Avatar {
     this.reach = 0; // leaving a stone: 0 … 1 … 0 (driven by the game)
     this.admire = 0; // the ending: 0 … 1 lifts the head a little to the view
     this.seated = 0; // on the sled: 0 … 1 (driven by the game)
+    this.tilt = new THREE.Quaternion(); // the sled's pitch and roll under you (identity on foot)
   }
 
   reset() { this.pelvis = undefined; }
@@ -259,7 +260,8 @@ export class Avatar {
   update(ctl, pos, alpha, dt) {
     const g = this.t.gravity, a = this.t.avatar;
     this.root.position.copy(pos);
-    this.root.rotation.y = lerpAngle(ctl.prevFacing, ctl.facing, alpha);
+    const yaw = lerpAngle(ctl.prevFacing, ctl.facing, alpha);
+    this.root.quaternion.copy(this.tilt).multiply(_qy.setFromAxisAngle(UP, yaw));
     const state = ctl.state;
     const hs = Math.hypot(ctl.vel.x, ctl.vel.z);
     const k = 1 - Math.exp(-10 * dt);
@@ -285,7 +287,7 @@ export class Avatar {
 
     // --- Legs. Cadence and stance share follow speed (brisk walk → sprint), feet lift higher in
     // powder, and turning on the spot is done in small steps.
-    const yaw = this.root.rotation.y, fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = -fz, rz = fx;
+    const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = -fz, rz = fx;
     const hf = ctl.world?.heightfield;
     const onFoot = state === 'run' && ctl.grounded && this.wake >= 1 && seated < 0.01;
     this.ikW += ((onFoot ? 1 - this.reach : 0) - this.ikW) * (onFoot ? k : 1 - Math.exp(-18 * dt));
@@ -450,6 +452,7 @@ export class Avatar {
       }
       // The shaft: toward the planted tip when walking (never through the snow), hanging when not.
       _v.copy(DOWN).addScaledVector(fwdW, -0.35).addScaledVector(rightW, pole.side * 0.08).normalize();
+      if (this.seated > 0.01) _v.lerp(_x.copy(DOWN).multiplyScalar(0.5).addScaledVector(fwdW, -0.8).addScaledVector(rightW, pole.side * 0.35).normalize(), this.seated).normalize(); // trailing beside the sled
       if (this.ikW > 0.01) {
         _x.subVectors(pole.tip, hand).normalize();
         const gy = hf && !onCollider ? hf.heightAt(hand.x + _x.x * POLE, hand.z + _x.z * POLE) : pole.tip.y;

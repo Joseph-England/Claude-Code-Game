@@ -67,7 +67,19 @@ class Bot {
       camYaw = Math.atan2(-(e.x + e.rx * bot.edge[2] - p.pos.x), -(e.z + e.rz * bot.edge[2] - p.pos.z));
     }
     if (climb) camYaw = climbYaw;
-    const c = { moveX: 0, moveY: 1, jumpPressed: false, jumpHeld: false, slideHeld: false, sprintHeld: true };
+    const c = { moveX: 0, moveY: 1, jumpPressed: false, jumpHeld: false, slideHeld: false, sprintHeld: true, interact: false };
+    // The sled: sit on it when passing, then steer down the chutes (A/D), paddle off from rest.
+    if (bot.sled && level.sled && !level.sled.done && !p.sled && level.sledNear(p)) c.interact = true;
+    if (p.sled) {
+      const hv = Math.hypot(p.vel.x, p.vel.z);
+      const want = Math.atan2(-tx, -tz), have = hv > 0.5 ? Math.atan2(-p.vel.x, -p.vel.z) : p.facing;
+      const diff = Math.atan2(Math.sin(want - have), Math.cos(want - have));
+      c.moveX = Math.max(-1, Math.min(1, -2.5 * diff));
+      c.moveY = hv < 1 ? 1 : 0;
+      c.sprintHeld = false;
+      this.prevLs = ls;
+      return { c, camYaw };
+    }
     // Ridge: wait out gusts on rock (the shelter), as a player would after the first one.
     if (bot.gustWait && p.grounded && p.groundSurface === SURFACE.ROCK && (level.wind.warn || level.wind.gust > 0.05)) c.moveY = 0;
     // Slide where the hint says so, but only while it is worth it (moving, or the bed drops ahead).
@@ -121,6 +133,7 @@ function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
     const { c, camYaw } = bot.command();
     player.vel.x += level.wind.x * DT;
     player.vel.z += level.wind.z * DT;
+    if (c.interact && level.sledNear(player)) level.mount(player);
     player.step(DT, c, camYaw);
     if (player.events.some((e) => e.type === 'jump')) story.signal('jump');
     player.events.length = 0;
@@ -144,6 +157,7 @@ function playthrough({ from = 0, maxTime = 900, verbose = false } = {}) {
         t += 1.0; // fade out + in
         const s2 = level.spawnPoint();
         player.teleport(s2.pos, s2.yaw);
+        level.resetSled();
         story.respawned(route.sectionIndexAt(props.cairns[level.checkpoint].s));
       } else if (e.type === 'summit') summit = t;
     }
@@ -178,10 +192,10 @@ if (!run.ok) failures.push(`playthrough failed: ${run.why}`);
 else {
   // First-time estimate: a new player is slower than the bot's lines (×1.35), hesitates at each
   // new mechanic (~6 s in sections 1–7) and retries each hard section about once (cairn → failure point).
-  // Checkpoints are sparse (DECISIONS #48), so a retry replays most of its section: chutes and
-  // cave about half a retry, the ridge most of one, the couloir (slide-backs) more than one.
-  // Plus ~5 s standing at each of the three whiteout notes to read them.
-  const retry = { 3: 0.6, 4: 0.8, 7: 1.2 };
+  // Checkpoints are sparse (DECISIONS #48), so a retry replays most of its section: the chutes
+  // rarely (the sled's launch always clears the crevasse; walking past the sled costs one), the
+  // ridge most of one (gusts). Plus ~5 s standing at each of the three whiteout notes to read them.
+  const retry = { 3: 0.25, 4: 0.8 };
   let est = run.t * 1.35 + 7 * 6 + 3 * 5;
   for (const k in retry) est += (run.secs[k].dur ?? 0) * retry[k];
   console.log(`\nBot reached the summit in ${fmtT(run.t)} (${run.t.toFixed(1)} s).`);
@@ -243,34 +257,44 @@ if (!args.quick) {
   console.log(`\nCairn respawns checked: ${checkpoints.length - bad}/${checkpoints.length} stable.`);
 }
 
-// Momentum gates: from a standstill, the recovery a player would find must work.
-//   The Foot bank: back up onto the flat, run at it, jump at its foot.
-function gateTest(k, startLs, jumpAtLs, slide, passLs, line = 0) {
+// The sled (DECISIONS #83): from the chutes cairn, sit on it and ride with simple steering. It
+// must clear the crevasse (no respawn), launch exactly once, and stop in the run-out, where the
+// rider steps off, before the ridge. Also: with no steering at all it still gets to the end.
+function sledRun(steer) {
   const { level, player } = makeRun();
-  const sec = route.sections[k];
-  const sp = route.at(sec.s0 + startLs);
-  level.progress = sec.s0 + startLs;
-  player.teleport([sp.x, mountain.heightfield.heightAt(sp.x, sp.z), sp.z], sp.yaw);
-  for (let i = 0; i < 12 / DT; i++) {
+  const i = props.cairns.findIndex((c) => c.checkpoint && c.section === level.sledSection);
+  level.checkpoint = i; level.progress = props.cairns[i].s;
+  const sp = level.spawnPoint(i);
+  player.teleport(sp.pos, sp.yaw);
+  let launches = 0, oob = false, maxV = 0, t = 0;
+  for (; t < 60 && !oob; t += DT) {
+    if (!player.sled && level.sledNear(player) && !level.sled.done) level.mount(player);
+    let c = { moveX: 0, moveY: 0, jumpPressed: false, jumpHeld: false, slideHeld: false };
+    if (!player.sled && !level.sled.done) {
+      const b = level.sled; // walk to the sled
+      c.moveY = 1;
+      player.step(DT, c, Math.atan2(-(b.x - player.pos.x), -(b.z - player.pos.z)));
+    } else if (player.sled) {
+      const tgt = route.at(level.s + 12), hv = Math.hypot(player.vel.x, player.vel.z);
+      const want = Math.atan2(-(tgt.x - player.pos.x), -(tgt.z - player.pos.z)), have = hv > 0.5 ? Math.atan2(-player.vel.x, -player.vel.z) : player.facing;
+      const diff = Math.atan2(Math.sin(want - have), Math.cos(want - have));
+      c.moveX = steer ? Math.max(-1, Math.min(1, -2.5 * diff)) : 0;
+      c.moveY = hv < 1 ? 1 : 0;
+      player.step(DT, c, 0);
+    } else break; // stepped off
+    maxV = Math.max(maxV, player.speed);
     level.step(DT, player);
+    for (const e of level.events) { if (e.type === 'launch') launches++; if (e.type === 'oob') oob = true; }
     level.events.length = 0;
-    const ls = level.s - sec.s0, tgt = route.at(level.s + 6);
-    const cmdNow = { moveX: 0, moveY: 1, sprintHeld: !slide, jumpPressed: jumpAtLs !== null && Math.abs(ls - jumpAtLs) < 0.1, jumpHeld: true, slideHeld: slide && ls > 14 };
-    const tx = tgt.x + tgt.rx * line, tz = tgt.z + tgt.rz * line;
-    player.step(DT, cmdNow, Math.atan2(-(tx - player.pos.x), -(tz - player.pos.z)));
-    if (ls > passLs && player.grounded) return true;
-    if (args.gatetrace && i % 24 === 0) console.log(`   g ${(i * DT).toFixed(1)} ls ${ls.toFixed(1)} d ${level.d.toFixed(1)} y ${player.pos.y.toFixed(2)} v ${player.speed.toFixed(1)} ${player.state} surf ${player.groundSurface} slope ${(player.slopeAngle * 57.3).toFixed(0)}`);
   }
-  return false;
+  const sec = route.sections[level.sledSection];
+  return { ok: !oob && launches === 1 && level.sled.done && level.s < sec.s1 + 5, launches, oob, stopAt: level.s - sec.s0, maxV, t };
 }
 {
-  const foot = route.sections.findIndex((x) => x.name === 'The Foot');
-  const g = {
-    'Foot bank, walking the rock edge': gateTest(foot, 120, null, false, 134, 6),
-    'Foot bank, slide from the top of the slope': gateTest(foot, 82, null, true, 134),
-  };
-  console.log(`Momentum gates from rest: ${Object.entries(g).map(([k, v]) => `${k} ${v ? '✓' : '✗'}`).join('; ')}`);
-  for (const [k, v] of Object.entries(g)) if (!v) failures.push(`gate: ${k} fails`);
+  const a = sledRun(true), b = sledRun(false);
+  const f = (r) => `${r.ok ? '✓' : '✗'} (${r.launches} launch, ${r.oob ? 'fell in' : 'no fall'}, stepped off at +${r.stopAt.toFixed(0)} m, top ${r.maxV.toFixed(1)} m/s, ${r.t.toFixed(1)} s)`;
+  console.log(`Sled run from the cairn: steering ${f(a)}; hands off ${f(b)}`);
+  if (!a.ok) failures.push('sled run (steering) fails');
 }
 
 // Soft-lock sweep: drop the player at points across the corridor (bed, edges, shoulders) and let

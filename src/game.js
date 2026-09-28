@@ -16,6 +16,7 @@ import { Ending, ENDING_FADE, ENDING_END } from './story/ending.js';
 import { Controller } from './player/controller.js';
 import { ThirdPersonCamera } from './player/camera.js';
 import { Avatar } from './player/avatar.js';
+import { Sled } from './world/sled.js';
 import { TerrainRenderer, createBackdrop } from './render/terrain.js';
 import { createLights } from './render/lights.js';
 import { Pipeline } from './render/post.js';
@@ -96,6 +97,7 @@ const input = new Input(canvas, tuning.input);
 const player = new Controller(world, tuning);
 const cam = new ThirdPersonCamera(camera, world, tuning);
 const avatar = new Avatar(scene, tuning);
+const sled = new Sled(scene);
 // Each heel strike: a footprint, a step sound (panned to that foot; soft for shuffling turns) and
 // a little kick of snow off the boot (more in deep powder).
 avatar.onFoot = (x, z, ctl, side, shuffle) => {
@@ -120,9 +122,10 @@ const overlay = new DebugOverlay();
 const panel = createPanel(tuning);
 
 // --- HUD: toast, narrator, gust hint, prompt, controls, fade.
-const toast = $('toast'), fade = $('fade'), windEl = $('wind'), promptEl = $('prompt'), controlsEl = $('controls');
+const toast = $('toast'), fade = $('fade'), windEl = $('wind'), promptEl = $('prompt'), controlsEl = $('controls'), hintEl = $('hint');
 const creditsEl = $('credits');
 let toastTimer = 0;
+const hints = { shown: new Set(), queue: [], t: 0 }; // one-shot hints (updateHints)
 function showToast(text, secs = 1.6) { toast.textContent = text; toast.style.opacity = 1; toastTimer = secs; }
 const audio = new Audio();
 const narrator = new Narrator($('line'), $('weight-vignette'), (l) => audio.bell(l.voice));
@@ -131,6 +134,8 @@ function spawnAt(index, announce = true) {
   level.checkpoint = index;
   const sp = level.spawnPoint(index);
   player.teleport(sp.pos, sp.yaw);
+  level.resetSled();
+  avatar.seated = 0;
   cam.reset(player.pos, sp.yaw);
   avatar.reset();
   trails.cut();
@@ -166,6 +171,8 @@ function newRun() {
   avatar.admire = 0;
   flow.wake = null;
   flow.firstCheckpoint = true;
+  hints.shown.clear(); hints.queue.length = 0; hints.t = 0; hintEl.style.opacity = 0;
+  flow.request = null;
   if (stoneMesh) { scene.remove(stoneMesh); stoneMesh = null; }
   reachT = -1;
 }
@@ -184,6 +191,7 @@ function startEnding() {
   ending = new Ending({ route: mountain.route, heightfield: mountain.heightfield, story, audio });
   controlsEl.style.opacity = 0;
   promptEl.style.opacity = 0;
+  hintEl.style.opacity = 0;
   document.exitPointerLock?.();
 }
 function startCredits() {
@@ -254,15 +262,56 @@ let cmd = null;
 let avatarSink = 0;
 const renderPos = new THREE.Vector3();
 
+// Hints (user playtest, Session 7: "there should be some clear indication of what we want the
+// player to do"; DECISIONS #84). Each shows once per run, when it matters, with the key drawn as a
+// key cap; they queue so two never overlap, and the interaction prompt below them always wins.
+const pad = () => input.lastDevice === 'gamepad';
+const key = (k, padK) => `<kbd>${pad() && padK ? padK : k}</kbd>`;
+function hint(id, html, secs = 6) {
+  if (hints.shown.has(id)) return;
+  hints.shown.add(id);
+  hints.queue.push({ html, secs });
+}
+function updateHints(dt) {
+  if (hints.t > 0 && (hints.t -= dt) <= 0) hintEl.style.opacity = 0;
+  if (hints.t <= -0.8 && hints.queue.length && flow.mode === 'playing') {
+    const h = hints.queue.shift();
+    hintEl.innerHTML = typeof h.html === 'function' ? h.html() : h.html;
+    hintEl.style.opacity = 1;
+    hints.t = h.secs;
+  }
+  if (hints.t <= 0) hints.t -= dt;
+}
+function setPrompt(html) {
+  if (html) promptEl.innerHTML = html;
+  promptEl.style.opacity = html ? 1 : 0;
+}
+
+// Prompts for the two things you can do with E (X): sit on the sled, and leave a stone.
 // Cairn notes and leaving a stone (DESIGN §1 lines 18–21). Reading the last whiteout note, you can
-// press E to leave a stone of your own on that cairn: the figure crouches and reaches, a stone
-// lands on the stack with a knock, the note lets go and "I'll leave one too." follows.
+// leave a stone of your own on that cairn: the figure crouches and reaches, a stone lands on the
+// stack with a knock, the note lets go and "I'll leave one too." follows.
 const stoneGeo = new THREE.DodecahedronGeometry(0.16, 0).scale(1, 0.62, 1.1);
-function updateStone(dt) {
-  const ready = flow.mode === 'playing' && story.stoneReady && reachT < 0;
-  promptEl.textContent = input.lastDevice === 'gamepad' ? 'X · leave a stone' : 'E · leave a stone';
-  promptEl.style.opacity = ready && narrator.cur?.line.voice === 'O' ? 1 : 0;
-  if (ready && cmd.interact) { reachT = 0; story.signal('stone'); }
+function updatePrompts(dt) {
+  const playing = flow.mode === 'playing' && flow.wake >= 1 && !respawn;
+  let prompt = null;
+  // The sled: sit on it; once riding, how to steer; stopped, how to get going or get off.
+  if (playing && level.sledNear(player) && !level.sled.done) {
+    prompt = `${key('E', 'X')} sit on the sled`;
+    if (cmd.interact) flow.request = 'mount';
+  } else if (playing && player.sled && avatar.seated > 0.95) {
+    level.slowRide = player.speed < 0.6 ? (level.slowRide ?? 0) + dt : 0;
+    if (level.slowRide > 1.2) {
+      prompt = `${key('W', 'stick up')} push off &nbsp;·&nbsp; ${key('E', 'X')} get off`;
+      if (cmd.interact) flow.request = 'dismount';
+    }
+  }
+  const ready = playing && story.stoneReady && reachT < 0;
+  if (ready) {
+    prompt = `${key('E', 'X')} leave a stone for whoever's next`;
+    if (cmd.interact) { reachT = 0; story.signal('stone'); }
+  }
+  setPrompt(prompt);
   if (reachT >= 0) {
     reachT += dt;
     avatar.reach = Math.sin(Math.PI * Math.min(1, reachT / 1.8));
@@ -280,6 +329,33 @@ function updateStone(dt) {
     }
     if (reachT >= 1.8) { reachT = -2; avatar.reach = 0; }
   }
+  // Sitting down on / getting up from the sled takes a moment; no steering until seated.
+  avatar.seated += ((player.sled ? 1 : 0) - avatar.seated) * Math.min(1, dt * 5);
+  if (player.sled && avatar.seated < 0.9) cmd = { ...cmd, moveX: 0, moveY: 0 };
+}
+
+// The sled under the rider (tilted to the snow, smoothly; held level-ish in the air), or resting
+// where it was left. Getting off, it slides out to the side as you stand up.
+const _sn = new THREE.Vector3(), _sq = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0);
+function placeSled(dt) {
+  const b = level.sled;
+  if (!b) return;
+  const hf = mountain.heightfield;
+  if (b.riding) {
+    if (player.grounded) _sn.copy(player.groundNormal);
+    else _sn.copy(sled.normal).lerp(_up, Math.min(1, dt * 1.5));
+    sled.place(renderPos.x, renderPos.y, renderPos.z, player.facing, _sn, 1 - Math.exp(-14 * dt));
+  } else {
+    hf.sample(b.x, b.z, _sn);
+    const y = hf.heightAt(b.x, b.z) - 0.02;
+    if (avatar.seated > 0.02) { // getting off: from under you to where it rests
+      const k = 1 - avatar.seated;
+      sled.place(THREE.MathUtils.lerp(renderPos.x, b.x, k), THREE.MathUtils.lerp(renderPos.y, y, k), THREE.MathUtils.lerp(renderPos.z, b.z, k), b.yaw, _sn, 1 - Math.exp(-10 * dt));
+    } else sled.place(b.x, y, b.z, b.yaw, _sn, 1);
+  }
+  // The rider tilts with the sled.
+  _sq.setFromUnitVectors(_up, sled.normal);
+  avatar.tilt.slerpQuaternions(avatar.tilt.identity(), _sq, avatar.seated);
 }
 
 // Title: a low camera beside the figure lying in the snow, looking up the valley toward the summit,
@@ -309,7 +385,7 @@ function updateAudio(dt) {
   audio.update(dt, {
     alt: THREE.MathUtils.clamp((player.pos.y + 10) / 140, 0, 1),
     speed: player.speed, airSpeed: player.speed + 6 * g.gust,
-    sliding: player.state === 'slide', grounded: player.grounded, surface: player.groundSurface,
+    sliding: player.state === 'slide' || player.state === 'sled', grounded: player.grounded, surface: player.groundSurface,
     sprinting: player.speed > 6.5, powder: player.groundSurface === SURFACE.POWDER, sitting: player.state === 'sit', climbing: player.state === 'run' && player.vel.y > 1.1,
     gust: g.gust, gustWarn: g.warn, gustSide: (g.x * _right.x + g.z * _right.z) / gl, whiteout: g.whiteout, stormNear: g.stormNear ?? 0, shelter: hollow,
     calm: flow.mode === 'ending' ? smooth(since, 4, 30) : 0,
@@ -336,7 +412,7 @@ function updateLook(dt) {
 function updateParticles(dt) {
   const t = level.time, v = player.vel, sp = player.speed;
   // Slide spray.
-  if (player.state === 'slide' && onSnow() && sp > 4) {
+  if ((player.state === 'slide' || player.state === 'sled') && onSnow() && sp > 4) {
     fx.sprayAcc += sp * dt * 3;
     for (; fx.sprayAcc >= 1; fx.sprayAcc--) {
       particles.emit(renderPos.x + rnd(0.3), renderPos.y + 0.05, renderPos.z + rnd(0.3), -v.x * 0.15 + rnd(2), 1.2 + Math.random() * 2.2, -v.z * 0.15 + rnd(2), 0.5 + Math.random() * 0.5, 0.05, 1, 0.6, 0);
@@ -375,7 +451,7 @@ function updateParticles(dt) {
 }
 
 // Dev/test handle (tools/smoke.mjs reads it).
-window.__game = { cam, avatar, tuning,
+window.__game = { cam, avatar, tuning, sled,
   // Dev: stand at route arc length s (facing along the route, or back down it).
   tp: (s, back = false) => { const p = mountain.route.at(s), yaw = p.yaw + (back ? Math.PI : 0); player.teleport([p.x, mountain.heightfield.heightAt(p.x, p.z), p.z], yaw); cam.reset(player.pos, yaw); return s; },
   skipEnding: (sec) => { summitTime -= sec; }, renderer, pipeline, level, player, trails, quality, gpuTimer, audio, flow, narrator, story, props, mountain, input, extra: () => ({ tier: quality.tier.name, scale: quality.scale, bench: quality.benchResult }), get calls() { return renderer.info.render.calls; }, get tris() { return renderer.info.render.triangles; } };
@@ -405,7 +481,8 @@ createLoop({
       if (flow.wake >= 1) { flow.controlsT = 0; controlsEl.style.opacity = 1; }
     }
     if (flow.wake === null || flow.wake < 1) cmd = { ...cmd, moveX: 0, moveY: 0, jumpPressed: false, jumpHeld: false, slideHeld: false };
-    updateStone(frameDt);
+    updatePrompts(frameDt);
+    updateHints(frameDt);
     if (controlsEl.style.opacity === '1' && (flow.controlsT += frameDt) > 16) controlsEl.style.opacity = 0;
     if (flow.mode === 'ending') {
       const since = level.time - summitTime;
@@ -420,6 +497,9 @@ createLoop({
     const w = level.wind;
     player.vel.x += w.x * dt;
     player.vel.z += w.z * dt;
+    if (flow.request === 'mount' && level.sledNear(player)) level.mount(player);
+    else if (flow.request === 'dismount' && player.sled) level.dismount(player);
+    flow.request = null;
     if (flow.mode === 'ending') { const d = ending.drive(player); player.step(dt, d.cmd, d.camYaw); }
     else player.step(dt, step === 0 ? cmd : { ...cmd, jumpPressed: false }, cam.yaw);
     if (player.events.some((e) => e.type === 'jump')) story.signal('jump');
@@ -428,16 +508,29 @@ createLoop({
     for (const l of story.out) narrator.push(l);
     story.out.length = 0;
     for (const e of level.events) {
-      if (e.type === 'oob') { if (!respawn) story.respawned(mountain.route.sectionIndexAt(props.cairns[level.checkpoint].s)); startRespawn(); }
+      if (e.type === 'oob') {
+        if (!respawn) story.respawned(mountain.route.sectionIndexAt(props.cairns[level.checkpoint].s));
+        if (level.section === level.sledSection && !player.sled && !level.sled.done) hint('sled-again', 'the crevasse is too wide to jump · take the sled from the cairn', 6);
+        startRespawn();
+      }
       else if (e.type === 'checkpoint') {
         if (flow.firstCheckpoint) showToast('a cairn · if you fall, you come back here', 3.5);
         flow.firstCheckpoint = false;
+        if (e.cairn.section === level.sledSection && !level.sled.done) hint('sled', 'someone left a sled by the cairn', 5);
         audio.bell('O');
         for (let i = 0; i < 60; i++) particles.emit(e.cairn.x + rnd(0.5), e.cairn.y + 0.8 + rnd(0.5), e.cairn.z + rnd(0.5), rnd(1.5), 1 + Math.random() * 2, rnd(1.5), 2 + Math.random(), 0.03, 0, 0.05, 2);
       }
       else if (e.type === 'summit') { summitTime = e.time; startEnding(); }
+      else if (e.type === 'mount') hint('steer', () => `${key('A', 'stick')} ${key('D')} steer &nbsp;·&nbsp; ${key('S', 'stick down')} brake`, 7);
+      else if (e.type === 'launch') audio.breath(1, 0.5);
     }
     level.events.length = 0;
+    if (flow.mode === 'playing') {
+      if (level.wind.warn) hint('gust', 'the wind is rising · stand still until the gust passes · rock gives shelter', 7);
+      // Walked on down the chutes without the sled.
+      const b = level.sled;
+      if (b && !b.done && !player.sled && level.section === level.sledSection && (b.x - player.pos.x) ** 2 + (b.z - player.pos.z) ** 2 > 18 ** 2 && level.s > b.s + 10) hint('sled-back', 'the ice is too fast on foot · the sled is back by the cairn', 6);
+    }
     // Safety net: stuck without progress for a while (in a hollow, or fighting a slope) → remind
     // once that R returns to the last cairn. Never at the top or in the ending.
     const moving = player.speed > 1.5;
@@ -467,12 +560,13 @@ createLoop({
     updateRespawn(frameDt);
     renderPos.lerpVectors(player.prevPos, player.pos, alpha);
     // Deformable snow: the path (a groove; deeper when sliding) and footprints from the gait.
-    const snow = onSnow(), sliding = player.state === 'slide';
-    trails.update(renderPos, snow ? (sliding ? { radius: 0.45, depth: 1 } : { radius: 0.24, depth: 0.6 }) : null);
-    const sink = snow && player.groundSurface === SURFACE.POWDER ? (sliding ? 0.3 : 0.18) : snow ? (sliding ? 0.1 : 0.07) : 0;
+    const snow = onSnow(), sliding = player.state === 'slide', sledding = player.state === 'sled';
+    trails.update(renderPos, snow ? (sliding ? { radius: 0.45, depth: 1 } : sledding ? { radius: 0.32, depth: 0.7 } : { radius: 0.24, depth: 0.6 }) : null);
+    const sink = sledding ? (snow ? 0.04 : 0) : snow && player.groundSurface === SURFACE.POWDER ? (sliding ? 0.3 : 0.18) : snow ? (sliding ? 0.1 : 0.07) : 0;
     avatarSink += (sink - avatarSink) * Math.min(1, frameDt * 8);
     renderPos.y -= avatarSink;
     const crouch = THREE.MathUtils.lerp(player.prevCrouch, player.crouch, alpha);
+    placeSled(frameDt);
     avatar.update(player, renderPos, alpha, frameDt);
     if (flow.mode === 'title') titleCamera(flow.t);
     else if (flow.mode === 'ending') ending.camera(camera, level.time - summitTime, atmosphere.sunDir);

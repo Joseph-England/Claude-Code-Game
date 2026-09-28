@@ -1,6 +1,7 @@
-# ALPENGLOW — Design
+# MOUNTAIN — Design
 
-*Alpenglow: the red-violet light that stays on the peaks after the sun has already gone.*
+*Mountain* (renamed from Alpenglow, DECISIONS #97). Alpenglow — the red-violet light that stays on
+the peaks after the sun has already gone — is still the ending's light.
 
 A ~5-minute, single-level, momentum-driven 3D platformer about climbing a snow mountain at sunset,
 and about depression. Browser, Three.js, everything procedural.
@@ -55,8 +56,10 @@ player could already see ("look how far there is to fall", "I'm not the first on
 |---|---|---|---|
 | 1 | 0 Opening — lying in the snow, before any input | W | stay down. it's easier. |
 | 2 | 0 — first input (you get up) | Y | Get up. |
+| 31 | 0 — straight after 2 (the first cairn is 10 m ahead) | Y | A cairn. Someone marked the way. |
 | 4 | 1 Foot — first jump (or by the bank) | Y | One thing. Then the next. |
 | 5 | 2 Powder — into the deep powder | W | everything takes more than it should. |
+| 32 | 2 — end of the powder, the chutes' cairn and the sled in view | Y | Someone left a sled by that cairn. |
 | 8 | 3 Chutes — stepping off the sled at the bottom (no words while you ride) | Y | Oh. I forgot what that felt like. |
 | 18 | 6 — note in cairn A | O | I stopped here too. It passed. |
 | 19 | 6 — note in cairn B | O | Keep the stones on your left. Rest if you need to. |
@@ -76,15 +79,15 @@ on screen at a time from a queue: fade in (W 1.4 s, Y 0.8 s, O 0.9 s), hold 2.2 
 stand at its cairn. Each line has a soft bell under it (W low and dull, Y warm, O a small chime).
 The Weight shrinks and fades a little over the climb but never disappears.
 
-### Credits
-Short, plain: title, "made with Three.js and Web Audio, everything generated in code", then:
-*"If you're carrying something heavy, you don't have to carry it alone. findahelpline.com lists free,
-confidential support in many countries."* Small, unobtrusive, not a pop-up.
+### End card
+Three lines on black, fading in one after another: "Mountain", "Thanks for playing.", "refresh page
+to begin again" (DECISIONS #97: no credits, no messages, no click-to-restart). The title screen has
+no content note.
 
 ### Care rules
 No death imagery, no self-harm, no "the Weight wins" ending. Falling off the mountain is a soft
-fade-and-return at the last cairn, never a death animation. The Weight's worst line (11) is always
-immediately answered (12). No line points at heights or falling as an escape (the draft's "look how
+fade-and-return at the last cairn, never a death animation. Every Weight line that cuts deep is
+answered. No line points at heights or falling as an escape (the draft's "look how
 far there is to fall" was cut for that reason). The Weight never gets the last word: every W line in
 the last two sections is answered.
 
@@ -339,7 +342,7 @@ src/
 - **Terrain rendering**: chunked grid (e.g. 16×16 chunks) with 3 geometric LODs + skirts, height in
   a float texture sampled in the vertex shader so LODs share data and trails can displace.
 - **Render pipeline**: HDR render target → sky → opaque (terrain, props, avatar) → particles → post.
-- **Game flow**: Title → Playing (sections 0–8) → Ending → Credits → Title.
+- **Game flow**: Title → Playing (sections 0–8) → Ending → End card (refresh to play again).
 
 ### Quality tiers (auto-selected by a 2 s warm-up benchmark; overridable in settings)
 | | Low | Medium (target: integrated GPU) | High |

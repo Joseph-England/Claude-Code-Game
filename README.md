@@ -1,4 +1,4 @@
-# Alpenglow
+# Mountain
 
 A short, momentum-driven 3D platformer for the browser: climbing a snow mountain at sunset, and a
 quiet story about depression told through a few lines of inner voice. One level, about five minutes.

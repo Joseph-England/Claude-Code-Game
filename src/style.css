@@ -103,19 +103,14 @@ kbd {
 #title { background: #140d1d; cursor: default; }
 #title.ready { background: linear-gradient(180deg, rgba(14, 9, 22, 0.1) 0%, rgba(14, 9, 22, 0.25) 45%, rgba(14, 9, 22, 0.8) 100%); cursor: pointer; }
 #title.gone, #credits:not(.show) { opacity: 0; pointer-events: none; }
-/* Centred on both axes. The heading is wider than the note (its letter-spacing is large), so the
-   column is sized by the viewport and the note keeps its own measure; text-indent balances the
-   trailing letter-spacing so the word's ink is centred, not its box. */
+/* Centred on both axes. The heading's letter-spacing is large, so the column is sized by the
+   viewport; text-indent balances the trailing letter-spacing so the word's ink is centred. */
 #title .inner { width: min(92vw, 900px); padding: 24px; box-sizing: border-box; }
 #title h1 {
   font-weight: normal; font-size: clamp(30px, 7vw, 72px); letter-spacing: 0.32em; margin: 0 0 6px; text-indent: 0.32em; white-space: nowrap;
   text-transform: uppercase; color: #fff3f0; text-shadow: 0 0 30px rgba(255, 150, 170, 0.35), 0 2px 10px rgba(0, 0, 0, 0.6);
 }
 #title .sub { font-style: italic; font-size: 18px; margin: 0 0 34px; color: #f2d9df; text-shadow: 0 1px 6px #000; }
-#title .note {
-  font: 14px/1.6 system-ui, sans-serif; color: #e3dbe8; background: rgba(12, 8, 20, 0.55); padding: 12px 18px;
-  border-radius: 10px; margin: 0 auto 26px; max-width: 520px;
-}
 #status { font: 14px/1.4 system-ui, sans-serif; letter-spacing: 0.12em; color: #d8cfe0; text-transform: lowercase; }
 #title.ready #status { animation: breathe 3.2s ease-in-out infinite; }
 @keyframes breathe { 50% { opacity: 0.45; } }
@@ -123,15 +118,10 @@ kbd {
 #credits .roll { max-width: 560px; padding: 24px; }
 #credits .roll > * { opacity: 0; transition: opacity 2.4s; }
 #credits.show .roll > * { opacity: 1; }
-#credits.show .roll > :nth-child(2) { transition-delay: 1.5s; }
-#credits.show .roll > :nth-child(3) { transition-delay: 3s; }
-#credits.show .roll > :nth-child(4) { transition-delay: 5.5s; }
-#credits.show .roll > :nth-child(5) { transition-delay: 9s; }
-#credits.show .roll > :nth-child(6) { transition-delay: 13s; }
+#credits.show .roll > :nth-child(2) { transition-delay: 2s; }
+#credits.show .roll > :nth-child(3) { transition-delay: 5s; }
 #credits .back { margin-top: 30px; opacity: 0.6; }
 #credits h2 { font-weight: normal; letter-spacing: 0.32em; text-transform: uppercase; font-size: 30px; margin: 0 0 18px 0.32em; color: #fff0ee; }
 #credits p { font-size: 17px; margin: 0 0 22px; }
 #credits .small { font: 13px/1.6 system-ui, sans-serif; color: #b8aec2; }
-#credits .care { font: 15px/1.7 system-ui, sans-serif; color: #e8e0ee; margin-top: 44px; }
-#credits a { color: #ffc9a8; }
 #credits .thanks { margin-top: 44px; }

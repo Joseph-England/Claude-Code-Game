@@ -10,7 +10,7 @@ export const world = {
   uIllum: { value: ATMO.sunIlluminance }, uTintHigh: { value: new THREE.Vector3(1, 1, 1) }, uTintLow: { value: new THREE.Vector3(1, 1, 1) },
   tSunVis: { value: null }, tSunVisPrev: { value: null }, uSunVisMix: { value: 1 }, uSunVisOrigin: { value: new THREE.Vector2() }, uSunVisSize: { value: 1024 },
   uAmbient: { value: 1 }, uBounce: { value: new THREE.Color() }, uTime: { value: 0 },
-  // Alpenglow: after sunset the high peaks keep a red-violet light (DESIGN §1, title).
+  // Alpenglow: after sunset the high peaks keep a red-violet light (DESIGN §1).
   uGlow: { value: new THREE.Color() }, uGlowDir: { value: new THREE.Vector3(1, 0, 0) }, uGlowH: { value: 0 },
   // The nearest storm lantern (world/beacons.js): a warm point light on everything around it.
   uLampPos: { value: new THREE.Vector3(0, -1e4, 0) }, uLampColor: { value: new THREE.Color(0, 0, 0) },

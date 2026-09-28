@@ -55,6 +55,7 @@ const SNOW_VERT = /* glsl */`
   ${COMMON}
   attribute vec4 seed;
   uniform float uBox, uSize, uStreak, uLayer, uGroundSize, uFall;
+  uniform vec2 uCarry;
   uniform sampler2D tGround; // smoothed terrain height (8 m cells)
   uniform vec2 uGroundOrigin;
   varying vec3 vTint;
@@ -63,6 +64,10 @@ const SNOW_VERT = /* glsl */`
     float t = uTime * (0.7 + 0.6 * seed.w), fall = uFall * (1.0 + 0.7 * seed.w);
     vec2 xz = seed.xz * uBox + uWind.xz * t + 0.35 * vec2(sin(t * 1.3 + seed.x * 40.0), cos(t * 1.1 + seed.z * 40.0));
     vec3 cam = cameraPosition;
+    // The flakes are world-fixed, but carried along by the camera's walking-pace movement (uCarry):
+    // with the wind up top, walking into it made them stream past at wind + walking speed — snow
+    // that "speeds up when you move" (user playtest, Session 12; DECISIONS #97).
+    xz += uCarry;
     xz = mod(xz - cam.xz + uBox * 0.5, uBox) - uBox * 0.5 + cam.xz;
     // Height above the (smoothed) ground: falls at its own rate and wraps in a layer uLayer deep
     // that starts a little under the surface, so flakes settle into the snow.
@@ -164,7 +169,8 @@ export class Particles {
     const seeds = new Float32Array(snow * 4);
     for (let i = 0; i < seeds.length; i++) seeds[i] = Math.random();
     this.ground = { tGround: { value: ground?.texture ?? null }, uGroundOrigin: { value: new THREE.Vector2(...(ground?.origin ?? [0, 0])) }, uGroundSize: { value: ground?.size ?? 1 } };
-    this.snowMat = material(SNOW_VERT, { ...shared, ...this.ground, uBox: { value: 44 }, uSize: { value: 0.035 }, uStreak: { value: 0 }, uLayer: { value: 28 }, uFall: { value: 1.1 } }, 0);
+    this.snowMat = material(SNOW_VERT, { ...shared, ...this.ground, uBox: { value: 44 }, uSize: { value: 0.035 }, uStreak: { value: 0 }, uLayer: { value: 28 }, uFall: { value: 1.1 }, uCarry: { value: new THREE.Vector2() } }, 0);
+    this._lastCam = null;
     this.snow = new THREE.Mesh(quadGeometry(snow, [['seed', 4, seeds]]), this.snowMat);
     this.snow.frustumCulled = false;
     this.snow.renderOrder = 10;
@@ -216,6 +222,14 @@ export class Particles {
     this.wind.value.copy(o.wind);
     this.snow.geometry.instanceCount = Math.min(this.snowMax, Math.round((this.snowTier ?? this.snowMax) * o.snowDensity));
     this.snow.visible = this.snow.geometry.instanceCount > 0;
+    // Carry the snow along with the camera at walking pace (follow 0…1; a teleport doesn't count).
+    if (o.cam) {
+      if (this._lastCam) {
+        const dx = o.cam.x - this._lastCam.x, dz = o.cam.z - this._lastCam.z;
+        if (dx * dx + dz * dz < 25) this.snowMat.uniforms.uCarry.value.add({ x: dx * (o.follow ?? 0), y: dz * (o.follow ?? 0) });
+      }
+      this._lastCam = { x: o.cam.x, z: o.cam.z };
+    }
     this.snowMat.uniforms.uStreak.value = o.streak ?? 0;
     this.snowMat.uniforms.uFall.value = o.fall ?? 1.1;
     this.snowMat.uniforms.uSize.value = 0.03 + 0.03 * (o.streak ?? 0);

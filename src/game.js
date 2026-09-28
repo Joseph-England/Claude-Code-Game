@@ -17,6 +17,7 @@ import { Controller } from './player/controller.js';
 import { ThirdPersonCamera } from './player/camera.js';
 import { Avatar } from './player/avatar.js';
 import { Sled } from './world/sled.js';
+import { Beacons } from './world/beacons.js';
 import { TerrainRenderer, createBackdrop } from './render/terrain.js';
 import { createLights } from './render/lights.js';
 import { Pipeline } from './render/post.js';
@@ -29,7 +30,7 @@ import { Particles } from './render/particles.js';
 import { startupTier, Quality, GpuTimer } from './render/quality.js';
 import { glitter } from './render/snow.js';
 import { SURFACE } from './world/surfaces.js';
-import { STORM_R, STORM_TOP, STORM_NORM } from './world/storm.js';
+import { STORM_R, STORM_TOP, STORM_NORM, stormAt } from './world/storm.js';
 import { litMaterial, world as worldU } from './render/materials.js';
 import { sunElevation, SUN_AZIMUTH, snowDensity, grade } from './render/arc.js';
 import { DebugOverlay } from './debug/overlay.js';
@@ -98,6 +99,8 @@ const player = new Controller(world, tuning);
 const cam = new ThirdPersonCamera(camera, world, tuning);
 const avatar = new Avatar(scene, tuning);
 const sled = new Sled(scene);
+const noteCairns = story.lines.filter((l) => l.note).map((l) => l.note);
+const beacons = new Beacons(scene, noteCairns, mountain.heightfield);
 // Each heel strike: a footprint, a step sound (panned to that foot; soft for shuffling turns) and
 // a little kick of snow off the boot (more in deep powder).
 avatar.onFoot = (x, z, ctl, side, shuffle) => {
@@ -358,6 +361,31 @@ function placeSled(dt) {
   avatar.tilt.slerpQuaternions(avatar.tilt.identity(), _sq, avatar.seated);
 }
 
+// The note cairns' lanterns: flicker and flags; the nearest one lights its surroundings; each
+// scatters a halo through the storm (fog.js). First sight of one gets a hint.
+function updateBeacons() {
+  const lamps = beacons.update(level.time, fx.wind);
+  let near = null, nd = Infinity;
+  lamps.forEach((l, i) => {
+    const d2 = l.pos.distanceToSquared(player.pos);
+    if (d2 < nd) { nd = d2; near = l; }
+    const sigma = stormAt(level.storm, l.pos.x, l.pos.z) / 16 + 0.004; // snow in the air by the lamp (1/m)
+    fog.u.uLamp.value[i].set(l.pos.x, l.pos.y, l.pos.z, 15 * sigma * l.glow);
+    fog.u.uLampSigma.value[i] = sigma * 0.85;
+  });
+  if (near) {
+    worldU.uLampPos.value.copy(near.pos);
+    worldU.uLampColor.value.setRGB(1.0, 0.6, 0.28).multiplyScalar(2.6 * near.glow);
+  }
+  if (flow.mode === 'playing' && nd < 24 ** 2) hint('note', 'a lantern by a cairn · someone left a note there', 5);
+  // Walking away from the last note's cairn without leaving a stone: say once that you still can.
+  const stone = story.lines.find((l) => l.when === 'stone'), c = noteCairns.at(-1);
+  if (flow.mode === 'playing' && stone && !stone.fired && story.lines.find((l) => l.note === c)?.fired) {
+    const d = Math.hypot(c.x - player.pos.x, c.z - player.pos.z);
+    if (d > 9 && d < 20) hint('stone-miss', 'you can still go back and leave a stone on that cairn', 6);
+  }
+}
+
 // Title: a low camera beside the figure lying in the snow, looking up the valley toward the summit,
 // drifting very slowly.
 const _look = new THREE.Vector3();
@@ -579,6 +607,7 @@ createLoop({
     const sinceSummit = summitTime === null ? -1 : level.time - summitTime;
     atmosphere.setSun(sunElevation(level.progressFraction, sinceSummit), SUN_AZIMUTH, level.time);
     updateParticles(frameDt);
+    updateBeacons();
     updateAudio(frameDt);
     updateLook(frameDt);
     lights.update(atmosphere.sunDir, atmosphere.sunColor);

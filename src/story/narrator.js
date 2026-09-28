@@ -22,7 +22,20 @@ export class Narrator {
 
   get idle() { return !this.cur && !this.queue.length; }
 
-  push(line, opts = {}) { this.queue.push({ line, ...opts }); }
+  /**
+   * Queue a line. A note (Others) is a thing in your hands, not a thought: it goes to the front of
+   * the queue and a line still showing lets go quickly, so a note never waits behind the last
+   * section's line (user playtest, Session 7; DECISIONS #85).
+   */
+  push(line, opts = {}) {
+    if (line.voice !== 'O') { this.queue.push({ line, ...opts }); return; }
+    this.queue.unshift({ line, ...opts });
+    const c = this.cur;
+    if (c && c.line.voice !== 'O') {
+      if (c.phase === 'hold') { c.phase = 'out'; c.t = 0; c.quick = true; this.el.style.setProperty('--fade-out', '0.35s'); this.el.classList.remove('show'); this.vig.style.opacity = 0; }
+      else c.quick = true;
+    }
+  }
 
   /** Let the current line go early (e.g. the player got up while "stay down" was showing). */
   hurry() { if (this.cur?.phase === 'hold') { this.cur.hold = Math.min(this.cur.hold, this.cur.t + 0.2); this.cur.release = true; } }
@@ -46,11 +59,11 @@ export class Narrator {
         c.t = 0;
         this.el.classList.remove('show');
         this.vig.style.opacity = 0;
-      } else if (c.phase === 'out' && c.t >= tm.fadeOut) {
+      } else if (c.phase === 'out' && c.t >= (c.quick ? Math.min(0.35, tm.fadeOut) : tm.fadeOut)) {
         this.cur = null;
         this.el.className = '';
-        // Answers come quickly; unrelated lines leave room to breathe.
-        this.gap = this.queue[0]?.line.after === c.line.id ? 0.3 : 1.2;
+        // Answers come quickly; unrelated lines leave room to breathe; a note comes at once.
+        this.gap = this.queue[0]?.line.voice === 'O' ? 0.1 : this.queue[0]?.line.after === c.line.id ? 0.3 : 1.2;
       }
       return;
     }

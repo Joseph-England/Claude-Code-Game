@@ -9,19 +9,28 @@
 //     col (world/storm.js). Each view ray's optical depth through them is integrated analytically
 //     (density 1 − r²/R² along a line is a cubic), thinned above the col and streamed with the
 //     wind by a little noise — so the storm is a place: a white wall in the gap as you approach,
-//     a ~16 m whiteout inside, and still there behind you when you come out.
+//     a ~16 m whiteout inside, and still there behind you when you come out;
+//   - the storm lanterns at the note cairns (DECISIONS #85): each one's light scattered toward the
+//     eye by the snow in the air along the view ray — the closed-form in-scattering of a point
+//     light in a uniform medium, I·σ/h·[atan((D − t₀)/h) − atan(−t₀/h)] — dimmed by the snow
+//     between you and the lamp, so in the storm they are halos you can walk toward.
 import * as THREE from 'three';
 import { makePass } from './post.js';
 import { WORLD_PARS, world } from './materials.js';
 
 const STORM_N = 12;
+export const LAMP_N = 3;
 const FRAG = /* glsl */`
   #define STORM_N ${STORM_N}
+  #define LAMP_N ${LAMP_N}
   #include <packing>
   uniform sampler2D tHDR, tDepth;
   uniform float uNear, uFar, uAerial, uFogDensity, uFogHeight, uFogBase, uStormR, uStormTop; // uTime: WORLD_PARS
   uniform vec4 uStorm[STORM_N]; // x, z, density (1/m at the centre), base height
   uniform vec3 uStormFlow;
+  uniform vec4 uLamp[LAMP_N]; // position, amplitude (intensity × local snow density)
+  uniform float uLampSigma[LAMP_N]; // local extinction (1/m) between you and the lamp
+  uniform vec3 uLampTint;
   uniform mat4 uInvProj, uCamWorld;
   uniform vec3 uCamPos, uSunColor, uWhiteColor;
   varying vec2 vUv;
@@ -58,6 +67,18 @@ const FRAG = /* glsl */`
     }
     return tau;
   }
+  vec3 lampHalo(vec3 ro, vec3 rd, float D) {
+    vec3 sum = vec3(0.0);
+    for (int i = 0; i < LAMP_N; i++) {
+      vec4 l = uLamp[i];
+      if (l.w <= 0.0) continue;
+      vec3 o = l.xyz - ro;
+      float t0 = dot(o, rd), h = max(length(o - rd * t0), 0.12);
+      float s = (atan((D - t0) / h) - atan(-t0 / h)) / h;
+      sum += l.w * s * exp(-uLampSigma[i] * length(o));
+    }
+    return sum * uLampTint;
+  }
   void main() {
     vec3 col = texture2D(tHDR, vUv).rgb;
     float depth = texture2D(tDepth, vUv).r;
@@ -68,7 +89,7 @@ const FRAG = /* glsl */`
     float muS = max(dot(rd, uSunDir), 0.0);
     vec3 stormCol = uWhiteColor + uSunColor * 0.02 * (0.3 + 2.0 * pow(muS, 5.0)) * smoothstep(-0.02, 0.1, uSunDir.y);
     if (depth >= 1.0) {
-      gl_FragColor = vec4(mix(col, stormCol, 1.0 - exp(-stormDepth(uCamPos, rd, 1500.0))), 1.0);
+      gl_FragColor = vec4(mix(col, stormCol, 1.0 - exp(-stormDepth(uCamPos, rd, 1500.0))) + lampHalo(uCamPos, rd, 1500.0), 1.0);
       return;
     }
     float viewZ = perspectiveDepthToViewZ(depth, uNear, uFar);
@@ -95,6 +116,7 @@ const FRAG = /* glsl */`
     col = mix(col, fogCol, fogAmt);
     // The storm in the gap.
     col = mix(col, stormCol, 1.0 - exp(-stormDepth(uCamPos, rd, d)));
+    col += lampHalo(uCamPos, rd, d);
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -110,6 +132,8 @@ export class FogPass {
       uStorm: { value: Array.from({ length: STORM_N }, () => new THREE.Vector4()) }, uStormR: { value: 34 }, uStormTop: { value: 34 },
       uStormFlow: { value: new THREE.Vector3() },
       uWhiteColor: { value: new THREE.Color(0.8, 0.8, 0.86) },
+      uLamp: { value: Array.from({ length: LAMP_N }, () => new THREE.Vector4()) }, uLampSigma: { value: new Array(LAMP_N).fill(0) },
+      uLampTint: { value: new THREE.Color(1.0, 0.62, 0.3) },
     });
     this.u = this.p.u;
   }

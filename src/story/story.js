@@ -78,7 +78,8 @@ export class Story {
     // After reading the last note of a section you can leave a stone on that cairn.
     const stone = this.lines.find((l) => l.when === 'stone' && !l.fired);
     const lastNote = stone && this.lines.filter((l) => l.when === 'cairn' && l.section === stone.section).at(-1);
-    this.stoneReady = !!(stone && lastNote?.fired && here === lastNote);
+    // Within a few steps of that cairn (a little wider than reading range, so it isn't missed).
+    this.stoneReady = !!(stone && lastNote?.fired && (lastNote.note.x - ctl.pos.x) ** 2 + (lastNote.note.z - ctl.pos.z) ** 2 < 7 ** 2);
     if (this.stoneReady && this.signals.has('stone')) { this.fire(stone); this.stoneCairn = lastNote.note; }
     this.signals.delete('jump');
     this.signals.delete('stone');

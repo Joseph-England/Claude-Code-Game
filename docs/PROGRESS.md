@@ -118,8 +118,8 @@ Playtest notes from Session 6's build (done first, Session 7):
 - [x] Scarf replaced by a knitted neck gaiter (no cloth simulation) (DECISIONS #82)
 - [x] Better climber model and walk (feet that roll heel to toe, hip sway, pelvis turn, trekking poles, hood, gaiters) (DECISIONS #82)
 - [x] Sled at the chutes cairn replaces the boot-slide; the kicker launches cleanly over the crevasse (DECISIONS #83)
-- [ ] Contextual hints (what to do, when it matters)
-- [ ] Note cairns draw you in (lanterns and prayer flags); notes never collide with earlier lines; the stone beat can't be missed
+- [x] Contextual hints (what to do, when it matters) (DECISIONS #84)
+- [x] Note cairns draw you in (lanterns and prayer flags); notes never collide with earlier lines; the stone beat can't be missed (DECISIONS #85)
 - [ ] Blizzard snow travels along the slope and falls; more blowing snow at the top
 - [ ] New sun
 - [ ] Backdrop ranges that read as real mountains

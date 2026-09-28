@@ -221,7 +221,8 @@ else {
     // The bot gets up at once; a player lies there a few seconds, then the get-up takes 2.6 s.
     const at = l.id === 1 ? 0 : l.id === 2 ? 4 : 6.6 + bt * pace;
     const gap = prev ? (l.after === prev.id ? 0.3 : 1.2) : 0;
-    const start = Math.max(at, free + gap), [fi, fo] = T[l.voice];
+    // A note cuts in at once (the line before it lets go: DECISIONS #85).
+    const start = l.voice === 'O' ? Math.max(at, Math.min(free, at + 0.45)) : Math.max(at, free + gap), [fi, fo] = T[l.voice];
     const hold = Math.max(l.voice === 'O' ? 4.5 : 2.6, 2.2 + 0.055 * l.text.length);
     free = start + fi + hold + fo;
     prev = l;

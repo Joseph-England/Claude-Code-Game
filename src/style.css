@@ -39,8 +39,8 @@ html, body {
 }
 #controls { bottom: 12px; }
 #toast { top: 16%; font-size: 15px; letter-spacing: 0.06em; }
-#prompt { bottom: 24%; font-size: 15px; letter-spacing: 0.05em; padding: 7px 16px; background: rgba(12, 10, 22, 0.62); }
-#hint { bottom: 31%; font-size: 14px; letter-spacing: 0.04em; padding: 6px 15px; transition: opacity 0.6s; }
+#prompt { bottom: 29%; font-size: 15px; letter-spacing: 0.05em; padding: 7px 16px; background: rgba(12, 10, 22, 0.62); }
+#hint { bottom: 35.5%; font-size: 14px; letter-spacing: 0.04em; padding: 6px 15px; transition: opacity 0.6s; }
 /* Key caps in prompts and hints. */
 kbd {
   display: inline-block; min-width: 1.1em; padding: 1px 6px; margin: 0 2px; border-radius: 5px; text-align: center;

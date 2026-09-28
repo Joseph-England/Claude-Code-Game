@@ -329,6 +329,7 @@ function setPrompt(html) {
 // leave a stone of your own on that cairn: the figure crouches and reaches, a stone lands on the
 // stack with a knock, the note lets go and "I'll leave one too." follows.
 const stoneGeo = new THREE.DodecahedronGeometry(0.16, 0).scale(1, 0.62, 1.1);
+const _reachAt = new THREE.Vector3();
 function updatePrompts(dt) {
   const playing = flow.mode === 'playing' && flow.wake >= 1 && !respawn;
   let prompt = null;
@@ -352,6 +353,14 @@ function updatePrompts(dt) {
   if (reachT >= 0) {
     reachT += dt;
     avatar.reach = Math.sin(Math.PI * Math.min(1, reachT / 1.8));
+    // Turn to the cairn and reach for its top.
+    const c = story.stoneCairn;
+    if (c) {
+      avatar.reachTarget = _reachAt.set(c.x, c.top + 0.05, c.z);
+      const want = Math.atan2(-(c.x - player.pos.x), -(c.z - player.pos.z)), d = Math.atan2(Math.sin(want - player.facing), Math.cos(want - player.facing));
+      player.prevFacing = player.facing;
+      player.facing += Math.max(-3 * dt, Math.min(3 * dt, d));
+    }
     cmd = { ...cmd, moveX: 0, moveY: 0, jumpPressed: false, slideHeld: false };
     if (reachT >= 0.9 && !stoneMesh && story.stoneCairn) {
       const c = story.stoneCairn;
@@ -364,7 +373,7 @@ function updatePrompts(dt) {
       narrator.hurry();
       for (let i = 0; i < 16; i++) particles.emit(c.x + rnd(0.3), c.top, c.z + rnd(0.3), rnd(0.6), 0.4 + Math.random() * 0.6, rnd(0.6), 1.5 + Math.random(), 0.02, 0, 0.1, 2);
     }
-    if (reachT >= 1.8) { reachT = -2; avatar.reach = 0; }
+    if (reachT >= 1.8) { reachT = -2; avatar.reach = 0; avatar.reachTarget = null; }
   }
   // Sitting down on / getting up from the sled takes a moment; no steering until seated.
   avatar.seated += ((player.sled ? 1 : 0) - avatar.seated) * Math.min(1, dt * 5);
